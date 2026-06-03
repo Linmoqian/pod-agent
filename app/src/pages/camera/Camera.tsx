@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useCameraStore } from "../store/appStore";
+import { useCameraStore } from "../../store/appStore";
 import { X, Zap, ZapOff, Timer, Settings, Scan, RefreshCw } from "lucide-react";
 
 const modes = [

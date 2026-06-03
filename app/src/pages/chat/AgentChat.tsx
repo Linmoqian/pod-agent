@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useChatStore } from "../store/appStore";
+import { useChatStore } from "../../store/appStore";
 import { Plus, Search, MessageSquare, Paperclip, FileSpreadsheet, Sparkles, ChevronDown, Columns2, ArrowUp, Mic, Camera, Code, Image, X, Trash2 } from "lucide-react";
 
 const tableData = [

@@ -2,12 +2,12 @@ import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
 import { Home as HomeIcon, Settings as SettingsIcon, FolderOpen, MessageSquare, Camera as CameraIcon, Table2 } from "lucide-react";
 import "./styles/global.css";
 
-import HomePage from "./pages/Home";
-import SettingsPage from "./pages/Settings";
-import FileManagerPage from "./pages/FileManager";
-import AgentChatPage from "./pages/AgentChat";
-import CameraPage from "./pages/Camera";
-import ExcelPreviewPage from "./pages/ExcelPreview";
+import HomePage from "./pages/home/Home";
+import SettingsPage from "./pages/settings/Settings";
+import FileManagerPage from "./pages/files/FileManager";
+import AgentChatPage from "./pages/chat/AgentChat";
+import CameraPage from "./pages/camera/Camera";
+import ExcelPreviewPage from "./pages/excel/ExcelPreview";
 
 const navItems = [
   { to: "/", label: "首页", icon: HomeIcon },

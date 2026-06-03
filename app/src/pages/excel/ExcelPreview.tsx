@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useExcelStore } from "../store/appStore";
+import { useExcelStore } from "../../store/appStore";
 import { Undo2, Redo2, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, PaintBucket, Grid3x3, SquareStack, ListFilter, ArrowUpDown, BarChart3, Plus } from "lucide-react";
 
 const cols = ["A", "B", "C", "D", "E", "F", "G"];

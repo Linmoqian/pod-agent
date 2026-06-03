@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useSettingsStore } from "../store/appStore";
+import { useSettingsStore } from "../../store/appStore";
 import { Settings as SettingsIcon, User, HardDrive, Bell, Info, Bot, Key } from "lucide-react";
-import { SettingsRow, Section } from "../components";
+import { SettingsRow, Section } from "../../components";
 
 const navItems = [
   { id: "general", label: "通用", icon: SettingsIcon },
