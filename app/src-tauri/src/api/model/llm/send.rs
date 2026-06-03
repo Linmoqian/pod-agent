@@ -1,10 +1,23 @@
 use crate::agent::session::{Message, db::DbState};
 use crate::api::model::llm::llm_provider::LLMConfig;
-use crate::api::model::llm::receive::parse_llm_response;
+use crate::api::model::llm::receive::parse_stream_chunk;
 use chrono::Local;
 use rusqlite::params;
-use tauri::State;
+use tauri::{Emitter, State};
 use uuid::Uuid;
+
+/// SSE 流事件 payload
+#[derive(Clone, serde::Serialize)]
+struct LlmChunkEvent {
+    session_id: String,
+    delta: String,
+}
+
+#[derive(Clone, serde::Serialize)]
+struct LlmDoneEvent {
+    session_id: String,
+    message: Message,
+}
 
 /// 内部：读取 LLM 配置文件（不走 Tauri command）
 fn load_config() -> Result<LLMConfig, String> {
@@ -67,24 +80,26 @@ fn touch_session(conn: &rusqlite::Connection, session_id: &str) -> Result<(), St
 pub async fn send_llm_message(
     session_id: String,
     content: String,
+    app: tauri::AppHandle,
     db: State<'_, DbState>,
-) -> Result<Vec<Message>, String> {
+) -> Result<Message, String> {
     let config = load_config()?;
 
-    // 1. 持久化用户消息 + 加载历史（在一个锁块内完成）
+    // 1. 持久化用户消息 + 加载历史
     let (user_msg, messages) = {
         let conn = db.conn.lock().map_err(|e| format!("数据库锁获取失败: {}", e))?;
         let user_msg = insert_message(&conn, &session_id, "user", &content)?;
         let messages = load_history(&conn, &session_id)?;
         (user_msg, messages)
-    }; // 锁在此释放
+    };
 
-    // 2. 发送 HTTP 请求到 LLM
+    // 2. 流式请求 LLM
     let url = format!("{}/chat/completions", config.endpoint.trim_end_matches('/'));
     let client = reqwest::Client::new();
     let body = serde_json::json!({
         "model": config.model,
         "messages": messages,
+        "stream": true,
     });
 
     let response = client
@@ -102,20 +117,37 @@ pub async fn send_llm_message(
         return Err(format!("LLM 请求失败 (HTTP {}): {}", status, text));
     }
 
-    let resp_json: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|e| format!("解析 LLM 响应失败: {}", e))?;
+    // 3. 逐块读取 SSE 流，通过事件推送给前端
+    let mut full_content = String::new();
+    let mut stream = response.bytes_stream();
+    use futures_util::StreamExt;
 
-    let assistant_content = parse_llm_response(&resp_json)?;
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| format!("读取流失败: {}", e))?;
+        let text = String::from_utf8_lossy(&chunk);
+        for line in text.lines() {
+            if let Some(delta) = parse_stream_chunk(line) {
+                full_content.push_str(&delta);
+                let _ = app.emit("llm-chunk", LlmChunkEvent {
+                    session_id: session_id.clone(),
+                    delta,
+                });
+            }
+        }
+    }
 
-    // 3. 持久化 assistant 回复（新的锁块）
+    // 4. 持久化完整的 assistant 回复
     let assistant_msg = {
         let conn = db.conn.lock().map_err(|e| format!("数据库锁获取失败: {}", e))?;
-        let msg = insert_message(&conn, &session_id, "assistant", &assistant_content)?;
+        let msg = insert_message(&conn, &session_id, "assistant", &full_content)?;
         touch_session(&conn, &session_id)?;
         msg
-    }; // 锁在此释放
+    };
 
-    Ok(vec![user_msg, assistant_msg])
+    let _ = app.emit("llm-done", LlmDoneEvent {
+        session_id: session_id.clone(),
+        message: assistant_msg.clone(),
+    });
+
+    Ok(user_msg)
 }
