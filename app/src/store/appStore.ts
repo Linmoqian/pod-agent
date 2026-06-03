@@ -1,6 +1,13 @@
 import { create } from "zustand";
 
 // Settings Store
+interface ApiConfig {
+  provider: string;
+  apiKey: string;
+  endpoint: string;
+  model: string;
+}
+
 interface SettingsState {
   language: string;
   darkMode: boolean;
@@ -12,6 +19,7 @@ interface SettingsState {
   autoBackup: boolean;
   backupFrequency: string;
   dataFormat: string;
+  apiConfig: ApiConfig;
   setLanguage: (lang: string) => void;
   toggleDarkMode: () => void;
   setAgentModel: (model: string) => void;
@@ -22,6 +30,7 @@ interface SettingsState {
   toggleAutoBackup: () => void;
   setBackupFrequency: (freq: string) => void;
   setDataFormat: (format: string) => void;
+  setApiConfig: (config: Partial<ApiConfig>) => void;
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -35,6 +44,12 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   autoBackup: true,
   backupFrequency: "每天",
   dataFormat: "CSV + JSON",
+  apiConfig: {
+    provider: "openai",
+    apiKey: "",
+    endpoint: "https://api.openai.com/v1",
+    model: "gpt-4",
+  },
   setLanguage: (language) => set({ language }),
   toggleDarkMode: () => set((state) => ({ darkMode: !state.darkMode })),
   setAgentModel: (agentModel) => set({ agentModel }),
@@ -45,6 +60,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   toggleAutoBackup: () => set((state) => ({ autoBackup: !state.autoBackup })),
   setBackupFrequency: (backupFrequency) => set({ backupFrequency }),
   setDataFormat: (dataFormat) => set({ dataFormat }),
+  setApiConfig: (config) =>
+    set((state) => ({
+      apiConfig: { ...state.apiConfig, ...config },
+    })),
 }));
 
 // File Manager Store
@@ -110,13 +129,25 @@ interface Message {
   timestamp: Date;
 }
 
-interface ChatState {
+interface Conversation {
+  id: string;
+  title: string;
+  time: string;
   messages: Message[];
+}
+
+interface ChatState {
+  conversations: Conversation[];
+  activeConversationId: string;
   inputValue: string;
   sidebarOpen: boolean;
   viewMode: "split" | "chat";
   selectedModel: string;
   attachedFiles: string[];
+  getActiveMessages: () => Message[];
+  createConversation: () => void;
+  setActiveConversation: (id: string) => void;
+  deleteConversation: (id: string) => void;
   addMessage: (role: "user" | "assistant", content: string) => void;
   setInputValue: (value: string) => void;
   toggleSidebar: () => void;
@@ -126,38 +157,138 @@ interface ChatState {
   detachFile: (file: string) => void;
 }
 
-export const useChatStore = create<ChatState>((set) => ({
-  messages: [
-    {
-      id: "1",
-      role: "user",
-      content: "请帮我分析基因组数据中的抗性基因分布，重点关注水稻品种间的差异。",
-      timestamp: new Date(),
-    },
-    {
-      id: "2",
-      role: "assistant",
-      content: "已分析基因组数据，发现以下关键抗性基因分布：",
-      timestamp: new Date(),
-    },
-  ],
+const defaultConversations: Conversation[] = [
+  {
+    id: "1",
+    title: "水稻基因组分析方案",
+    time: "刚刚",
+    messages: [
+      {
+        id: "1-1",
+        role: "user",
+        content: "请帮我分析基因组数据中的抗性基因分布，重点关注水稻品种间的差异。",
+        timestamp: new Date(),
+      },
+      {
+        id: "1-2",
+        role: "assistant",
+        content: "已分析基因组数据，发现以下关键抗性基因分布：",
+        timestamp: new Date(),
+      },
+    ],
+  },
+  {
+    id: "2",
+    title: "小麦产量预测模型",
+    time: "2小时前",
+    messages: [
+      {
+        id: "2-1",
+        role: "user",
+        content: "帮我建立一个小麦产量预测模型，输入参数包括温度、降水量和土壤类型。",
+        timestamp: new Date(),
+      },
+      {
+        id: "2-2",
+        role: "assistant",
+        content: "好的，我将为您构建一个基于机器学习的小麦产量预测模型。",
+        timestamp: new Date(),
+      },
+    ],
+  },
+  {
+    id: "3",
+    title: "玉米育种数据清洗",
+    time: "昨天",
+    messages: [
+      {
+        id: "3-1",
+        role: "user",
+        content: "这份玉米育种数据有很多缺失值，帮我处理一下。",
+        timestamp: new Date(),
+      },
+    ],
+  },
+  {
+    id: "4",
+    title: "大豆抗性基因筛选",
+    time: "3天前",
+    messages: [
+      {
+        id: "4-1",
+        role: "user",
+        content: "从大豆基因组数据中筛选抗病性相关的基因。",
+        timestamp: new Date(),
+      },
+    ],
+  },
+  {
+    id: "5",
+    title: "育种报告生成",
+    time: "上周",
+    messages: [
+      {
+        id: "5-1",
+        role: "user",
+        content: "根据本季度的育种数据生成一份分析报告。",
+        timestamp: new Date(),
+      },
+    ],
+  },
+];
+
+export const useChatStore = create<ChatState>((set, get) => ({
+  conversations: defaultConversations,
+  activeConversationId: "1",
   inputValue: "",
   sidebarOpen: true,
   viewMode: "split",
   selectedModel: "Pod Agent Pro",
   attachedFiles: ["基因组数据_v3.csv", "表型记录.xlsx"],
-  addMessage: (role, content) =>
+  getActiveMessages: () => {
+    const state = get();
+    const conv = state.conversations.find((c) => c.id === state.activeConversationId);
+    return conv?.messages ?? [];
+  },
+  createConversation: () => {
+    const newId = String(Date.now());
+    const newConv: Conversation = {
+      id: newId,
+      title: "新对话",
+      time: "刚刚",
+      messages: [],
+    };
     set((state) => ({
-      messages: [
-        ...state.messages,
-        {
-          id: String(Date.now()),
-          role,
-          content,
-          timestamp: new Date(),
-        },
-      ],
-    })),
+      conversations: [newConv, ...state.conversations],
+      activeConversationId: newId,
+    }));
+  },
+  setActiveConversation: (id) => set({ activeConversationId: id }),
+  deleteConversation: (id) =>
+    set((state) => {
+      const filtered = state.conversations.filter((c) => c.id !== id);
+      const newActive =
+        state.activeConversationId === id
+          ? filtered[0]?.id ?? ""
+          : state.activeConversationId;
+      return { conversations: filtered, activeConversationId: newActive };
+    }),
+  addMessage: (role, content) =>
+    set((state) => {
+      const msg: Message = {
+        id: String(Date.now()),
+        role,
+        content,
+        timestamp: new Date(),
+      };
+      return {
+        conversations: state.conversations.map((c) =>
+          c.id === state.activeConversationId
+            ? { ...c, messages: [...c.messages, msg] }
+            : c
+        ),
+      };
+    }),
   setInputValue: (value) => set({ inputValue: value }),
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   setViewMode: (mode) => set({ viewMode: mode }),
