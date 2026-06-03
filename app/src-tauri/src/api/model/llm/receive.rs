@@ -16,6 +16,7 @@ pub fn parse_llm_response(json: &Value) -> Result<String, String> {
 /// 从 SSE 流式 chunk 中提取增量内容
 /// 格式: data: {"choices":[{"delta":{"content":"..."}}]}
 /// 返回 None 表示流结束 ([DONE]) 或无内容
+#[allow(dead_code)]
 pub fn parse_stream_chunk(line: &str) -> Option<String> {
     let line = line.trim();
     if !line.starts_with("data: ") {

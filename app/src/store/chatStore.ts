@@ -13,6 +13,7 @@ interface ChatMessage {
   session_id: string;
   role: string;
   content: string;
+  thinking: string;
   created_at: string;
 }
 
@@ -150,8 +151,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => ({
       messages: [
         ...state.messages,
-        { id: `temp-user-${Date.now()}`, session_id: sessionId, role: "user", content, created_at: new Date().toISOString() },
-        { id: tempAssistantId, session_id: sessionId, role: "assistant", content: "", created_at: new Date().toISOString() },
+        { id: `temp-user-${Date.now()}`, session_id: sessionId, role: "user", content, thinking: "", created_at: new Date().toISOString() },
+        { id: tempAssistantId, session_id: sessionId, role: "assistant", content: "", thinking: "", created_at: new Date().toISOString() },
       ],
       sending: true,
     }));
@@ -167,8 +168,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }));
       });
 
+      const unlistenThinking = await listen<{ session_id: string; delta: string }>("llm-thinking", (event) => {
+        if (event.payload.session_id !== sessionId) return;
+        set((state) => ({
+          messages: state.messages.map((m) =>
+            m.id === tempAssistantId ? { ...m, thinking: m.thinking + event.payload.delta } : m
+          ),
+        }));
+      });
+
       await invoke("send_llm_message", { sessionId, content });
       unlisten();
+      unlistenThinking();
 
       await Promise.all([get().loadMessages(sessionId), get().loadSessions()]);
     } catch (e) {

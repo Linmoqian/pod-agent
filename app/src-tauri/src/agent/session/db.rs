@@ -39,12 +39,22 @@ pub fn init_db(db_path: &str) -> Result<DbState, String> {
             session_id TEXT NOT NULL,
             role TEXT NOT NULL,
             content TEXT NOT NULL,
+            thinking TEXT NOT NULL DEFAULT '',
             created_at TEXT NOT NULL,
             FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
         );
         CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id);",
     )
     .map_err(|e| format!("创建表失败: {}", e))?;
+
+    // 兼容旧数据库：如果 messages 表没有 thinking 列，自动添加
+    let has_thinking: bool = conn
+        .prepare("SELECT thinking FROM messages LIMIT 0")
+        .is_ok();
+    if !has_thinking {
+        conn.execute_batch("ALTER TABLE messages ADD COLUMN thinking TEXT NOT NULL DEFAULT '';")
+            .map_err(|e| format!("添加 thinking 列失败: {}", e))?;
+    }
 
     Ok(DbState {
         conn: Mutex::new(conn),

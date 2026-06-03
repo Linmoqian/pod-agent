@@ -1,6 +1,6 @@
 use crate::agent::session::{Message, db::DbState};
 use crate::api::model::llm::llm_provider::LLMConfig;
-use crate::api::model::llm::receive::parse_stream_chunk;
+
 use chrono::Local;
 use rusqlite::params;
 use tauri::{Emitter, State};
@@ -14,12 +14,18 @@ struct LlmChunkEvent {
 }
 
 #[derive(Clone, serde::Serialize)]
+struct LlmThinkingEvent {
+    session_id: String,
+    delta: String,
+}
+
+#[derive(Clone, serde::Serialize)]
 struct LlmDoneEvent {
     session_id: String,
     message: Message,
 }
 
-/// 内部：读取 LLM 配置文件（不走 Tauri command）
+/// 内部：读取 LLM 配置文件
 fn load_config() -> Result<LLMConfig, String> {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     let path = std::path::PathBuf::from(home).join(".pod-agent").join("config.json");
@@ -47,19 +53,20 @@ fn load_history(conn: &rusqlite::Connection, session_id: &str) -> Result<Vec<ser
     Ok(rows.filter_map(|r| r.ok()).collect())
 }
 
-/// 内部：插入一条消息到数据库
-fn insert_message(conn: &rusqlite::Connection, session_id: &str, role: &str, content: &str) -> Result<Message, String> {
+/// 内部：插入一条消息到数据库（含 thinking）
+fn insert_message(conn: &rusqlite::Connection, session_id: &str, role: &str, content: &str, thinking: &str) -> Result<Message, String> {
     let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
     let msg = Message {
         id: Uuid::new_v4().to_string(),
         session_id: session_id.to_string(),
         role: role.to_string(),
         content: content.to_string(),
+        thinking: thinking.to_string(),
         created_at: now,
     };
     conn.execute(
-        "INSERT INTO messages (id, session_id, role, content, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![&msg.id, &msg.session_id, &msg.role, &msg.content, &msg.created_at],
+        "INSERT INTO messages (id, session_id, role, content, thinking, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![&msg.id, &msg.session_id, &msg.role, &msg.content, &msg.thinking, &msg.created_at],
     )
     .map_err(|e| format!("插入消息失败: {}", e))?;
     Ok(msg)
@@ -88,7 +95,7 @@ pub async fn send_llm_message(
     // 1. 持久化用户消息 + 加载历史
     let (user_msg, messages) = {
         let conn = db.conn.lock().map_err(|e| format!("数据库锁获取失败: {}", e))?;
-        let user_msg = insert_message(&conn, &session_id, "user", &content)?;
+        let user_msg = insert_message(&conn, &session_id, "user", &content, "")?;
         let messages = load_history(&conn, &session_id)?;
         (user_msg, messages)
     };
@@ -117,8 +124,9 @@ pub async fn send_llm_message(
         return Err(format!("LLM 请求失败 (HTTP {}): {}", status, text));
     }
 
-    // 3. 逐块读取 SSE 流，通过事件推送给前端
+    // 3. 逐块读取 SSE 流
     let mut full_content = String::new();
+    let mut full_thinking = String::new();
     let mut stream = response.bytes_stream();
     use futures_util::StreamExt;
 
@@ -126,20 +134,57 @@ pub async fn send_llm_message(
         let chunk = chunk.map_err(|e| format!("读取流失败: {}", e))?;
         let text = String::from_utf8_lossy(&chunk);
         for line in text.lines() {
-            if let Some(delta) = parse_stream_chunk(line) {
-                full_content.push_str(&delta);
-                let _ = app.emit("llm-chunk", LlmChunkEvent {
-                    session_id: session_id.clone(),
-                    delta,
-                });
+            let line = line.trim();
+            if !line.starts_with("data: ") {
+                continue;
+            }
+            let data = &line[6..];
+            if data == "[DONE]" {
+                continue;
+            }
+            let json: serde_json::Value = match serde_json::from_str(data) {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+
+            // 提取思考内容
+            if let Some(thinking_delta) = json
+                .get("choices").and_then(|c| c.get(0))
+                .and_then(|c| c.get("delta"))
+                .and_then(|d| d.get("reasoning_content"))
+                .and_then(|c| c.as_str())
+            {
+                if !thinking_delta.is_empty() {
+                    full_thinking.push_str(thinking_delta);
+                    let _ = app.emit("llm-thinking", LlmThinkingEvent {
+                        session_id: session_id.clone(),
+                        delta: thinking_delta.to_string(),
+                    });
+                }
+            }
+
+            // 提取回复内容
+            if let Some(content_delta) = json
+                .get("choices").and_then(|c| c.get(0))
+                .and_then(|c| c.get("delta"))
+                .and_then(|d| d.get("content"))
+                .and_then(|c| c.as_str())
+            {
+                if !content_delta.is_empty() {
+                    full_content.push_str(content_delta);
+                    let _ = app.emit("llm-chunk", LlmChunkEvent {
+                        session_id: session_id.clone(),
+                        delta: content_delta.to_string(),
+                    });
+                }
             }
         }
     }
 
-    // 4. 持久化完整的 assistant 回复
+    // 4. 持久化完整的 assistant 回复（含思考过程）
     let assistant_msg = {
         let conn = db.conn.lock().map_err(|e| format!("数据库锁获取失败: {}", e))?;
-        let msg = insert_message(&conn, &session_id, "assistant", &full_content)?;
+        let msg = insert_message(&conn, &session_id, "assistant", &full_content, &full_thinking)?;
         touch_session(&conn, &session_id)?;
         msg
     };

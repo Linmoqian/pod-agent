@@ -21,6 +21,7 @@ pub struct Message {
     pub session_id: String,
     pub role: String,
     pub content: String,
+    pub thinking: String,
     pub created_at: String,
 }
 
@@ -39,7 +40,8 @@ pub fn message_from_row(row: &Row) -> Result<Message, rusqlite::Error> {
         session_id: row.get(1)?,
         role: row.get(2)?,
         content: row.get(3)?,
-        created_at: row.get(4)?,
+        thinking: row.get(4)?,
+        created_at: row.get(5)?,
     })
 }
 

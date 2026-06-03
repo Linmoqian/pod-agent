@@ -35,13 +35,14 @@ pub fn create_message(
         session_id,
         role,
         content,
+        thinking: String::new(),
         created_at: now.clone(),
     };
 
     let conn = db.conn.lock().map_err(|e| format!("数据库锁获取失败: {}", e))?;
     conn.execute(
-        "INSERT INTO messages (id, session_id, role, content, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-        [&message.id, &message.session_id, &message.role, &message.content, &message.created_at],
+        "INSERT INTO messages (id, session_id, role, content, thinking, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        rusqlite::params![&message.id, &message.session_id, &message.role, &message.content, &message.thinking, &message.created_at],
     )
     .map_err(|e| format!("插入消息失败: {}", e))?;
 

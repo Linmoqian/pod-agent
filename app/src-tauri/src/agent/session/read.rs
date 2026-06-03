@@ -39,7 +39,7 @@ pub fn get_session(session_id: String, db: State<DbState>) -> Result<Option<Sess
 pub fn get_messages(session_id: String, db: State<DbState>) -> Result<Vec<Message>, String> {
     let conn = db.conn.lock().map_err(|e| format!("数据库锁获取失败: {}", e))?;
     let mut stmt = conn
-        .prepare("SELECT id, session_id, role, content, created_at FROM messages WHERE session_id = ?1 ORDER BY created_at ASC")
+        .prepare("SELECT id, session_id, role, content, thinking, created_at FROM messages WHERE session_id = ?1 ORDER BY created_at ASC")
         .map_err(|e| format!("准备查询失败: {}", e))?;
 
     let messages = stmt
