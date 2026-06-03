@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useChatStore } from "../../store/appStore";
+import { useChatStore } from "../../store";
 import { MessageSquare, Sparkles, ChevronDown, Columns2 } from "lucide-react";
 
 export default function ChatTopBar() {

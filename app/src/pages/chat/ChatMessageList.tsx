@@ -1,5 +1,5 @@
 import { useRef, useEffect } from "react";
-import { useChatStore } from "../../store/appStore";
+import { useChatStore } from "../../store";
 import { MessageSquare } from "lucide-react";
 
 const chartData = [120, 90, 140, 100, 130, 80, 110];

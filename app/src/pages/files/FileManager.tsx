@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useFileManagerStore } from "../../store/appStore";
+import { useFileManagerStore } from "../../store";
 import { Folder, FileText, FileSpreadsheet, Upload, Plus, Trash2, Star, Clock, Database, Grid, List } from "lucide-react";
 import { Breadcrumb, SearchInput, Modal } from "../../components";
 

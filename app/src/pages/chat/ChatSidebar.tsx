@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useChatStore } from "../../store/appStore";
+import { useChatStore } from "../../store";
 import { Plus, Search, MessageSquare, FileSpreadsheet, Columns2, X, Trash2 } from "lucide-react";
 
 export default function ChatSidebar() {

@@ -1,4 +1,4 @@
-import { useChatStore } from "../../store/appStore";
+import { useChatStore } from "../../store";
 import { Paperclip, FileSpreadsheet, ArrowUp, Mic, Camera, Code, Image } from "lucide-react";
 
 export default function ChatInput() {
