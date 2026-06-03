@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSettingsStore } from "../../store/appStore";
+import { invoke } from "@tauri-apps/api/core";
 import { Settings as SettingsIcon, User, HardDrive, Bell, Info, Bot, Key } from "lucide-react";
 import { SettingsRow, Section } from "../../components";
 
@@ -55,9 +56,49 @@ export default function Settings() {
   const [showProviderDropdown, setShowProviderDropdown] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const handleSaveApiConfig = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  // 页面加载时从后端读取配置
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const config = await invoke<{
+          provider: string;
+          api_key: string;
+          endpoint: string;
+          model: string;
+          session_db_path: string;
+        }>("load_llm_config");
+        setApiConfig({
+          provider: config.provider,
+          apiKey: config.api_key,
+          endpoint: config.endpoint,
+          model: config.model,
+        });
+        if (config.session_db_path) {
+          setSessionDbPath(config.session_db_path);
+        }
+      } catch (e) {
+        console.error("加载配置失败:", e);
+      }
+    };
+    init();
+  }, []);
+
+  const handleSaveApiConfig = async () => {
+    try {
+      await invoke("save_llm_config", {
+        config: {
+          provider: apiConfig.provider,
+          api_key: apiConfig.apiKey,
+          endpoint: apiConfig.endpoint,
+          model: apiConfig.model,
+          session_db_path: sessionDbPath,
+        },
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      console.error("保存配置失败:", e);
+    }
   };
 
   return (

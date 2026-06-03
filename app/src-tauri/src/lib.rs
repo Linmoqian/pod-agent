@@ -1,7 +1,7 @@
-mod config;
+mod api;
 mod agent;
 
-use config::{save_llm_config, load_llm_config, get_llm_config_path, resolve_db_path};
+use api::model::llm::llm_provider::{save_llm_config, load_llm_config, get_llm_config_path, resolve_db_path};
 use agent::session::{
     create_session, create_message,
     delete_session, delete_message,
