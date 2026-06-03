@@ -7,8 +7,7 @@ pub struct DbState {
 }
 
 pub fn get_default_db_path() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    PathBuf::from(home).join(".pod-agent").join("sessions.db")
+    PathBuf::from("/Volumes/base/project/pod-agent/data/sessions.db")
 }
 
 pub fn init_db(db_path: &str) -> Result<DbState, String> {
