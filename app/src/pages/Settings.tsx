@@ -32,6 +32,7 @@ export default function Settings() {
     autoBackup,
     backupFrequency,
     dataFormat,
+    storagePath,
     apiConfig,
     setLanguage,
     toggleDarkMode,
@@ -39,6 +40,7 @@ export default function Settings() {
     setTemperature,
     setContextLength,
     toggleAutoSave,
+    setStoragePath,
     toggleAutoBackup,
     setBackupFrequency,
     setDataFormat,
@@ -275,7 +277,19 @@ export default function Settings() {
           {/* Data Management */}
           {activeNav === "data" && (
             <Section title="数据管理">
-              <SettingsRow label="存储路径" value="~/pod-agent/data" suffix="chevron-right" />
+              <div className="px-4 py-3">
+                <label className="mb-1.5 block text-[12px] font-medium text-[#6B7280]">数据存储路径</label>
+                <input
+                  type="text"
+                  value={storagePath}
+                  onChange={(e) => setStoragePath(e.target.value)}
+                  placeholder="~/.pod-agent/data"
+                  className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2 text-[13px] text-[#374151] outline-none focus:border-[#0A84FF]"
+                />
+                <p className="mt-1 text-[11px] text-[#9CA3AF]">
+                  会话数据和育种数据将存储在此路径下
+                </p>
+              </div>
               <SettingsRow label="自动备份" toggle={autoBackup} onToggle={toggleAutoBackup} />
               <SettingsRow
                 label="备份频率"
