@@ -1,0 +1,64 @@
+import { useState } from "react";
+import { useChatStore } from "../../store/appStore";
+import { Paperclip, FileSpreadsheet, ArrowUp, Mic, Camera, Code, Image } from "lucide-react";
+
+export default function ChatInput() {
+  const { inputValue, setInputValue, addMessage } = useChatStore();
+  const [sending, setSending] = useState(false);
+
+  const handleSend = async () => {
+    if (inputValue.trim() && !sending) {
+      const content = inputValue;
+      setInputValue("");
+      setSending(true);
+      try {
+        await addMessage("user", content);
+        // TODO: 对接真实 LLM，当前为占位回复
+        await addMessage("assistant", "正在分析您的请求，请稍候...");
+      } catch (e) {
+        console.error("发送消息失败:", e);
+      } finally {
+        setSending(false);
+      }
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  return (
+    <div className="border-t border-[#E5E7EB] px-8 py-4">
+      <div className="flex items-end gap-3">
+        <div className="flex-1 rounded-xl border border-[#D1D5DB] bg-[#F9FAFB] p-3">
+          <textarea
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="描述你的育种分析需求..."
+            className="mb-2 w-full resize-none bg-transparent text-[14px] text-[#374151] outline-none placeholder:text-[#9CA3AF]"
+            rows={1}
+          />
+          <div className="flex items-center gap-3">
+            <Paperclip size={18} className="cursor-pointer text-[#6B7280] hover:text-[#374151]" />
+            <Mic size={18} className="cursor-pointer text-[#6B7280] hover:text-[#374151]" />
+            <Camera size={18} className="cursor-pointer text-[#6B7280] hover:text-[#374151]" />
+            <FileSpreadsheet size={18} className="cursor-pointer text-[#6B7280] hover:text-[#374151]" />
+            <Code size={18} className="cursor-pointer text-[#6B7280] hover:text-[#374151]" />
+            <Image size={18} className="cursor-pointer text-[#6B7280] hover:text-[#374151]" />
+          </div>
+        </div>
+        <button
+          onClick={handleSend}
+          disabled={!inputValue.trim() || sending}
+          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#3B82F6] text-white hover:bg-[#2563EB] disabled:opacity-50"
+        >
+          <ArrowUp size={18} />
+        </button>
+      </div>
+    </div>
+  );
+}
