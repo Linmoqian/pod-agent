@@ -1,14 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useChatStore } from "../store/appStore";
-import { Plus, Search, MessageSquare, Paperclip, FileSpreadsheet, Sparkles, ChevronDown, Columns2, ArrowUp, Mic, Camera, Code, Image, X } from "lucide-react";
-
-const conversations = [
-  { id: "1", title: "水稻基因组分析方案", time: "刚刚", active: true },
-  { id: "2", title: "小麦产量预测模型", time: "2小时前" },
-  { id: "3", title: "玉米育种数据清洗", time: "昨天" },
-  { id: "4", title: "大豆抗性基因筛选", time: "3天前" },
-  { id: "5", title: "育种报告生成", time: "上周" },
-];
+import { Plus, Search, MessageSquare, Paperclip, FileSpreadsheet, Sparkles, ChevronDown, Columns2, ArrowUp, Mic, Camera, Code, Image, X, Trash2 } from "lucide-react";
 
 const chartData = [120, 90, 140, 100, 130, 80, 110];
 const legendItems = [
@@ -26,12 +18,17 @@ const tableData = [
 
 export default function AgentChat() {
   const {
-    messages,
+    conversations,
+    activeConversationId,
     inputValue,
     sidebarOpen,
     viewMode,
     selectedModel,
     attachedFiles,
+    getActiveMessages,
+    createConversation,
+    setActiveConversation,
+    deleteConversation,
     addMessage,
     setInputValue,
     toggleSidebar,
@@ -41,8 +38,13 @@ export default function AgentChat() {
   } = useChatStore();
 
   const [showModelDropdown, setShowModelDropdown] = useState(false);
-  const [activeConversation, setActiveConversation] = useState("1");
+  const [searchQuery, setSearchQuery] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const messages = getActiveMessages();
+  const filteredConversations = conversations.filter((c) =>
+    c.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -74,10 +76,7 @@ export default function AgentChat() {
             <span className="text-[15px] font-semibold text-[#111827]">Pod Agent</span>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => {
-                  addMessage("user", "");
-                  setActiveConversation(String(Date.now()));
-                }}
+                onClick={createConversation}
                 className="flex items-center gap-1.5 rounded-lg bg-[#111827] px-2.5 py-1.5 text-[12px] font-medium text-white hover:bg-[#374151]"
               >
                 <Plus size={14} />
@@ -97,32 +96,50 @@ export default function AgentChat() {
             <input
               type="text"
               placeholder="搜索对话..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-transparent text-[13px] text-[#374151] outline-none placeholder:text-[#9CA3AF]"
             />
           </div>
 
           <p className="mb-2 text-[11px] font-medium tracking-wide text-[#9CA3AF]">最近对话</p>
           <div className="mb-3 flex flex-col gap-0.5">
-            {conversations.map((conv) => (
-              <button
-                key={conv.id}
-                onClick={() => setActiveConversation(conv.id)}
-                className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-left transition-colors ${
-                  activeConversation === conv.id ? "bg-[#EFF6FF]" : "hover:bg-black/5"
-                }`}
-              >
-                <MessageSquare
-                  size={16}
-                  className={activeConversation === conv.id ? "text-[#3B82F6]" : "text-[#6B7280]"}
-                />
-                <div className="min-w-0 flex-1">
-                  <p className={`truncate text-[13px] ${activeConversation === conv.id ? "font-medium text-[#1E40AF]" : "text-[#374151]"}`}>
-                    {conv.title}
-                  </p>
-                  <p className="text-[11px] text-[#9CA3AF]">{conv.time}</p>
+            {filteredConversations.map((conv) => {
+              const isActive = activeConversationId === conv.id;
+              return (
+                <div
+                  key={conv.id}
+                  className={`group flex items-center gap-2.5 rounded-lg px-3 py-2.5 transition-colors ${
+                    isActive ? "bg-[#EFF6FF]" : "hover:bg-black/5"
+                  }`}
+                >
+                  <button
+                    onClick={() => setActiveConversation(conv.id)}
+                    className="flex flex-1 items-center gap-2.5 text-left"
+                  >
+                    <MessageSquare
+                      size={16}
+                      className={isActive ? "text-[#3B82F6]" : "text-[#6B7280]"}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className={`truncate text-[13px] ${isActive ? "font-medium text-[#1E40AF]" : "text-[#374151]"}`}>
+                        {conv.title}
+                      </p>
+                      <p className="text-[11px] text-[#9CA3AF]">{conv.time}</p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteConversation(conv.id);
+                    }}
+                    className="hidden h-6 w-6 items-center justify-center rounded text-[#9CA3AF] hover:bg-[#E5E7EB] hover:text-[#EF4444] group-hover:flex"
+                  >
+                    <Trash2 size={12} />
+                  </button>
                 </div>
-              </button>
-            ))}
+              );
+            })}
           </div>
 
           <p className="mb-2 text-[11px] font-medium tracking-wide text-[#9CA3AF]">已选文件</p>
@@ -211,51 +228,59 @@ export default function AgentChat() {
         <div className="flex flex-1 overflow-hidden">
           {/* Chat Panel */}
           <div className="flex flex-1 flex-col overflow-auto p-6">
-            {messages.map((msg) => (
-              <div key={msg.id} className="mb-6 flex gap-3">
-                <div
-                  className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-[13px] font-medium text-white ${
-                    msg.role === "user" ? "bg-[#3B82F6]" : "bg-[#8B5CF6]"
-                  }`}
-                >
-                  {msg.role === "user" ? "U" : "AI"}
-                </div>
-                <div className="flex-1">
-                  <p className="text-[14px] leading-relaxed text-[#374151]">{msg.content}</p>
-                  {msg.role === "assistant" && msg.id === "2" && (
-                    <div className="mt-4 space-y-4">
-                      {/* Chart Card */}
-                      <div className="rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] p-4">
-                        <p className="mb-3 text-[13px] font-semibold text-[#111827]">抗性基因分布热力图</p>
-                        <div className="mb-3 flex h-[160px] items-end gap-1 px-2">
-                          {chartData.map((h, i) => (
-                            <div
-                              key={i}
-                              className="w-10 rounded-t-[4px]"
-                              style={{ height: h, backgroundColor: ["#3B82F6", "#60A5FA", "#93C5FD"][i % 3] }}
-                            />
-                          ))}
-                        </div>
-                        <div className="flex gap-4">
-                          {legendItems.map((item) => (
-                            <div key={item.label} className="flex items-center gap-1.5">
-                              <div className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
-                              <span className="text-[11px] text-[#6B7280]">{item.label}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      {/* Code Block */}
-                      <div className="rounded-lg bg-[#1E293B] p-4 font-mono text-[12px]">
-                        <p className="text-[#94A3B8]"># 基因差异分析结果</p>
-                        <p className="text-[#E2E8F0]">品种间差异显著 (p &lt; 0.001)</p>
-                        <p className="text-[#22C55E]">抗性基因频率: 品种A (78%) &gt; 品种B (45%)</p>
-                      </div>
-                    </div>
-                  )}
+            {messages.length === 0 ? (
+              <div className="flex flex-1 items-center justify-center">
+                <div className="text-center">
+                  <MessageSquare size={48} className="mx-auto mb-4 text-[#D1D5DB]" />
+                  <p className="mb-2 text-[14px] font-medium text-[#374151]">开始新的对话</p>
+                  <p className="text-[13px] text-[#9CA3AF]">输入你的育种分析需求</p>
                 </div>
               </div>
-            ))}
+            ) : (
+              messages.map((msg) => (
+                <div key={msg.id} className="mb-6 flex gap-3">
+                  <div
+                    className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-[13px] font-medium text-white ${
+                      msg.role === "user" ? "bg-[#3B82F6]" : "bg-[#8B5CF6]"
+                    }`}
+                  >
+                    {msg.role === "user" ? "U" : "AI"}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-[14px] leading-relaxed text-[#374151]">{msg.content}</p>
+                    {msg.role === "assistant" && msg.id.endsWith("-2") && (
+                      <div className="mt-4 space-y-4">
+                        <div className="rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] p-4">
+                          <p className="mb-3 text-[13px] font-semibold text-[#111827]">抗性基因分布热力图</p>
+                          <div className="mb-3 flex h-[160px] items-end gap-1 px-2">
+                            {chartData.map((h, i) => (
+                              <div
+                                key={i}
+                                className="w-10 rounded-t-[4px]"
+                                style={{ height: h, backgroundColor: ["#3B82F6", "#60A5FA", "#93C5FD"][i % 3] }}
+                              />
+                            ))}
+                          </div>
+                          <div className="flex gap-4">
+                            {legendItems.map((item) => (
+                              <div key={item.label} className="flex items-center gap-1.5">
+                                <div className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
+                                <span className="text-[11px] text-[#6B7280]">{item.label}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="rounded-lg bg-[#1E293B] p-4 font-mono text-[12px]">
+                          <p className="text-[#94A3B8]"># 基因差异分析结果</p>
+                          <p className="text-[#E2E8F0]">品种间差异显著 (p &lt; 0.001)</p>
+                          <p className="text-[#22C55E]">抗性基因频率: 品种A (78%) &gt; 品种B (45%)</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
             <div ref={messagesEndRef} />
           </div>
 
