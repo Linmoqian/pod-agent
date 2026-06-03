@@ -153,6 +153,7 @@ interface ChatState {
   selectedModel: string;
   attachedFiles: string[];
   loading: boolean;
+  sending: boolean;
 
   loadSessions: () => Promise<void>;
   loadMessages: (sessionId: string) => Promise<void>;
@@ -160,6 +161,7 @@ interface ChatState {
   setActiveSession: (id: string) => void;
   deleteConversation: (id: string) => Promise<void>;
   addMessage: (role: string, content: string) => Promise<ChatMessage>;
+  sendMessage: (content: string) => Promise<void>;
   setInputValue: (value: string) => void;
   toggleSidebar: () => void;
   setViewMode: (mode: "split" | "chat") => void;
@@ -178,6 +180,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   selectedModel: "Pod Agent Pro",
   attachedFiles: [],
   loading: false,
+  sending: false,
 
   loadSessions: async () => {
     try {
@@ -265,6 +268,45 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } catch (e) {
       console.error("添加消息失败:", e);
       throw e;
+    }
+  },
+
+  sendMessage: async (content: string) => {
+    const sessionId = get().activeSessionId;
+    if (!sessionId) return;
+
+    // 临时消息 ID，用于流式更新
+    const tempAssistantId = `temp-assistant-${Date.now()}`;
+    set((state) => ({
+      messages: [
+        ...state.messages,
+        { id: `temp-user-${Date.now()}`, session_id: sessionId, role: "user", content, created_at: new Date().toISOString() },
+        { id: tempAssistantId, session_id: sessionId, role: "assistant", content: "", created_at: new Date().toISOString() },
+      ],
+      sending: true,
+    }));
+
+    try {
+      const { listen } = await import("@tauri-apps/api/event");
+      const unlisten = await listen<{ session_id: string; delta: string }>("llm-chunk", (event) => {
+        if (event.payload.session_id !== sessionId) return;
+        set((state) => ({
+          messages: state.messages.map((m) =>
+            m.id === tempAssistantId ? { ...m, content: m.content + event.payload.delta } : m
+          ),
+        }));
+      });
+
+      await invoke("send_llm_message", { sessionId, content });
+      unlisten();
+
+      // 流结束，从数据库加载完整消息替换临时 ID
+      await Promise.all([get().loadMessages(sessionId), get().loadSessions()]);
+    } catch (e) {
+      console.error("发送消息失败:", e);
+      set((state) => ({ messages: state.messages.filter((m) => m.id !== tempAssistantId) }));
+    } finally {
+      set({ sending: false });
     }
   },
 

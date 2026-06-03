@@ -1,58 +1,14 @@
-import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { useChatStore } from "../../store/appStore";
 import { Paperclip, FileSpreadsheet, ArrowUp, Mic, Camera, Code, Image } from "lucide-react";
 
 export default function ChatInput() {
-  const { activeSessionId, inputValue, setInputValue } = useChatStore();
-  const [sending, setSending] = useState(false);
+  const { inputValue, setInputValue, sending, sendMessage } = useChatStore();
 
-  const handleSend = async () => {
-    if (inputValue.trim() && !sending && activeSessionId) {
+  const handleSend = () => {
+    if (inputValue.trim() && !sending) {
       const content = inputValue;
       setInputValue("");
-      setSending(true);
-
-      // 先添加用户消息到 UI
-      const tempUserId = `temp-user-${Date.now()}`;
-      const tempAssistantId = `temp-assistant-${Date.now()}`;
-      useChatStore.setState((state) => ({
-        messages: [
-          ...state.messages,
-          { id: tempUserId, session_id: activeSessionId, role: "user", content, created_at: new Date().toISOString() },
-          { id: tempAssistantId, session_id: activeSessionId, role: "assistant", content: "", created_at: new Date().toISOString() },
-        ],
-      }));
-
-      try {
-        // 监听流式 chunk，实时更新 assistant 消息
-        const unlisten = await listen<{ session_id: string; delta: string }>("llm-chunk", (event) => {
-          if (event.payload.session_id !== activeSessionId) return;
-          useChatStore.setState((state) => ({
-            messages: state.messages.map((m) =>
-              m.id === tempAssistantId ? { ...m, content: m.content + event.payload.delta } : m
-            ),
-          }));
-        });
-
-        // 调用后端（流式推送中...）
-        await invoke("send_llm_message", { sessionId: activeSessionId, content });
-
-        // 流结束后，从数据库重新加载完整消息（替换临时 ID）
-        const { loadMessages, loadSessions } = useChatStore.getState();
-        await Promise.all([loadMessages(activeSessionId), loadSessions()]);
-
-        unlisten();
-      } catch (e) {
-        console.error("发送消息失败:", e);
-        // 移除临时的空 assistant 消息
-        useChatStore.setState((state) => ({
-          messages: state.messages.filter((m) => m.id !== tempAssistantId),
-        }));
-      } finally {
-        setSending(false);
-      }
+      sendMessage(content);
     }
   };
 
