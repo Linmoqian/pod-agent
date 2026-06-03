@@ -181,7 +181,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   loadSessions: async () => {
     try {
-      const sessions = await invoke<ChatSession[]>("get_sessions");
+      let sessions = await invoke<ChatSession[]>("get_sessions");
+      // 首次启动：无会话时创建演示会话
+      if (sessions.length === 0) {
+        const session = await invoke<ChatSession>("create_session", { title: "水稻基因组分析方案" });
+        await invoke("create_message", { sessionId: session.id, role: "user", content: "请帮我分析基因组数据中的抗性基因分布，重点关注水稻品种间的差异。" });
+        await invoke("create_message", { sessionId: session.id, role: "assistant", content: "已分析基因组数据，发现以下关键抗性基因分布：" });
+        sessions = await invoke<ChatSession[]>("get_sessions");
+      }
       set({ sessions });
       if (sessions.length > 0 && !get().activeSessionId) {
         set({ activeSessionId: sessions[0].id });
