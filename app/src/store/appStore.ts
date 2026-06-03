@@ -47,7 +47,6 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   autoBackup: true,
   backupFrequency: "每天",
   dataFormat: "CSV + JSON",
-  sessionDbPath: "",
   apiConfig: {
     provider: "openai",
     apiKey: "",
@@ -127,33 +126,40 @@ export const useFileManagerStore = create<FileManagerState>((set) => ({
 }));
 
 // Chat Store
-interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  timestamp: Date;
-}
+import { invoke } from "@tauri-apps/api/core";
 
-interface Conversation {
+interface ChatSession {
   id: string;
   title: string;
-  time: string;
-  messages: Message[];
+  created_at: string;
+  updated_at: string;
+}
+
+interface ChatMessage {
+  id: string;
+  session_id: string;
+  role: string;
+  content: string;
+  created_at: string;
 }
 
 interface ChatState {
-  conversations: Conversation[];
-  activeConversationId: string;
+  sessions: ChatSession[];
+  activeSessionId: string;
+  messages: ChatMessage[];
   inputValue: string;
   sidebarOpen: boolean;
   viewMode: "split" | "chat";
   selectedModel: string;
   attachedFiles: string[];
-  getActiveMessages: () => Message[];
-  createConversation: () => void;
-  setActiveConversation: (id: string) => void;
-  deleteConversation: (id: string) => void;
-  addMessage: (role: "user" | "assistant", content: string) => void;
+  loading: boolean;
+
+  loadSessions: () => Promise<void>;
+  loadMessages: (sessionId: string) => Promise<void>;
+  createConversation: () => Promise<void>;
+  setActiveSession: (id: string) => void;
+  deleteConversation: (id: string) => Promise<void>;
+  addMessage: (role: string, content: string) => Promise<ChatMessage>;
   setInputValue: (value: string) => void;
   toggleSidebar: () => void;
   setViewMode: (mode: "split" | "chat") => void;
@@ -162,138 +168,99 @@ interface ChatState {
   detachFile: (file: string) => void;
 }
 
-const defaultConversations: Conversation[] = [
-  {
-    id: "1",
-    title: "水稻基因组分析方案",
-    time: "刚刚",
-    messages: [
-      {
-        id: "1-1",
-        role: "user",
-        content: "请帮我分析基因组数据中的抗性基因分布，重点关注水稻品种间的差异。",
-        timestamp: new Date(),
-      },
-      {
-        id: "1-2",
-        role: "assistant",
-        content: "已分析基因组数据，发现以下关键抗性基因分布：",
-        timestamp: new Date(),
-      },
-    ],
-  },
-  {
-    id: "2",
-    title: "小麦产量预测模型",
-    time: "2小时前",
-    messages: [
-      {
-        id: "2-1",
-        role: "user",
-        content: "帮我建立一个小麦产量预测模型，输入参数包括温度、降水量和土壤类型。",
-        timestamp: new Date(),
-      },
-      {
-        id: "2-2",
-        role: "assistant",
-        content: "好的，我将为您构建一个基于机器学习的小麦产量预测模型。",
-        timestamp: new Date(),
-      },
-    ],
-  },
-  {
-    id: "3",
-    title: "玉米育种数据清洗",
-    time: "昨天",
-    messages: [
-      {
-        id: "3-1",
-        role: "user",
-        content: "这份玉米育种数据有很多缺失值，帮我处理一下。",
-        timestamp: new Date(),
-      },
-    ],
-  },
-  {
-    id: "4",
-    title: "大豆抗性基因筛选",
-    time: "3天前",
-    messages: [
-      {
-        id: "4-1",
-        role: "user",
-        content: "从大豆基因组数据中筛选抗病性相关的基因。",
-        timestamp: new Date(),
-      },
-    ],
-  },
-  {
-    id: "5",
-    title: "育种报告生成",
-    time: "上周",
-    messages: [
-      {
-        id: "5-1",
-        role: "user",
-        content: "根据本季度的育种数据生成一份分析报告。",
-        timestamp: new Date(),
-      },
-    ],
-  },
-];
-
 export const useChatStore = create<ChatState>((set, get) => ({
-  conversations: defaultConversations,
-  activeConversationId: "1",
+  sessions: [],
+  activeSessionId: "",
+  messages: [],
   inputValue: "",
   sidebarOpen: true,
   viewMode: "split",
   selectedModel: "Pod Agent Pro",
-  attachedFiles: ["基因组数据_v3.csv", "表型记录.xlsx"],
-  getActiveMessages: () => {
-    const state = get();
-    const conv = state.conversations.find((c) => c.id === state.activeConversationId);
-    return conv?.messages ?? [];
+  attachedFiles: [],
+  loading: false,
+
+  loadSessions: async () => {
+    try {
+      const sessions = await invoke<ChatSession[]>("get_sessions");
+      set({ sessions });
+      if (sessions.length > 0 && !get().activeSessionId) {
+        set({ activeSessionId: sessions[0].id });
+        await get().loadMessages(sessions[0].id);
+      }
+    } catch (e) {
+      console.error("加载会话列表失败:", e);
+    }
   },
-  createConversation: () => {
-    const newId = String(Date.now());
-    const newConv: Conversation = {
-      id: newId,
-      title: "新对话",
-      time: "刚刚",
-      messages: [],
-    };
-    set((state) => ({
-      conversations: [newConv, ...state.conversations],
-      activeConversationId: newId,
-    }));
+
+  loadMessages: async (sessionId: string) => {
+    try {
+      const messages = await invoke<ChatMessage[]>("get_messages", { sessionId });
+      set({ messages });
+    } catch (e) {
+      console.error("加载消息失败:", e);
+    }
   },
-  setActiveConversation: (id) => set({ activeConversationId: id }),
-  deleteConversation: (id) =>
-    set((state) => {
-      const filtered = state.conversations.filter((c) => c.id !== id);
+
+  createConversation: async () => {
+    try {
+      const session = await invoke<ChatSession>("create_session", { title: "新对话" });
+      set((state) => ({
+        sessions: [session, ...state.sessions],
+        activeSessionId: session.id,
+        messages: [],
+      }));
+    } catch (e) {
+      console.error("创建会话失败:", e);
+    }
+  },
+
+  setActiveSession: (id) => {
+    set({ activeSessionId: id });
+    get().loadMessages(id);
+  },
+
+  deleteConversation: async (id) => {
+    try {
+      await invoke("delete_session", { sessionId: id });
+      const sessions = get().sessions.filter((s) => s.id !== id);
       const newActive =
-        state.activeConversationId === id
-          ? filtered[0]?.id ?? ""
-          : state.activeConversationId;
-      return { conversations: filtered, activeConversationId: newActive };
-    }),
-  addMessage: (role, content) =>
-    set((state) => {
-      const msg: Message = {
-        id: String(Date.now()),
+        get().activeSessionId === id
+          ? sessions[0]?.id ?? ""
+          : get().activeSessionId;
+      set({ sessions, activeSessionId: newActive });
+      if (newActive) {
+        await get().loadMessages(newActive);
+      } else {
+        set({ messages: [] });
+      }
+    } catch (e) {
+      console.error("删除会话失败:", e);
+    }
+  },
+
+  addMessage: async (role, content) => {
+    const sessionId = get().activeSessionId;
+    if (!sessionId) throw new Error("没有活跃会话");
+    try {
+      const msg = await invoke<ChatMessage>("create_message", {
+        sessionId,
         role,
         content,
-        timestamp: new Date(),
-      };
-      return {
-        conversations: state.conversations.map((c) =>
-          c.id === state.activeConversationId
-            ? { ...c, messages: [...c.messages, msg] }
-            : c
+      });
+      set((state) => ({ messages: [...state.messages, msg] }));
+      // 更新 sessions 列表中对应会话的 updated_at
+      set((state) => ({
+        sessions: state.sessions.map((s) =>
+          s.id === sessionId ? { ...s, updated_at: msg.created_at } : s
         ),
-      };
-    }),
+      }));
+      return msg;
+    } catch (e) {
+      console.error("添加消息失败:", e);
+      throw e;
+    }
+  },
+
   setInputValue: (value) => set({ inputValue: value }),
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   setViewMode: (mode) => set({ viewMode: mode }),

@@ -2,13 +2,6 @@ import { useState, useRef, useEffect } from "react";
 import { useChatStore } from "../store/appStore";
 import { Plus, Search, MessageSquare, Paperclip, FileSpreadsheet, Sparkles, ChevronDown, Columns2, ArrowUp, Mic, Camera, Code, Image, X, Trash2 } from "lucide-react";
 
-const chartData = [120, 90, 140, 100, 130, 80, 110];
-const legendItems = [
-  { label: "Pi-ta", color: "#3B82F6" },
-  { label: "Pi-b", color: "#60A5FA" },
-  { label: "Xa21", color: "#93C5FD" },
-];
-
 const tableData = [
   ["Pi-ta", "92%", "45%", "+47%"],
   ["Pi-b", "78%", "32%", "+46%"],
@@ -18,16 +11,17 @@ const tableData = [
 
 export default function AgentChat() {
   const {
-    conversations,
-    activeConversationId,
+    sessions,
+    activeSessionId,
+    messages,
     inputValue,
     sidebarOpen,
     viewMode,
     selectedModel,
     attachedFiles,
-    getActiveMessages,
+    loadSessions,
     createConversation,
-    setActiveConversation,
+    setActiveSession,
     deleteConversation,
     addMessage,
     setInputValue,
@@ -39,24 +33,35 @@ export default function AgentChat() {
 
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const messages = getActiveMessages();
-  const filteredConversations = conversations.filter((c) =>
-    c.title.toLowerCase().includes(searchQuery.toLowerCase())
+  useEffect(() => {
+    loadSessions();
+  }, []);
+
+  const filteredSessions = sessions.filter((s) =>
+    s.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = () => {
-    if (inputValue.trim()) {
-      addMessage("user", inputValue);
+  const handleSend = async () => {
+    if (inputValue.trim() && !sending) {
+      const content = inputValue;
       setInputValue("");
-      setTimeout(() => {
-        addMessage("assistant", "正在分析您的请求，请稍候...");
-      }, 1000);
+      setSending(true);
+      try {
+        await addMessage("user", content);
+        // TODO: 对接真实 LLM，当前为占位回复
+        await addMessage("assistant", "正在分析您的请求，请稍候...");
+      } catch (e) {
+        console.error("发送消息失败:", e);
+      } finally {
+        setSending(false);
+      }
     }
   };
 
@@ -104,17 +109,17 @@ export default function AgentChat() {
 
           <p className="mb-2 text-[11px] font-medium tracking-wide text-[#9CA3AF]">最近对话</p>
           <div className="mb-3 flex flex-col gap-0.5">
-            {filteredConversations.map((conv) => {
-              const isActive = activeConversationId === conv.id;
+            {filteredSessions.map((session) => {
+              const isActive = activeSessionId === session.id;
               return (
                 <div
-                  key={conv.id}
+                  key={session.id}
                   className={`group flex items-center gap-2.5 rounded-lg px-3 py-2.5 transition-colors ${
                     isActive ? "bg-[#EFF6FF]" : "hover:bg-black/5"
                   }`}
                 >
                   <button
-                    onClick={() => setActiveConversation(conv.id)}
+                    onClick={() => setActiveSession(session.id)}
                     className="flex flex-1 items-center gap-2.5 text-left"
                   >
                     <MessageSquare
@@ -123,15 +128,15 @@ export default function AgentChat() {
                     />
                     <div className="min-w-0 flex-1">
                       <p className={`truncate text-[13px] ${isActive ? "font-medium text-[#1E40AF]" : "text-[#374151]"}`}>
-                        {conv.title}
+                        {session.title}
                       </p>
-                      <p className="text-[11px] text-[#9CA3AF]">{conv.time}</p>
+                      <p className="text-[11px] text-[#9CA3AF]">{session.updated_at}</p>
                     </div>
                   </button>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      deleteConversation(conv.id);
+                      deleteConversation(session.id);
                     }}
                     className="hidden h-6 w-6 items-center justify-center rounded text-[#9CA3AF] hover:bg-[#E5E7EB] hover:text-[#EF4444] group-hover:flex"
                   >
@@ -248,35 +253,6 @@ export default function AgentChat() {
                   </div>
                   <div className="flex-1">
                     <p className="text-[14px] leading-relaxed text-[#374151]">{msg.content}</p>
-                    {msg.role === "assistant" && msg.id.endsWith("-2") && (
-                      <div className="mt-4 space-y-4">
-                        <div className="rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] p-4">
-                          <p className="mb-3 text-[13px] font-semibold text-[#111827]">抗性基因分布热力图</p>
-                          <div className="mb-3 flex h-[160px] items-end gap-1 px-2">
-                            {chartData.map((h, i) => (
-                              <div
-                                key={i}
-                                className="w-10 rounded-t-[4px]"
-                                style={{ height: h, backgroundColor: ["#3B82F6", "#60A5FA", "#93C5FD"][i % 3] }}
-                              />
-                            ))}
-                          </div>
-                          <div className="flex gap-4">
-                            {legendItems.map((item) => (
-                              <div key={item.label} className="flex items-center gap-1.5">
-                                <div className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
-                                <span className="text-[11px] text-[#6B7280]">{item.label}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="rounded-lg bg-[#1E293B] p-4 font-mono text-[12px]">
-                          <p className="text-[#94A3B8]"># 基因差异分析结果</p>
-                          <p className="text-[#E2E8F0]">品种间差异显著 (p &lt; 0.001)</p>
-                          <p className="text-[#22C55E]">抗性基因频率: 品种A (78%) &gt; 品种B (45%)</p>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
               ))
@@ -346,7 +322,7 @@ export default function AgentChat() {
             </div>
             <button
               onClick={handleSend}
-              disabled={!inputValue.trim()}
+              disabled={!inputValue.trim() || sending}
               className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#3B82F6] text-white hover:bg-[#2563EB] disabled:opacity-50"
             >
               <ArrowUp size={18} />
