@@ -2,6 +2,7 @@ mod api;
 mod agent;
 
 use api::model::llm::llm_provider::{save_llm_config, load_llm_config, get_llm_config_path, resolve_db_path, test_llm_connection};
+use api::model::llm::send::send_llm_message;
 use agent::session::{
     create_session, create_message,
     delete_session, delete_message,
@@ -31,6 +32,7 @@ pub fn run() {
             load_llm_config,
             get_llm_config_path,
             test_llm_connection,
+            send_llm_message,
             create_session,
             create_message,
             delete_session,

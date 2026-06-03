@@ -1,20 +1,30 @@
 import { useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useChatStore } from "../../store/appStore";
 import { Paperclip, FileSpreadsheet, ArrowUp, Mic, Camera, Code, Image } from "lucide-react";
 
 export default function ChatInput() {
-  const { inputValue, setInputValue, addMessage } = useChatStore();
+  const { activeSessionId, inputValue, setInputValue } = useChatStore();
   const [sending, setSending] = useState(false);
 
   const handleSend = async () => {
-    if (inputValue.trim() && !sending) {
+    if (inputValue.trim() && !sending && activeSessionId) {
       const content = inputValue;
       setInputValue("");
       setSending(true);
       try {
-        await addMessage("user", content);
-        // TODO: 对接真实 LLM，当前为占位回复
-        await addMessage("assistant", "正在分析您的请求，请稍候...");
+        // 后端统一处理：保存用户消息 → 调 LLM → 保存回复
+        const msgs = await invoke<{ id: string; session_id: string; role: string; content: string; created_at: string }[]>(
+          "send_llm_message",
+          { sessionId: activeSessionId, content },
+        );
+        // 追加到前端消息列表
+        useChatStore.setState((state) => ({
+          messages: [...state.messages, ...msgs],
+          sessions: state.sessions.map((s) =>
+            s.id === activeSessionId ? { ...s, updated_at: msgs[msgs.length - 1].created_at } : s
+          ),
+        }));
       } catch (e) {
         console.error("发送消息失败:", e);
       } finally {
