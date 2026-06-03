@@ -33,6 +33,7 @@ export default function Settings() {
     backupFrequency,
     dataFormat,
     storagePath,
+    sessionDbPath,
     apiConfig,
     setLanguage,
     toggleDarkMode,
@@ -44,6 +45,7 @@ export default function Settings() {
     toggleAutoBackup,
     setBackupFrequency,
     setDataFormat,
+    setSessionDbPath,
     setApiConfig,
   } = useSettingsStore();
 
@@ -288,6 +290,19 @@ export default function Settings() {
                 />
                 <p className="mt-1 text-[11px] text-[#9CA3AF]">
                   会话数据和育种数据将存储在此路径下
+                </p>
+              </div>
+              <div className="px-4 py-3">
+                <label className="mb-1.5 block text-[12px] font-medium text-[#6B7280]">会话数据库路径</label>
+                <input
+                  type="text"
+                  value={sessionDbPath}
+                  onChange={(e) => setSessionDbPath(e.target.value)}
+                  placeholder="~/.pod-agent/sessions.db"
+                  className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2 text-[13px] text-[#374151] outline-none focus:border-[#0A84FF]"
+                />
+                <p className="mt-1 text-[11px] text-[#9CA3AF]">
+                  会话历史数据将存储在此 SQLite 数据库文件中
                 </p>
               </div>
               <SettingsRow label="自动备份" toggle={autoBackup} onToggle={toggleAutoBackup} />

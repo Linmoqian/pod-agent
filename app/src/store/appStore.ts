@@ -19,6 +19,7 @@ interface SettingsState {
   autoBackup: boolean;
   backupFrequency: string;
   dataFormat: string;
+  sessionDbPath: string;
   apiConfig: ApiConfig;
   setLanguage: (lang: string) => void;
   toggleDarkMode: () => void;
@@ -30,6 +31,7 @@ interface SettingsState {
   toggleAutoBackup: () => void;
   setBackupFrequency: (freq: string) => void;
   setDataFormat: (format: string) => void;
+  setSessionDbPath: (path: string) => void;
   setApiConfig: (config: Partial<ApiConfig>) => void;
 }
 
@@ -44,6 +46,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   autoBackup: true,
   backupFrequency: "每天",
   dataFormat: "CSV + JSON",
+  sessionDbPath: "",
   apiConfig: {
     provider: "openai",
     apiKey: "",
@@ -60,6 +63,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   toggleAutoBackup: () => set((state) => ({ autoBackup: !state.autoBackup })),
   setBackupFrequency: (backupFrequency) => set({ backupFrequency }),
   setDataFormat: (dataFormat) => set({ dataFormat }),
+  setSessionDbPath: (sessionDbPath) => set({ sessionDbPath }),
   setApiConfig: (config) =>
     set((state) => ({
       apiConfig: { ...state.apiConfig, ...config },

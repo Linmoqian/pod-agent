@@ -1,13 +1,14 @@
 mod config;
 mod agent;
 
-use config::{save_llm_config, load_llm_config, get_llm_config_path, LLMConfig};
+use config::{save_llm_config, load_llm_config, get_llm_config_path, resolve_db_path};
 use agent::session::{
     create_session, create_message,
     delete_session, delete_message,
     get_sessions, get_session, get_messages, search_sessions,
     update_session_title, update_session_timestamp,
 };
+use agent::session::db;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -16,9 +17,14 @@ fn greet(name: &str) -> String {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let config = load_llm_config().unwrap_or_default();
+    let db_path = resolve_db_path(&config);
+    let db_state = db::init_db(&db_path).expect("初始化会话数据库失败");
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
+        .manage(db_state)
         .invoke_handler(tauri::generate_handler![
             greet,
             save_llm_config,

@@ -1,4 +1,5 @@
 pub mod create;
+pub mod db;
 pub mod delete;
 pub mod read;
 pub mod write;

@@ -8,6 +8,8 @@ pub struct LLMConfig {
     pub api_key: String,
     pub endpoint: String,
     pub model: String,
+    #[serde(default)]
+    pub session_db_path: String,
 }
 
 impl Default for LLMConfig {
@@ -17,6 +19,7 @@ impl Default for LLMConfig {
             api_key: String::new(),
             endpoint: "https://api.openai.com/v1".to_string(),
             model: "gpt-4".to_string(),
+            session_db_path: String::new(),
         }
     }
 }
@@ -57,4 +60,14 @@ pub fn load_llm_config() -> Result<LLMConfig, String> {
 #[tauri::command]
 pub fn get_llm_config_path() -> String {
     get_config_path().to_string_lossy().to_string()
+}
+
+pub fn resolve_db_path(config: &LLMConfig) -> String {
+    if config.session_db_path.is_empty() {
+        crate::agent::session::db::get_default_db_path()
+            .to_string_lossy()
+            .to_string()
+    } else {
+        config.session_db_path.clone()
+    }
 }
