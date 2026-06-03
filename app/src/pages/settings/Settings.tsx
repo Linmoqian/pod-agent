@@ -55,6 +55,8 @@ export default function Settings() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [showProviderDropdown, setShowProviderDropdown] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; latency_ms: number; message: string } | null>(null);
 
   // 页面加载时从后端读取配置
   useEffect(() => {
@@ -98,6 +100,27 @@ export default function Settings() {
       setTimeout(() => setSaved(false), 2000);
     } catch (e) {
       console.error("保存配置失败:", e);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const result = await invoke<{ success: boolean; latency_ms: number; message: string }>("test_llm_connection", {
+        config: {
+          provider: apiConfig.provider,
+          api_key: apiConfig.apiKey,
+          endpoint: apiConfig.endpoint,
+          model: apiConfig.model,
+          session_db_path: sessionDbPath,
+        },
+      });
+      setTestResult(result);
+    } catch (e) {
+      setTestResult({ success: false, latency_ms: 0, message: String(e) });
+    } finally {
+      setTesting(false);
     }
   };
 
@@ -310,9 +333,18 @@ export default function Settings() {
                 >
                   {saved ? "已保存 ✓" : "保存配置"}
                 </button>
-                <span className="text-[12px] text-[#86868B]">
-                  配置将保存到 ~/.pod-agent/config.json
-                </span>
+                <button
+                  onClick={handleTestConnection}
+                  disabled={testing}
+                  className="rounded-lg bg-[#374151] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4B5563] disabled:opacity-50"
+                >
+                  {testing ? "测试中..." : "测试连接"}
+                </button>
+                {testResult && (
+                  <span className={`text-[12px] ${testResult.success ? "text-[#22C55E]" : "text-[#EF4444]"}`}>
+                    {testResult.message}
+                  </span>
+                )}
               </div>
             </>
           )}
