@@ -4,6 +4,7 @@ pub mod delete;
 pub mod read;
 pub mod write;
 
+use rusqlite::Row;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -21,6 +22,25 @@ pub struct Message {
     pub role: String,
     pub content: String,
     pub created_at: String,
+}
+
+pub fn session_from_row(row: &Row) -> Result<Session, rusqlite::Error> {
+    Ok(Session {
+        id: row.get(0)?,
+        title: row.get(1)?,
+        created_at: row.get(2)?,
+        updated_at: row.get(3)?,
+    })
+}
+
+pub fn message_from_row(row: &Row) -> Result<Message, rusqlite::Error> {
+    Ok(Message {
+        id: row.get(0)?,
+        session_id: row.get(1)?,
+        role: row.get(2)?,
+        content: row.get(3)?,
+        created_at: row.get(4)?,
+    })
 }
 
 pub use create::*;
