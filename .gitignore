@@ -30,5 +30,10 @@ npm-debug.log*
 # Tauri generated
 app/src-tauri/gen/schemas
 
+# Session database
+data/sessions.db
+data/sessions.db-wal
+data/sessions.db-shm
+
 # Private
 CLAUDE.md
