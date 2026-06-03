@@ -1,15 +1,23 @@
 import { useState } from "react";
 import { useSettingsStore } from "../store/appStore";
-import { Settings as SettingsIcon, User, HardDrive, Bell, Info, Bot } from "lucide-react";
+import { Settings as SettingsIcon, User, HardDrive, Bell, Info, Bot, Key } from "lucide-react";
 import { SettingsRow, Section } from "../components";
 
 const navItems = [
   { id: "general", label: "通用", icon: SettingsIcon },
   { id: "account", label: "账户", icon: User },
   { id: "agent", label: "Agent 设置", icon: Bot },
+  { id: "api", label: "API 配置", icon: Key },
   { id: "data", label: "数据管理", icon: HardDrive },
   { id: "notifications", label: "通知", icon: Bell },
   { id: "about", label: "关于", icon: Info },
+];
+
+const providers = [
+  { id: "openai", name: "OpenAI", endpoint: "https://api.openai.com/v1" },
+  { id: "anthropic", name: "Anthropic", endpoint: "https://api.anthropic.com/v1" },
+  { id: "deepseek", name: "DeepSeek", endpoint: "https://api.deepseek.com/v1" },
+  { id: "custom", name: "自定义", endpoint: "" },
 ];
 
 export default function Settings() {
@@ -24,6 +32,7 @@ export default function Settings() {
     autoBackup,
     backupFrequency,
     dataFormat,
+    apiConfig,
     setLanguage,
     toggleDarkMode,
     setAgentModel,
@@ -33,10 +42,19 @@ export default function Settings() {
     toggleAutoBackup,
     setBackupFrequency,
     setDataFormat,
+    setApiConfig,
   } = useSettingsStore();
 
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [showTempInput, setShowTempInput] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [showProviderDropdown, setShowProviderDropdown] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const handleSaveApiConfig = () => {
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
 
   return (
     <div className="flex h-full bg-[#ECECEC]">
@@ -69,97 +87,224 @@ export default function Settings() {
         <p className="mb-7 text-[13px] text-[#86868B]">管理应用的基本配置</p>
 
         <div className="space-y-5">
-          <Section title="应用信息">
-            <SettingsRow label="应用名称" value="Pod Agent" />
-            <SettingsRow label="版本" value="0.1.0" />
-            <SettingsRow label="构建" value="2026.06.03" />
-          </Section>
+          {/* General */}
+          {activeNav === "general" && (
+            <>
+              <Section title="应用信息">
+                <SettingsRow label="应用名称" value="Pod Agent" />
+                <SettingsRow label="版本" value="0.1.0" />
+                <SettingsRow label="构建" value="2026.06.03" />
+              </Section>
 
-          <Section title="语言与地区">
-            <SettingsRow
-              label="界面语言"
-              value={language}
-              suffix="chevron-right"
-              onClick={() => setLanguage(language === "简体中文" ? "English" : "简体中文")}
-            />
-            <SettingsRow label="深色模式" toggle={darkMode} onToggle={toggleDarkMode} />
-          </Section>
+              <Section title="语言与地区">
+                <SettingsRow
+                  label="界面语言"
+                  value={language}
+                  suffix="chevron-right"
+                  onClick={() => setLanguage(language === "简体中文" ? "English" : "简体中文")}
+                />
+                <SettingsRow label="深色模式" toggle={darkMode} onToggle={toggleDarkMode} />
+              </Section>
+            </>
+          )}
 
-          <Section title="AGENT 设置">
-            <div className="relative">
+          {/* Agent Settings */}
+          {activeNav === "agent" && (
+            <Section title="AGENT 设置">
+              <div className="relative">
+                <SettingsRow
+                  label="默认模型"
+                  value={agentModel}
+                  suffix="chevron-right"
+                  onClick={() => setShowModelDropdown(!showModelDropdown)}
+                />
+                {showModelDropdown && (
+                  <div className="absolute right-4 top-full z-10 mt-1 w-48 rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg">
+                    {["Pod Agent Pro", "Pod Agent Standard", "Pod Agent Lite"].map((model) => (
+                      <button
+                        key={model}
+                        onClick={() => {
+                          setAgentModel(model);
+                          setShowModelDropdown(false);
+                        }}
+                        className={`w-full px-3 py-2 text-left text-[13px] hover:bg-[#F3F4F6] ${
+                          agentModel === model ? "font-medium text-[#0A84FF]" : "text-[#374151]"
+                        }`}
+                      >
+                        {model}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="relative">
+                <SettingsRow
+                  label="温度"
+                  value={String(temperature)}
+                  suffix="chevron-right"
+                  onClick={() => setShowTempInput(!showTempInput)}
+                />
+                {showTempInput && (
+                  <div className="absolute right-4 top-full z-10 mt-1 rounded-lg border border-[#E5E7EB] bg-white p-3 shadow-lg">
+                    <input
+                      type="range"
+                      min="0"
+                      max="2"
+                      step="0.1"
+                      value={temperature}
+                      onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                      className="w-48"
+                    />
+                    <p className="mt-1 text-center text-[12px] text-[#6B7280]">{temperature}</p>
+                  </div>
+                )}
+              </div>
               <SettingsRow
-                label="默认模型"
-                value={agentModel}
+                label="上下文长度"
+                value={contextLength}
                 suffix="chevron-right"
-                onClick={() => setShowModelDropdown(!showModelDropdown)}
+                onClick={() => setContextLength(contextLength === "128K tokens" ? "64K tokens" : "128K tokens")}
               />
-              {showModelDropdown && (
-                <div className="absolute right-4 top-full z-10 mt-1 w-48 rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg">
-                  {["Pod Agent Pro", "Pod Agent Standard", "Pod Agent Lite"].map((model) => (
+              <SettingsRow label="自动保存对话" toggle={autoSave} onToggle={toggleAutoSave} />
+            </Section>
+          )}
+
+          {/* API Configuration */}
+          {activeNav === "api" && (
+            <>
+              <Section title="LLM API 配置">
+                <div className="px-4 py-3">
+                  <label className="mb-1.5 block text-[12px] font-medium text-[#6B7280]">服务提供商</label>
+                  <div className="relative">
                     <button
-                      key={model}
-                      onClick={() => {
-                        setAgentModel(model);
-                        setShowModelDropdown(false);
-                      }}
-                      className={`w-full px-3 py-2 text-left text-[13px] hover:bg-[#F3F4F6] ${
-                        agentModel === model ? "font-medium text-[#0A84FF]" : "text-[#374151]"
-                      }`}
+                      onClick={() => setShowProviderDropdown(!showProviderDropdown)}
+                      className="flex w-full items-center justify-between rounded-lg border border-[#D1D5DB] bg-white px-3 py-2 text-[13px] text-[#374151] hover:border-[#9CA3AF]"
                     >
-                      {model}
+                      {providers.find((p) => p.id === apiConfig.provider)?.name || "选择提供商"}
+                      <svg className="h-4 w-4 text-[#6B7280]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
                     </button>
-                  ))}
+                    {showProviderDropdown && (
+                      <div className="absolute left-0 top-full z-10 mt-1 w-full rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg">
+                        {providers.map((p) => (
+                          <button
+                            key={p.id}
+                            onClick={() => {
+                              setApiConfig({ provider: p.id, endpoint: p.endpoint });
+                              setShowProviderDropdown(false);
+                            }}
+                            className={`w-full px-3 py-2 text-left text-[13px] hover:bg-[#F3F4F6] ${
+                              apiConfig.provider === p.id ? "font-medium text-[#0A84FF]" : "text-[#374151]"
+                            }`}
+                          >
+                            {p.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
-            </div>
-            <div className="relative">
-              <SettingsRow
-                label="温度"
-                value={String(temperature)}
-                suffix="chevron-right"
-                onClick={() => setShowTempInput(!showTempInput)}
-              />
-              {showTempInput && (
-                <div className="absolute right-4 top-full z-10 mt-1 rounded-lg border border-[#E5E7EB] bg-white p-3 shadow-lg">
-                  <input
-                    type="range"
-                    min="0"
-                    max="2"
-                    step="0.1"
-                    value={temperature}
-                    onChange={(e) => setTemperature(parseFloat(e.target.value))}
-                    className="w-48"
-                  />
-                  <p className="mt-1 text-center text-[12px] text-[#6B7280]">{temperature}</p>
-                </div>
-              )}
-            </div>
-            <SettingsRow
-              label="上下文长度"
-              value={contextLength}
-              suffix="chevron-right"
-              onClick={() => setContextLength(contextLength === "128K tokens" ? "64K tokens" : "128K tokens")}
-            />
-            <SettingsRow label="自动保存对话" toggle={autoSave} onToggle={toggleAutoSave} />
-          </Section>
 
-          <Section title="数据管理">
-            <SettingsRow label="存储路径" value="~/pod-agent/data" suffix="chevron-right" />
-            <SettingsRow label="自动备份" toggle={autoBackup} onToggle={toggleAutoBackup} />
-            <SettingsRow
-              label="备份频率"
-              value={backupFrequency}
-              suffix="chevron-right"
-              onClick={() => setBackupFrequency(backupFrequency === "每天" ? "每周" : "每天")}
-            />
-            <SettingsRow
-              label="数据格式"
-              value={dataFormat}
-              suffix="chevron-right"
-              onClick={() => setDataFormat(dataFormat === "CSV + JSON" ? "CSV" : "CSV + JSON")}
-            />
-            <SettingsRow label="清理缓存" action="清理" onAction={() => alert("缓存已清理")} />
-          </Section>
+                <div className="px-4 py-3">
+                  <label className="mb-1.5 block text-[12px] font-medium text-[#6B7280]">API Endpoint</label>
+                  <input
+                    type="text"
+                    value={apiConfig.endpoint}
+                    onChange={(e) => setApiConfig({ endpoint: e.target.value })}
+                    placeholder="https://api.openai.com/v1"
+                    className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2 text-[13px] text-[#374151] outline-none focus:border-[#0A84FF]"
+                  />
+                </div>
+
+                <div className="px-4 py-3">
+                  <label className="mb-1.5 block text-[12px] font-medium text-[#6B7280]">API Key</label>
+                  <div className="relative">
+                    <input
+                      type={showApiKey ? "text" : "password"}
+                      value={apiConfig.apiKey}
+                      onChange={(e) => setApiConfig({ apiKey: e.target.value })}
+                      placeholder="sk-..."
+                      className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2 pr-10 text-[13px] text-[#374151] outline-none focus:border-[#0A84FF]"
+                    />
+                    <button
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#374151]"
+                    >
+                      {showApiKey ? (
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                      ) : (
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                          <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
+                          <line x1="1" y1="1" x2="23" y2="23" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="px-4 py-3">
+                  <label className="mb-1.5 block text-[12px] font-medium text-[#6B7280]">模型名称</label>
+                  <input
+                    type="text"
+                    value={apiConfig.model}
+                    onChange={(e) => setApiConfig({ model: e.target.value })}
+                    placeholder="gpt-4"
+                    className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2 text-[13px] text-[#374151] outline-none focus:border-[#0A84FF]"
+                  />
+                </div>
+              </Section>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleSaveApiConfig}
+                  className="rounded-lg bg-[#0A84FF] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#0070E0]"
+                >
+                  {saved ? "已保存 ✓" : "保存配置"}
+                </button>
+                <span className="text-[12px] text-[#86868B]">
+                  配置将保存到 ~/.pod-agent/config.json
+                </span>
+              </div>
+            </>
+          )}
+
+          {/* Data Management */}
+          {activeNav === "data" && (
+            <Section title="数据管理">
+              <SettingsRow label="存储路径" value="~/pod-agent/data" suffix="chevron-right" />
+              <SettingsRow label="自动备份" toggle={autoBackup} onToggle={toggleAutoBackup} />
+              <SettingsRow
+                label="备份频率"
+                value={backupFrequency}
+                suffix="chevron-right"
+                onClick={() => setBackupFrequency(backupFrequency === "每天" ? "每周" : "每天")}
+              />
+              <SettingsRow
+                label="数据格式"
+                value={dataFormat}
+                suffix="chevron-right"
+                onClick={() => setDataFormat(dataFormat === "CSV + JSON" ? "CSV" : "CSV + JSON")}
+              />
+              <SettingsRow label="清理缓存" action="清理" onAction={() => alert("缓存已清理")} />
+            </Section>
+          )}
+
+          {/* Placeholder for other sections */}
+          {!["general", "agent", "api", "data"].includes(activeNav) && (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="mb-4 rounded-full bg-[#F3F4F6] p-4">
+                {navItems.find((n) => n.id === activeNav) && (
+                  <Key size={32} className="text-[#9CA3AF]" />
+                )}
+              </div>
+              <p className="text-[14px] font-medium text-[#374151]">功能开发中</p>
+              <p className="text-[13px] text-[#9CA3AF]">此模块即将上线</p>
+            </div>
+          )}
         </div>
       </main>
     </div>
