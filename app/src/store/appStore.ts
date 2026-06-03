@@ -40,7 +40,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   temperature: 0.7,
   contextLength: "128K tokens",
   autoSave: true,
-  storagePath: "~/pod-agent/data",
+  storagePath: "/Volumes/base/project/pod-agent/data",
   autoBackup: true,
   backupFrequency: "每天",
   dataFormat: "CSV + JSON",
