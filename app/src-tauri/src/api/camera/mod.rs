@@ -14,6 +14,7 @@ pub struct CameraDevice {
 
 /// 照片记录（对应 photos 表）
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Photo {
     pub id: String,
     pub file_path: String,
