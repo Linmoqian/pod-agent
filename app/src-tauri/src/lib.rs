@@ -1,6 +1,7 @@
 mod api;
 mod agent;
 
+use api::camera::stream::{list_cameras, start_camera_preview, stop_camera_preview};
 use api::model::llm::llm_provider::{save_llm_config, load_llm_config, get_llm_config_path, resolve_db_path, test_llm_connection};
 use api::model::llm::send::send_llm_message;
 use agent::session::{
@@ -26,6 +27,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .manage(db_state)
+        .manage(std::sync::Mutex::new(api::camera::CameraState::new()))
         .invoke_handler(tauri::generate_handler![
             greet,
             save_llm_config,
@@ -43,6 +45,9 @@ pub fn run() {
             search_sessions,
             update_session_title,
             update_session_timestamp,
+            list_cameras,
+            start_camera_preview,
+            stop_camera_preview,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

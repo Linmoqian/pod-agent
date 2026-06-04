@@ -1,0 +1,143 @@
+use std::io::Cursor;
+use std::sync::Arc;
+
+use base64::Engine;
+use image::ImageEncoder;
+use serde::Serialize;
+use tauri::ipc::Channel;
+use tauri::State;
+
+use super::{CameraDevice, CameraStateMutex};
+
+// ── Tauri Channel 事件 ──────────────────────────────────────────
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase", rename_all_fields = "camelCase", tag = "event", content = "data")]
+pub enum CameraEvent {
+    /// 一帧 JPEG（base64 编码）
+    Frame {
+        data: String,
+        width: u32,
+        height: u32,
+    },
+    /// 错误
+    Error {
+        message: String,
+    },
+}
+
+// ── 命令 ────────────────────────────────────────────────────────
+
+/// 枚举系统中的摄像头设备
+#[tauri::command]
+pub fn list_cameras() -> Result<Vec<CameraDevice>, String> {
+    let devices = cameras::devices().map_err(|e| format!("枚举摄像头失败: {}", e))?;
+    let list: Vec<CameraDevice> = devices
+        .iter()
+        .map(|d| CameraDevice {
+            id: d.id.0.clone(),
+            name: d.name.clone(),
+        })
+        .collect();
+    Ok(list)
+}
+
+/// 启动摄像头预览流
+#[tauri::command]
+pub fn start_camera_preview(
+    device_id: Option<String>,
+    on_frame: Channel<CameraEvent>,
+    state: State<'_, CameraStateMutex>,
+) -> Result<(), String> {
+    // 如果已有 pump 在运行，先停止
+    {
+        let mut cam_state = state.lock().map_err(|e| e.to_string())?;
+        if let Some(p) = cam_state.pump.take() {
+            cameras::pump::stop_and_join(p);
+        }
+    }
+
+    // 枚举设备并选择目标
+    let devices = cameras::devices().map_err(|e| format!("枚举摄像头失败: {}", e))?;
+    let device = if let Some(ref id) = device_id {
+        devices
+            .iter()
+            .find(|d| &d.id.0 == id)
+            .ok_or_else(|| format!("未找到摄像头: {}", id))?
+    } else {
+        devices
+            .first()
+            .ok_or("未找到可用摄像头".to_string())?
+    };
+
+    let config = cameras::StreamConfig {
+        resolution: cameras::Resolution {
+            width: 1280,
+            height: 720,
+        },
+        framerate: 30,
+        pixel_format: cameras::PixelFormat::Bgra8,
+    };
+
+    let camera = cameras::open(device, config).map_err(|e| format!("打开摄像头失败: {}", e))?;
+
+    // Channel 需要 Send + 'static，用 Arc 包装
+    let channel = Arc::new(on_frame);
+    let send_error = channel.clone();
+
+    let pump = cameras::pump::spawn(camera, move |frame| {
+        // BGRA → RGB
+        let rgb = match cameras::to_rgb8(&frame) {
+            Ok(rgb) => rgb,
+            Err(e) => {
+                let _ = send_error.send(CameraEvent::Error {
+                    message: format!("帧转换失败: {}", e),
+                });
+                return;
+            }
+        };
+
+        // RGB → JPEG
+        let mut jpeg_buf = Vec::new();
+        let writer = Cursor::new(&mut jpeg_buf);
+        let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(writer, 75);
+        if let Err(e) = encoder.write_image(
+            &rgb,
+            frame.width,
+            frame.height,
+            image::ExtendedColorType::Rgb8,
+        ) {
+            let _ = send_error.send(CameraEvent::Error {
+                message: format!("JPEG 编码失败: {}", e),
+            });
+            return;
+        }
+
+        // JPEG → base64
+        let b64 = base64::engine::general_purpose::STANDARD.encode(&jpeg_buf);
+
+        let _ = channel.send(CameraEvent::Frame {
+            data: b64,
+            width: frame.width,
+            height: frame.height,
+        });
+    });
+
+    // 保存 pump 句柄
+    {
+        let mut cam_state = state.lock().map_err(|e| e.to_string())?;
+        cam_state.pump = Some(pump);
+    }
+
+    Ok(())
+}
+
+/// 停止摄像头预览流
+#[tauri::command]
+pub fn stop_camera_preview(state: State<'_, CameraStateMutex>) -> Result<(), String> {
+    let mut cam_state = state.lock().map_err(|e| e.to_string())?;
+    if let Some(p) = cam_state.pump.take() {
+        cameras::pump::stop_and_join(p);
+    }
+    Ok(())
+}

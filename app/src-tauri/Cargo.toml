@@ -29,4 +29,7 @@ rusqlite = { version = "0.31", features = ["bundled"] }
 reqwest = { version = "0.12", features = ["json", "stream"] }
 tokio = { version = "1", features = ["rt", "macros"] }
 futures-util = "0.3"
+cameras = { version = "0.2", features = ["analysis"] }
+base64 = "0.22"
+image = { version = "0.25", features = ["jpeg"] }
 

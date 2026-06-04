@@ -10,26 +10,24 @@ export default function Camera() {
   const { mode, toggleRecording } = useCameraStore();
 
   const [showSettings, setShowSettings] = useState(false);
-  const [captured, setCaptured] = useState(false);
 
   const handleCapture = () => {
     if (mode === "video") {
       toggleRecording();
     } else {
-      setCaptured(true);
-      setTimeout(() => setCaptured(false), 200);
+      // TODO: 调用 Rust 拍照命令
     }
   };
 
   const handleSwitchCamera = () => {
-    alert("切换前后摄像头");
+    // TODO: 切换摄像头设备
   };
 
   return (
     <div className="flex h-full flex-col bg-black">
       <CameraTopBar onToggleSettings={() => setShowSettings(!showSettings)} />
       {showSettings && <CameraSettings />}
-      <Viewfinder captured={captured} />
+      <Viewfinder />
       <ModeBar />
       <CaptureBar onCapture={handleCapture} onSwitchCamera={handleSwitchCamera} />
     </div>
