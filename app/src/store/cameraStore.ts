@@ -30,7 +30,7 @@ interface CameraState {
 
   // 最近拍摄
   lastPhotoPath: string | null;
-  lastThumbnailPath: string | null;
+  lastThumbnailData: string | null;
 
   // Actions
   setMode: (mode: "photo" | "video" | "document" | "scan") => void;
@@ -59,7 +59,7 @@ export const useCameraStore = create<CameraState>((set, get) => ({
   isStreaming: false,
 
   lastPhotoPath: null,
-  lastThumbnailPath: null,
+  lastThumbnailData: null,
 
   setMode: (mode) => set({ mode }),
   toggleFlash: () =>
@@ -108,8 +108,8 @@ export const useCameraStore = create<CameraState>((set, get) => ({
 
   capturePhoto: async () => {
     try {
-      const result = await invoke<{ photoPath: string; thumbnailPath: string }>("capture_photo");
-      set({ lastPhotoPath: result.photoPath, lastThumbnailPath: result.thumbnailPath });
+      const result = await invoke<{ photoPath: string; thumbnailData: string }>("capture_photo");
+      set({ lastPhotoPath: result.photoPath, lastThumbnailData: result.thumbnailData });
       return result.photoPath;
     } catch (e) {
       console.error("拍照失败:", e);

@@ -2,6 +2,7 @@ use std::fs;
 use std::io::Cursor;
 use std::path::PathBuf;
 
+use base64::Engine;
 use image::ImageEncoder;
 use serde::Serialize;
 use tauri::State;
@@ -12,7 +13,8 @@ use super::CameraStateMutex;
 #[serde(rename_all = "camelCase")]
 pub struct CaptureResult {
     pub photo_path: String,
-    pub thumbnail_path: String,
+    /// 缩略图 base64，前端可直接用于 <img src="data:image/jpeg;base64,...">
+    pub thumbnail_data: String,
 }
 
 /// 照片保存到 ~/.pod-agent/photos/
@@ -23,18 +25,7 @@ fn photos_dir() -> Result<PathBuf, String> {
     Ok(dir)
 }
 
-/// 缩略图保存到 ~/.pod-agent/photos/thumbnails/
-fn thumbnails_dir() -> Result<PathBuf, String> {
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let dir = PathBuf::from(home)
-        .join(".pod-agent")
-        .join("photos")
-        .join("thumbnails");
-    fs::create_dir_all(&dir).map_err(|e| format!("创建缩略图目录失败: {}", e))?;
-    Ok(dir)
-}
-
-/// 从当前 pump 截取一帧，保存原图 + 缩略图
+/// 从当前 pump 截取一帧，保存原图，返回原图路径 + 缩略图 base64
 #[tauri::command]
 pub fn capture_photo(state: State<'_, CameraStateMutex>) -> Result<CaptureResult, String> {
     let cam_state = state.lock().map_err(|e| e.to_string())?;
@@ -62,10 +53,7 @@ pub fn capture_photo(state: State<'_, CameraStateMutex>) -> Result<CaptureResult
 
     fs::write(&photo_path, &jpeg_buf).map_err(|e| format!("写入文件失败: {}", e))?;
 
-    // ── 生成缩略图 (200×200, Q=80) ──────────────────────────
-    let thumb_dir = thumbnails_dir()?;
-    let thumb_path = thumb_dir.join(&filename);
-
+    // ── 生成缩略图 base64 (200×200, Q=80) ────────────────────
     let img =
         image::ImageBuffer::from_raw(frame.width, frame.height, rgb).ok_or("创建图像缓冲区失败")?;
     let dynamic = image::DynamicImage::ImageRgb8(img);
@@ -83,10 +71,10 @@ pub fn capture_photo(state: State<'_, CameraStateMutex>) -> Result<CaptureResult
         )
         .map_err(|e| format!("缩略图编码失败: {}", e))?;
 
-    fs::write(&thumb_path, &thumb_buf).map_err(|e| format!("写入缩略图失败: {}", e))?;
+    let thumbnail_data = base64::engine::general_purpose::STANDARD.encode(&thumb_buf);
 
     Ok(CaptureResult {
         photo_path: photo_path.to_string_lossy().to_string(),
-        thumbnail_path: thumb_path.to_string_lossy().to_string(),
+        thumbnail_data,
     })
 }
