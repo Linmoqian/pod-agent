@@ -11,9 +11,9 @@ export default function CaptureBar({ onCapture, onSwitchCamera }: CaptureBarProp
   const { mode, isRecording, lastPhotoPath } = useCameraStore();
 
   return (
-    <div className="flex items-center justify-between bg-black px-12 py-5">
+    <div className="flex shrink-0 items-center justify-around bg-black px-6 py-4">
       {/* Gallery Preview */}
-      <button className="h-14 w-14 overflow-hidden rounded-xl border-2 border-white/40 bg-[#374151]">
+      <button className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border-2 border-white/40 bg-[#374151]">
         {lastPhotoPath ? (
           <img
             src={convertFileSrc(lastPhotoPath)}
@@ -28,25 +28,25 @@ export default function CaptureBar({ onCapture, onSwitchCamera }: CaptureBarProp
       {/* Capture Button */}
       <button
         onClick={onCapture}
-        className="flex h-[72px] w-[72px] items-center justify-center rounded-full border-4 border-white transition-transform active:scale-95"
+        className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-4 border-white transition-transform active:scale-95"
       >
         {mode === "video" ? (
           isRecording ? (
-            <div className="h-6 w-6 rounded-sm bg-red-500" />
+            <div className="h-5 w-5 rounded-sm bg-red-500" />
           ) : (
-            <div className="h-14 w-14 rounded-full bg-red-500" />
+            <div className="h-12 w-12 rounded-full bg-red-500" />
           )
         ) : (
-          <div className="h-14 w-14 rounded-full bg-white" />
+          <div className="h-12 w-12 rounded-full bg-white" />
         )}
       </button>
 
       {/* Switch Camera */}
       <button
         onClick={onSwitchCamera}
-        className="flex h-14 w-14 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30"
+        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30"
       >
-        <RefreshCw size={22} />
+        <RefreshCw size={20} />
       </button>
     </div>
   );
