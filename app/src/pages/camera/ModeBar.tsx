@@ -11,7 +11,7 @@ export default function ModeBar() {
   const { mode, setMode } = useCameraStore();
 
   return (
-    <div className="flex items-center justify-center gap-6 bg-black py-3">
+    <div className="flex shrink-0 items-center justify-center gap-6 bg-black py-3">
       {modes.map((m) => (
         <button
           key={m.id}

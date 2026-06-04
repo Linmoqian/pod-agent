@@ -9,7 +9,7 @@ export default function Viewfinder({ captured }: ViewfinderProps) {
   const { canvasRef, isStreaming } = useCameraPreview();
 
   return (
-    <div className="relative flex flex-1 items-center justify-center bg-[#1A1A2E]">
+    <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#1A1A2E]">
       {/* 实时摄像头画面 */}
       <canvas
         ref={canvasRef}
