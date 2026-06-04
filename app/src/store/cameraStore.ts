@@ -14,6 +14,9 @@ type CameraEvent =
 
 // ── State ─────────────────────────────────────────────────────
 
+// 模块级变量，不暴露到 store 公共接口
+let frameCallback: ((b64: string, w: number, h: number) => void) | null = null;
+
 interface CameraState {
   mode: "photo" | "video" | "document" | "scan";
   flash: "auto" | "on" | "off";
@@ -27,9 +30,6 @@ interface CameraState {
 
   // 最近拍摄
   lastPhotoPath: string | null;
-
-  // 帧回调引用（切换设备时复用）
-  privateFrameCallback: ((b64: string, w: number, h: number) => void) | null;
 
   // Actions
   setMode: (mode: "photo" | "video" | "document" | "scan") => void;
@@ -58,7 +58,6 @@ export const useCameraStore = create<CameraState>((set, get) => ({
   isStreaming: false,
 
   lastPhotoPath: null,
-  privateFrameCallback: null,
 
   setMode: (mode) => set({ mode }),
   toggleFlash: () =>
@@ -74,15 +73,16 @@ export const useCameraStore = create<CameraState>((set, get) => ({
   },
 
   startPreview: async (deviceId, onFrame) => {
+    frameCallback = onFrame;
+
     const onEvent = new Channel();
     onEvent.onmessage = (msg) => {
       const e = msg as CameraEvent;
       if (e.event === "frame") {
-        onFrame(e.data.data, e.data.width, e.data.height);
+        frameCallback?.(e.data.data, e.data.width, e.data.height);
       }
     };
 
-    set({ privateFrameCallback: onFrame });
     await invoke("start_camera_preview", { deviceId, onFrame: onEvent });
 
     set({ isStreaming: true, activeDeviceId: deviceId ?? get().devices[0]?.id ?? null });
@@ -90,17 +90,18 @@ export const useCameraStore = create<CameraState>((set, get) => ({
 
   stopPreview: async () => {
     await invoke("stop_camera_preview");
-    set({ isStreaming: false, privateFrameCallback: null });
+    frameCallback = null;
+    set({ isStreaming: false });
   },
 
   switchDevice: async (deviceId) => {
-    const { isStreaming, privateFrameCallback } = get();
-    if (!isStreaming || !privateFrameCallback) return;
+    const { isStreaming } = get();
+    if (!isStreaming || !frameCallback) return;
 
     await invoke("stop_camera_preview");
     set({ isStreaming: false });
 
-    await get().startPreview(deviceId, privateFrameCallback);
+    await get().startPreview(deviceId, frameCallback);
   },
 
   capturePhoto: async () => {

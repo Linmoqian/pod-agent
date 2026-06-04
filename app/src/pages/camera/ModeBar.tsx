@@ -1,11 +1,11 @@
 import { useCameraStore } from "../../store";
 
 const modes = [
-  { id: "photo", label: "拍照" },
-  { id: "video", label: "录像" },
-  { id: "document", label: "文档" },
-  { id: "scan", label: "扫描" },
-] as const;
+  { id: "photo" as const, label: "拍照" },
+  { id: "video" as const, label: "录像" },
+  { id: "document" as const, label: "文档" },
+  { id: "scan" as const, label: "扫描" },
+];
 
 export default function ModeBar() {
   const { mode, setMode } = useCameraStore();
