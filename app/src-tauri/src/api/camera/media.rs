@@ -138,6 +138,14 @@ pub fn load_last_photo(db: State<'_, DbState>) -> Result<Option<String>, String>
     Ok(Some(b64))
 }
 
+/// 按文件路径读取照片，返回 base64
+#[tauri::command]
+pub fn read_photo_data(path: String) -> Result<String, String> {
+    let data = fs::read(&path).map_err(|e| format!("读取照片失败: {}", e))?;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
+    Ok(b64)
+}
+
 /// 分页查询照片列表
 #[tauri::command]
 pub fn list_photos(limit: u32, offset: u32, db: State<'_, DbState>) -> Result<Vec<Photo>, String> {

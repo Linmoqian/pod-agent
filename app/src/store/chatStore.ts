@@ -1,14 +1,14 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 
-interface ChatSession {
+export interface ChatSession {
   id: string;
   title: string;
   created_at: string;
   updated_at: string;
 }
 
-interface ChatMessage {
+export interface ChatMessage {
   id: string;
   session_id: string;
   role: string;

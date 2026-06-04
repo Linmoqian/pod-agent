@@ -7,3 +7,4 @@ export { default as IconButton } from "./IconButton";
 export { default as Breadcrumb } from "./Breadcrumb";
 export { default as SearchInput } from "./SearchInput";
 export { default as EmptyState } from "./EmptyState";
+export { default as MarkdownContent } from "./MarkdownContent";

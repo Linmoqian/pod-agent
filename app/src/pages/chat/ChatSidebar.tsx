@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useChatStore } from "../../store";
-import { Plus, Search, MessageSquare, FileSpreadsheet, Columns2, X, Trash2 } from "lucide-react";
+import { Plus, Search, FileSpreadsheet, Columns2, X } from "lucide-react";
+import SessionItem from "./SessionItem";
 
 export default function ChatSidebar() {
   const {
@@ -54,42 +55,16 @@ export default function ChatSidebar() {
 
       <p className="mb-2 text-[11px] font-medium tracking-wide text-[#9CA3AF]">最近对话</p>
       <div className="mb-3 flex flex-col gap-0.5">
-        {filteredSessions.map((session) => {
-          const isActive = activeSessionId === session.id;
-          return (
-            <div
-              key={session.id}
-              className={`group flex items-center gap-2.5 rounded-lg px-3 py-2.5 transition-colors ${
-                isActive ? "bg-[#EFF6FF]" : "hover:bg-black/5"
-              }`}
-            >
-              <button
-                onClick={() => setActiveSession(session.id)}
-                className="flex flex-1 items-center gap-2.5 text-left"
-              >
-                <MessageSquare
-                  size={16}
-                  className={isActive ? "text-[#3B82F6]" : "text-[#6B7280]"}
-                />
-                <div className="min-w-0 flex-1">
-                  <p className={`truncate text-[13px] ${isActive ? "font-medium text-[#1E40AF]" : "text-[#374151]"}`}>
-                    {session.title}
-                  </p>
-                  <p className="text-[11px] text-[#9CA3AF]">{session.updated_at}</p>
-                </div>
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  deleteConversation(session.id);
-                }}
-                className="hidden h-6 w-6 items-center justify-center rounded text-[#9CA3AF] hover:bg-[#E5E7EB] hover:text-[#EF4444] group-hover:flex"
-              >
-                <Trash2 size={12} />
-              </button>
-            </div>
-          );
-        })}
+        {filteredSessions.map((session) => (
+          <SessionItem
+            key={session.id}
+            title={session.title}
+            updatedAt={session.updated_at}
+            isActive={activeSessionId === session.id}
+            onSelect={() => setActiveSession(session.id)}
+            onDelete={() => deleteConversation(session.id)}
+          />
+        ))}
       </div>
 
       <p className="mb-2 text-[11px] font-medium tracking-wide text-[#9CA3AF]">已选文件</p>

@@ -8,6 +8,16 @@ export interface CameraDevice {
   name: string;
 }
 
+export interface PhotoRecord {
+  id: string;
+  filePath: string;
+  thumbnailPath: string;
+  capturedAt: string;
+  width: number;
+  height: number;
+  mode: string;
+}
+
 type CameraEvent =
   | { event: "frame"; data: { data: string; width: number; height: number } }
   | { event: "error"; data: { message: string } };
@@ -33,6 +43,11 @@ interface CameraState {
   lastPhotoData: string | null;
   lastThumbnailData: string | null;
 
+  // 照片浏览
+  photoList: PhotoRecord[];
+  currentPhotoIndex: number;
+  viewingPhotoData: string | null;
+
   // Actions
   setMode: (mode: "photo" | "video" | "document" | "scan") => void;
   toggleFlash: () => void;
@@ -48,6 +63,11 @@ interface CameraState {
   switchDevice: (deviceId: string) => Promise<void>;
   capturePhoto: () => Promise<string | null>;
   loadLastPhoto: () => Promise<void>;
+
+  // 照片浏览
+  openPhotoViewer: (startIndex: number) => Promise<void>;
+  navigatePhoto: (direction: 1 | -1) => Promise<void>;
+  closePhotoViewer: () => void;
 }
 
 export const useCameraStore = create<CameraState>((set, get) => ({
@@ -63,6 +83,10 @@ export const useCameraStore = create<CameraState>((set, get) => ({
   lastPhotoPath: null,
   lastPhotoData: null,
   lastThumbnailData: null,
+
+  photoList: [],
+  currentPhotoIndex: 0,
+  viewingPhotoData: null,
 
   setMode: (mode) => set({ mode }),
   toggleFlash: () =>
@@ -133,5 +157,36 @@ export const useCameraStore = create<CameraState>((set, get) => ({
     } catch (e) {
       console.error("加载最近照片失败:", e);
     }
+  },
+
+  openPhotoViewer: async (startIndex: number) => {
+    try {
+      const list = await invoke<PhotoRecord[]>("list_photos", { limit: 100, offset: 0 });
+      if (list.length === 0) return;
+
+      const index = Math.min(startIndex, list.length - 1);
+      const b64 = await invoke<string>("read_photo_data", { path: list[index].filePath });
+
+      set({ photoList: list, currentPhotoIndex: index, viewingPhotoData: b64 });
+    } catch (e) {
+      console.error("打开照片浏览器失败:", e);
+    }
+  },
+
+  navigatePhoto: async (direction: 1 | -1) => {
+    const { photoList, currentPhotoIndex } = get();
+    const newIndex = currentPhotoIndex + direction;
+    if (newIndex < 0 || newIndex >= photoList.length) return;
+
+    try {
+      const b64 = await invoke<string>("read_photo_data", { path: photoList[newIndex].filePath });
+      set({ currentPhotoIndex: newIndex, viewingPhotoData: b64 });
+    } catch (e) {
+      console.error("切换照片失败:", e);
+    }
+  },
+
+  closePhotoViewer: () => {
+    set({ photoList: [], currentPhotoIndex: 0, viewingPhotoData: null });
   },
 }));

@@ -9,7 +9,7 @@ import CameraDevicePicker from "./CameraDevicePicker";
 import PhotoViewer from "./PhotoViewer";
 
 export default function Camera() {
-  const { mode, toggleRecording, capturePhoto, switchDevice, devices, activeDeviceId } =
+  const { mode, toggleRecording, capturePhoto, switchDevice, devices, activeDeviceId, openPhotoViewer } =
     useCameraStore();
 
   const [showSettings, setShowSettings] = useState(false);
@@ -51,7 +51,10 @@ export default function Camera() {
       <CaptureBar
         onCapture={handleCapture}
         onSwitchCamera={handleSwitchCamera}
-        onViewPhoto={() => setShowPhotoViewer(true)}
+        onViewPhoto={async () => {
+          await openPhotoViewer(0);
+          setShowPhotoViewer(true);
+        }}
       />
 
       {/* 设备选择器 */}

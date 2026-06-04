@@ -1,5 +1,6 @@
 import { useChatStore } from "../../store";
-import { Paperclip, FileSpreadsheet, ArrowUp, Mic, Camera, Code, Image } from "lucide-react";
+import { ArrowUp } from "lucide-react";
+import ChatToolbar from "./ChatToolbar";
 
 export default function ChatInput() {
   const { inputValue, setInputValue, sending, sendMessage } = useChatStore();
@@ -31,14 +32,7 @@ export default function ChatInput() {
             className="mb-2 w-full resize-none bg-transparent text-[14px] text-[#374151] outline-none placeholder:text-[#9CA3AF]"
             rows={1}
           />
-          <div className="flex items-center gap-3">
-            <Paperclip size={18} className="cursor-pointer text-[#6B7280] hover:text-[#374151]" />
-            <Mic size={18} className="cursor-pointer text-[#6B7280] hover:text-[#374151]" />
-            <Camera size={18} className="cursor-pointer text-[#6B7280] hover:text-[#374151]" />
-            <FileSpreadsheet size={18} className="cursor-pointer text-[#6B7280] hover:text-[#374151]" />
-            <Code size={18} className="cursor-pointer text-[#6B7280] hover:text-[#374151]" />
-            <Image size={18} className="cursor-pointer text-[#6B7280] hover:text-[#374151]" />
-          </div>
+          <ChatToolbar />
         </div>
         <button
           onClick={handleSend}
