@@ -47,6 +47,7 @@ interface CameraState {
   photoList: PhotoRecord[];
   currentPhotoIndex: number;
   viewingPhotoData: string | null;
+  thumbnailMap: Record<string, string>; // id → base64
 
   // Actions
   setMode: (mode: "photo" | "video" | "document" | "scan") => void;
@@ -68,6 +69,7 @@ interface CameraState {
   openPhotoViewer: (startIndex: number) => Promise<void>;
   navigatePhoto: (direction: 1 | -1) => Promise<void>;
   closePhotoViewer: () => void;
+  loadThumbnails: () => Promise<void>;
 }
 
 export const useCameraStore = create<CameraState>((set, get) => ({
@@ -87,6 +89,7 @@ export const useCameraStore = create<CameraState>((set, get) => ({
   photoList: [],
   currentPhotoIndex: 0,
   viewingPhotoData: null,
+  thumbnailMap: {},
 
   setMode: (mode) => set({ mode }),
   toggleFlash: () =>
@@ -168,6 +171,9 @@ export const useCameraStore = create<CameraState>((set, get) => ({
       const b64 = await invoke<string>("read_photo_data", { path: list[index].filePath });
 
       set({ photoList: list, currentPhotoIndex: index, viewingPhotoData: b64 });
+
+      // 后台批量加载缩略图
+      get().loadThumbnails();
     } catch (e) {
       console.error("打开照片浏览器失败:", e);
     }
@@ -187,6 +193,23 @@ export const useCameraStore = create<CameraState>((set, get) => ({
   },
 
   closePhotoViewer: () => {
-    set({ photoList: [], currentPhotoIndex: 0, viewingPhotoData: null });
+    set({ photoList: [], currentPhotoIndex: 0, viewingPhotoData: null, thumbnailMap: {} });
+  },
+
+  loadThumbnails: async () => {
+    const { photoList, thumbnailMap } = get();
+    const newMap = { ...thumbnailMap };
+
+    for (const photo of photoList) {
+      if (newMap[photo.id]) continue;
+      try {
+        const b64 = await invoke<string>("read_photo_data", { path: photo.thumbnailPath });
+        newMap[photo.id] = b64;
+      } catch {
+        // 跳过加载失败的缩略图
+      }
+    }
+
+    set({ thumbnailMap: newMap });
   },
 }));
