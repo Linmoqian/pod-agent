@@ -1,10 +1,17 @@
 import { useCameraStore } from "../../store";
 
-export default function GalleryPreview() {
+interface GalleryPreviewProps {
+  onClick: () => void;
+}
+
+export default function GalleryPreview({ onClick }: GalleryPreviewProps) {
   const { lastThumbnailData } = useCameraStore();
 
   return (
-    <button className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border-2 border-white/40 bg-[#374151]">
+    <button
+      onClick={lastThumbnailData ? onClick : undefined}
+      className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border-2 border-white/40 bg-[#374151]"
+    >
       {lastThumbnailData ? (
         <img
           src={`data:image/jpeg;base64,${lastThumbnailData}`}

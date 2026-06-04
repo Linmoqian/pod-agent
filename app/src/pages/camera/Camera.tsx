@@ -6,6 +6,7 @@ import Viewfinder from "./Viewfinder";
 import ModeBar from "./ModeBar";
 import CaptureBar from "./CaptureBar";
 import CameraDevicePicker from "./CameraDevicePicker";
+import PhotoViewer from "./PhotoViewer";
 
 export default function Camera() {
   const { mode, toggleRecording, capturePhoto, switchDevice, devices, activeDeviceId } =
@@ -13,6 +14,7 @@ export default function Camera() {
 
   const [showSettings, setShowSettings] = useState(false);
   const [showDevicePicker, setShowDevicePicker] = useState(false);
+  const [showPhotoViewer, setShowPhotoViewer] = useState(false);
   const [captured, setCaptured] = useState(false);
 
   const handleCapture = async () => {
@@ -30,7 +32,6 @@ export default function Camera() {
 
   const handleSwitchCamera = () => {
     if (devices.length <= 1) return;
-    // 多设备时显示选择器
     setShowDevicePicker(true);
   };
 
@@ -47,7 +48,11 @@ export default function Camera() {
       {showSettings && <CameraSettings />}
       <Viewfinder captured={captured} />
       <ModeBar />
-      <CaptureBar onCapture={handleCapture} onSwitchCamera={handleSwitchCamera} />
+      <CaptureBar
+        onCapture={handleCapture}
+        onSwitchCamera={handleSwitchCamera}
+        onViewPhoto={() => setShowPhotoViewer(true)}
+      />
 
       {/* 设备选择器 */}
       {showDevicePicker && (
@@ -56,6 +61,9 @@ export default function Camera() {
           onClose={() => setShowDevicePicker(false)}
         />
       )}
+
+      {/* 全屏查看照片 */}
+      {showPhotoViewer && <PhotoViewer onClose={() => setShowPhotoViewer(false)} />}
     </div>
   );
 }
