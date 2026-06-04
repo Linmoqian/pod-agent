@@ -51,7 +51,7 @@ pub fn load_yolo_model(
         Some(p) => p,
         None => {
             let models_dir = paths::get_models_dir();
-            let default = models_dir.join("yolo11n.onnx");
+            let default = models_dir.join("yolov8n.onnx");
             if !default.exists() {
                 return Err(format!(
                     "默认模型不存在: {}\n请下载模型到 data/models/ 目录",

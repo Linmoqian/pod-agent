@@ -1,5 +1,5 @@
-mod api;
-mod agent;
+pub mod api;
+pub mod agent;
 mod paths;
 
 use api::camera::media::{capture_photo, load_last_photo, list_photos, read_photo_data};

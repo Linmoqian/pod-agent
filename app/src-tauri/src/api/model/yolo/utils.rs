@@ -1,5 +1,5 @@
 use serde::Serialize;
-use usls::{Config, ORTConfig};
+use usls::{Config, ORTConfig, Version};
 
 /// 检测结果
 #[derive(Debug, Clone, Serialize)]
@@ -20,7 +20,9 @@ pub fn build_detect_config(model_path: &str) -> Result<Config, String> {
         file: model_path.to_string(),
         ..Default::default()
     };
-    Ok(Config::yolo_detect().with_model(ort_config))
+    Ok(Config::yolo_detect()
+        .with_version(Version::new(8, 0))
+        .with_model(ort_config))
 }
 
 /// 从 usls 的 Y 结果中提取检测框

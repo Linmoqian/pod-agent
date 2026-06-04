@@ -34,3 +34,7 @@ base64 = "0.22"
 image = { version = "0.25", features = ["jpeg"] }
 usls = { version = "0.2.0-alpha.3", features = ["vision", "annotator"] }
 
+[[test]]
+name = "yolo_integration"
+path = "../../tests/YOLO-test/yolo_integration.rs"
+
