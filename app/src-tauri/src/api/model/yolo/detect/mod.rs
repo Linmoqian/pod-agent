@@ -3,7 +3,7 @@ use tauri::State;
 use usls::Model;
 
 use crate::api::model::yolo::utils;
-use crate::api::model::yolo::{process, YOLOStateMutex};
+use crate::api::model::yolo::YOLOStateMutex;
 use crate::paths;
 
 /// 加载检测结果
@@ -12,6 +12,33 @@ use crate::paths;
 pub struct DetectResult {
     pub detections: Vec<utils::Detection>,
     pub inference_ms: u128,
+}
+
+/// 内部：执行推理并提取结果（预处理在锁外完成）
+fn run_detect(
+    image: usls::Image,
+    state: &mut crate::api::model::yolo::YOLOState,
+) -> Result<DetectResult, String> {
+    let model = state
+        .model
+        .as_mut()
+        .ok_or("YOLO 模型未加载，请先调用 load_yolo_model")?;
+
+    let start = std::time::Instant::now();
+    let results = model
+        .forward(&[image])
+        .map_err(|e| format!("推理失败: {}", e))?;
+    let inference_ms = start.elapsed().as_millis();
+
+    let detections = results
+        .first()
+        .map(utils::extract_detections)
+        .unwrap_or_default();
+
+    Ok(DetectResult {
+        detections,
+        inference_ms,
+    })
 }
 
 /// 加载 YOLO 模型
@@ -59,29 +86,12 @@ pub fn detect_photo(
     file_path: String,
     yolo: State<'_, YOLOStateMutex>,
 ) -> Result<DetectResult, String> {
+    // 预处理在锁外
+    let image = usls::Image::try_read(&file_path)
+        .map_err(|e| format!("加载图片失败: {}", e))?;
+
     let mut state = yolo.lock().map_err(|e| e.to_string())?;
-    let model = state
-        .model
-        .as_mut()
-        .ok_or("YOLO 模型未加载，请先调用 load_yolo_model")?;
-
-    let image = process::load_image(&file_path)?;
-
-    let start = std::time::Instant::now();
-    let results = model
-        .forward(&[image])
-        .map_err(|e| format!("推理失败: {}", e))?;
-    let inference_ms = start.elapsed().as_millis();
-
-    let detections = results
-        .first()
-        .map(|r| utils::extract_detections(r, &usls::NAMES_COCO_80))
-        .unwrap_or_default();
-
-    Ok(DetectResult {
-        detections,
-        inference_ms,
-    })
+    run_detect(image, &mut state)
 }
 
 /// 检测 RGB 字节流（用于摄像头帧）
@@ -92,27 +102,10 @@ pub fn detect_from_bytes(
     height: u32,
     yolo: State<'_, YOLOStateMutex>,
 ) -> Result<DetectResult, String> {
+    // 预处理在锁外
+    let image = usls::Image::from_u8s(&rgb_bytes, width, height)
+        .map_err(|e| format!("创建图像失败: {}", e))?;
+
     let mut state = yolo.lock().map_err(|e| e.to_string())?;
-    let model = state
-        .model
-        .as_mut()
-        .ok_or("YOLO 模型未加载，请先调用 load_yolo_model")?;
-
-    let image = process::rgb_bytes_to_image(&rgb_bytes, width, height)?;
-
-    let start = std::time::Instant::now();
-    let results = model
-        .forward(&[image])
-        .map_err(|e| format!("推理失败: {}", e))?;
-    let inference_ms = start.elapsed().as_millis();
-
-    let detections = results
-        .first()
-        .map(|r| utils::extract_detections(r, &usls::NAMES_COCO_80))
-        .unwrap_or_default();
-
-    Ok(DetectResult {
-        detections,
-        inference_ms,
-    })
+    run_detect(image, &mut state)
 }

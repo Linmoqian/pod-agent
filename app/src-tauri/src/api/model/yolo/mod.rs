@@ -1,5 +1,4 @@
 pub mod detect;
-pub mod process;
 pub mod utils;
 
 use std::sync::Mutex;

@@ -24,26 +24,15 @@ pub fn build_detect_config(model_path: &str) -> Result<Config, String> {
 }
 
 /// 从 usls 的 Y 结果中提取检测框
-pub fn extract_detections(result: &usls::Y, class_names: &[&str]) -> Vec<Detection> {
+pub fn extract_detections(result: &usls::Y) -> Vec<Detection> {
     result
         .hbbs
         .iter()
         .map(|hbb| {
             let meta = hbb.meta();
-            let class_id = meta.id().unwrap_or(0);
-            let class_name = meta
-                .name()
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| {
-                    class_names
-                        .get(class_id)
-                        .map(|s| s.to_string())
-                        .unwrap_or_else(|| format!("class_{}", class_id))
-                });
-
             Detection {
-                class_id,
-                class_name,
+                class_id: meta.id().unwrap_or(0),
+                class_name: meta.name().unwrap_or("unknown").to_string(),
                 confidence: meta.confidence().unwrap_or(0.0),
                 x_min: hbb.xmin(),
                 y_min: hbb.ymin(),
