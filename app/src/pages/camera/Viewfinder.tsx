@@ -1,5 +1,8 @@
+import { useRef, useEffect } from "react";
 import { useCameraPreview } from "./hooks/useCameraPreview";
+import { useCameraStore } from "../../store";
 import GridOverlay from "./GridOverlay";
+import DetectionOverlay from "./DetectionOverlay";
 
 interface ViewfinderProps {
   captured: boolean;
@@ -7,6 +10,37 @@ interface ViewfinderProps {
 
 export default function Viewfinder({ captured }: ViewfinderProps) {
   const { canvasRef, isStreaming } = useCameraPreview();
+  const { isDetecting, runDetection, detections } = useCameraStore();
+  const canvasSizeRef = useRef({ width: 0, height: 0 });
+
+  // 检测循环：isDetecting 为 true 时周期性调用
+  useEffect(() => {
+    if (!isDetecting || !isStreaming) return;
+
+    let timer: ReturnType<typeof setTimeout>;
+
+    const loop = async () => {
+      await runDetection();
+      timer = setTimeout(loop, 300);
+    };
+
+    loop();
+
+    return () => clearTimeout(timer);
+  }, [isDetecting, isStreaming, runDetection]);
+
+  // 跟踪 canvas 实际尺寸，供 DetectionOverlay 使用
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const observer = new ResizeObserver(() => {
+      canvasSizeRef.current = { width: canvas.clientWidth, height: canvas.clientHeight };
+    });
+    observer.observe(canvas);
+
+    return () => observer.disconnect();
+  }, [canvasRef]);
 
   return (
     <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#1A1A2E]">
@@ -26,7 +60,16 @@ export default function Viewfinder({ captured }: ViewfinderProps) {
       {/* 拍照闪光 */}
       {captured && <div className="absolute inset-0 bg-white" />}
 
-      {/* 网格 + 对焦框 + 对焦提示 */}
+      {/* YOLO 检测框 */}
+      {isDetecting && (
+        <DetectionOverlay
+          detections={detections}
+          canvasWidth={canvasSizeRef.current.width}
+          canvasHeight={canvasSizeRef.current.height}
+        />
+      )}
+
+      {/* 网格 + 对焦框 */}
       <GridOverlay />
     </div>
   );

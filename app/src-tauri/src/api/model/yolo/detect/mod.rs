@@ -4,6 +4,7 @@ use usls::Model;
 
 use crate::api::model::yolo::utils;
 use crate::api::model::yolo::YOLOStateMutex;
+use crate::api::camera::CameraStateMutex;
 use crate::paths;
 
 /// 加载检测结果
@@ -108,4 +109,30 @@ pub fn detect_from_bytes(
 
     let mut state = yolo.lock().map_err(|e| e.to_string())?;
     run_detect(image, &mut state)
+}
+
+/// 从摄像头当前帧检测（Rust 端直接取帧，避免 IPC 传输）
+#[tauri::command]
+pub fn detect_from_camera(
+    camera: State<'_, CameraStateMutex>,
+    yolo: State<'_, YOLOStateMutex>,
+) -> Result<DetectResult, String> {
+    // 1. 锁 camera，取帧
+    let cam_state = camera.lock().map_err(|e| e.to_string())?;
+    let pump = cam_state
+        .pump
+        .as_ref()
+        .ok_or("摄像头未启动")?;
+    let frame = cameras::pump::capture_frame(pump).ok_or("截取帧失败")?;
+    let rgb = cameras::to_rgb8(&frame).map_err(|e| format!("帧转换失败: {}", e))?;
+    let (w, h) = (frame.width, frame.height);
+    drop(cam_state); // 释放 camera 锁
+
+    // 2. 构建 Image
+    let image = usls::Image::from_u8s(&rgb, w, h)
+        .map_err(|e| format!("创建图像失败: {}", e))?;
+
+    // 3. 锁 YOLO，推理
+    let mut yolo_state = yolo.lock().map_err(|e| e.to_string())?;
+    run_detect(image, &mut yolo_state)
 }

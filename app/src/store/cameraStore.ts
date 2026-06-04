@@ -18,6 +18,16 @@ export interface PhotoRecord {
   mode: string;
 }
 
+export interface Detection {
+  classId: number;
+  className: string;
+  confidence: number;
+  xMin: number;
+  yMin: number;
+  xMax: number;
+  yMax: number;
+}
+
 type CameraEvent =
   | { event: "frame"; data: { data: string; width: number; height: number } }
   | { event: "error"; data: { message: string } };
@@ -49,6 +59,12 @@ interface CameraState {
   viewingPhotoData: string | null;
   thumbnailMap: Record<string, string>; // id → base64
 
+  // YOLO 实时检测
+  yoloLoaded: boolean;
+  isDetecting: boolean;
+  detections: Detection[];
+  detectionMs: number | null;
+
   // Actions
   setMode: (mode: "photo" | "video" | "document" | "scan") => void;
   toggleFlash: () => void;
@@ -70,6 +86,11 @@ interface CameraState {
   navigatePhoto: (direction: 1 | -1) => Promise<void>;
   closePhotoViewer: () => void;
   loadThumbnails: () => Promise<void>;
+
+  // YOLO 实时检测
+  loadYoloModel: () => Promise<void>;
+  toggleDetection: () => void;
+  runDetection: () => Promise<void>;
 }
 
 export const useCameraStore = create<CameraState>((set, get) => ({
@@ -90,6 +111,11 @@ export const useCameraStore = create<CameraState>((set, get) => ({
   currentPhotoIndex: 0,
   viewingPhotoData: null,
   thumbnailMap: {},
+
+  yoloLoaded: false,
+  isDetecting: false,
+  detections: [],
+  detectionMs: null,
 
   setMode: (mode) => set({ mode }),
   toggleFlash: () =>
@@ -211,5 +237,30 @@ export const useCameraStore = create<CameraState>((set, get) => ({
     }
 
     set({ thumbnailMap: newMap });
+  },
+
+  loadYoloModel: async () => {
+    try {
+      await invoke("load_yolo_model", { modelPath: null });
+      set({ yoloLoaded: true });
+    } catch (e) {
+      console.error("加载 YOLO 模型失败:", e);
+    }
+  },
+
+  toggleDetection: () => {
+    set((state) => {
+      const next = !state.isDetecting;
+      return { isDetecting: next, detections: next ? state.detections : [] };
+    });
+  },
+
+  runDetection: async () => {
+    try {
+      const result = await invoke<{ detections: Detection[]; inferenceMs: number }>("detect_from_camera");
+      set({ detections: result.detections, detectionMs: result.inferenceMs });
+    } catch {
+      // 摄像头未启动或模型未加载，静默忽略
+    }
   },
 }));
