@@ -6,6 +6,8 @@ use api::camera::media::{capture_photo, load_last_photo, list_photos, read_photo
 use api::camera::stream::{list_cameras, start_camera_preview, stop_camera_preview};
 use api::model::llm::llm_provider::{save_llm_config, load_llm_config, get_llm_config_path, resolve_db_path, test_llm_connection};
 use api::model::llm::send::send_llm_message;
+use api::model::yolo::detect::{load_yolo_model, unload_yolo_model, detect_photo, detect_from_bytes};
+use api::model::yolo::YOLOStateMutex;
 use agent::session::{
     create_session, create_message,
     delete_session, delete_message,
@@ -30,6 +32,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .manage(db_state)
         .manage(std::sync::Mutex::new(api::camera::CameraState::new()))
+        .manage(std::sync::Mutex::new(api::model::yolo::YOLOState::new()) as YOLOStateMutex)
         .invoke_handler(tauri::generate_handler![
             greet,
             paths::get_data_dir_cmd,
@@ -55,6 +58,10 @@ pub fn run() {
             load_last_photo,
             list_photos,
             read_photo_data,
+            load_yolo_model,
+            unload_yolo_model,
+            detect_photo,
+            detect_from_bytes,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

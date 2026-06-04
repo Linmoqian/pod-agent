@@ -42,6 +42,13 @@ pub fn get_thumbnails_dir() -> PathBuf {
     dir
 }
 
+/// 模型目录：{data_dir}/models/
+pub fn get_models_dir() -> PathBuf {
+    let dir = get_data_dir().join("models");
+    fs::create_dir_all(&dir).ok();
+    dir
+}
+
 /// Tauri 命令：返回数据根目录给前端
 #[tauri::command]
 pub fn get_data_dir_cmd() -> String {
