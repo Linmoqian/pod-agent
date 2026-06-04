@@ -35,5 +35,8 @@ data/sessions.db
 data/sessions.db-wal
 data/sessions.db-shm
 
+# Design
+design/
+
 # Private
 CLAUDE.md
