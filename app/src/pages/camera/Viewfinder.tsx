@@ -2,7 +2,11 @@ import { useRef, useEffect, useCallback } from "react";
 import { Scan } from "lucide-react";
 import { useCameraStore } from "../../store";
 
-export default function Viewfinder() {
+interface ViewfinderProps {
+  captured: boolean;
+}
+
+export default function Viewfinder({ captured }: ViewfinderProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { loadDevices, startPreview, stopPreview, isStreaming } = useCameraStore();
 
@@ -55,6 +59,9 @@ export default function Viewfinder() {
           <p className="text-sm text-white/40">正在连接摄像头…</p>
         </div>
       )}
+
+      {/* 拍照闪光 */}
+      {captured && <div className="absolute inset-0 bg-white" />}
 
       {/* Grid Overlay */}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">

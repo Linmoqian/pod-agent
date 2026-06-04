@@ -25,6 +25,12 @@ interface CameraState {
   activeDeviceId: string | null;
   isStreaming: boolean;
 
+  // 最近拍摄
+  lastPhotoPath: string | null;
+
+  // 帧回调引用（切换设备时复用）
+  privateFrameCallback: ((b64: string, w: number, h: number) => void) | null;
+
   // Actions
   setMode: (mode: "photo" | "video" | "document" | "scan") => void;
   toggleFlash: () => void;
@@ -37,6 +43,8 @@ interface CameraState {
     onFrame: (b64: string, w: number, h: number) => void,
   ) => Promise<void>;
   stopPreview: () => Promise<void>;
+  switchDevice: (deviceId: string) => Promise<void>;
+  capturePhoto: () => Promise<string | null>;
 }
 
 export const useCameraStore = create<CameraState>((set, get) => ({
@@ -48,6 +56,9 @@ export const useCameraStore = create<CameraState>((set, get) => ({
   devices: [],
   activeDeviceId: null,
   isStreaming: false,
+
+  lastPhotoPath: null,
+  privateFrameCallback: null,
 
   setMode: (mode) => set({ mode }),
   toggleFlash: () =>
@@ -71,6 +82,7 @@ export const useCameraStore = create<CameraState>((set, get) => ({
       }
     };
 
+    set({ privateFrameCallback: onFrame });
     await invoke("start_camera_preview", { deviceId, onFrame: onEvent });
 
     set({ isStreaming: true, activeDeviceId: deviceId ?? get().devices[0]?.id ?? null });
@@ -78,6 +90,27 @@ export const useCameraStore = create<CameraState>((set, get) => ({
 
   stopPreview: async () => {
     await invoke("stop_camera_preview");
+    set({ isStreaming: false, privateFrameCallback: null });
+  },
+
+  switchDevice: async (deviceId) => {
+    const { isStreaming, privateFrameCallback } = get();
+    if (!isStreaming || !privateFrameCallback) return;
+
+    await invoke("stop_camera_preview");
     set({ isStreaming: false });
+
+    await get().startPreview(deviceId, privateFrameCallback);
+  },
+
+  capturePhoto: async () => {
+    try {
+      const path = await invoke<string>("capture_photo");
+      set({ lastPhotoPath: path });
+      return path;
+    } catch (e) {
+      console.error("拍照失败:", e);
+      return null;
+    }
   },
 }));

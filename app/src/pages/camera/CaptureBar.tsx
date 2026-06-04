@@ -1,4 +1,5 @@
 import { RefreshCw } from "lucide-react";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { useCameraStore } from "../../store";
 
 interface CaptureBarProps {
@@ -7,13 +8,21 @@ interface CaptureBarProps {
 }
 
 export default function CaptureBar({ onCapture, onSwitchCamera }: CaptureBarProps) {
-  const { mode, isRecording } = useCameraStore();
+  const { mode, isRecording, lastPhotoPath } = useCameraStore();
 
   return (
     <div className="flex items-center justify-between bg-black px-12 py-5">
       {/* Gallery Preview */}
       <button className="h-14 w-14 overflow-hidden rounded-xl border-2 border-white/40 bg-[#374151]">
-        <div className="h-full w-full bg-gradient-to-br from-green-500/30 to-blue-500/30" />
+        {lastPhotoPath ? (
+          <img
+            src={convertFileSrc(lastPhotoPath)}
+            alt="最近拍摄"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="h-full w-full bg-gradient-to-br from-green-500/30 to-blue-500/30" />
+        )}
       </button>
 
       {/* Capture Button */}
