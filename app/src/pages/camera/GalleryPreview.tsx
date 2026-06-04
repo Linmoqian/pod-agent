@@ -2,13 +2,13 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { useCameraStore } from "../../store";
 
 export default function GalleryPreview() {
-  const { lastPhotoPath } = useCameraStore();
+  const { lastThumbnailPath } = useCameraStore();
 
   return (
     <button className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border-2 border-white/40 bg-[#374151]">
-      {lastPhotoPath ? (
+      {lastThumbnailPath ? (
         <img
-          src={convertFileSrc(lastPhotoPath)}
+          src={convertFileSrc(lastThumbnailPath)}
           alt="最近拍摄"
           className="h-full w-full object-cover"
         />
