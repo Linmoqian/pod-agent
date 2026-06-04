@@ -1,8 +1,16 @@
 import { useState, useEffect } from "react";
 import { useSettingsStore } from "../../store";
 import { invoke } from "@tauri-apps/api/core";
-import { Settings as SettingsIcon, User, HardDrive, Bell, Info, Bot, Key } from "lucide-react";
 import { SettingsRow, Section } from "../../components";
+import {
+  Settings as SettingsIcon,
+  User,
+  HardDrive,
+  Bell,
+  Info,
+  Bot,
+  Key,
+} from "lucide-react";
 
 const navItems = [
   { id: "general", label: "通用", icon: SettingsIcon },
@@ -56,9 +64,12 @@ export default function Settings() {
   const [showProviderDropdown, setShowProviderDropdown] = useState(false);
   const [saved, setSaved] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{ success: boolean; latency_ms: number; message: string } | null>(null);
+  const [testResult, setTestResult] = useState<{
+    success: boolean;
+    latency_ms: number;
+    message: string;
+  } | null>(null);
 
-  // 页面加载时从后端读取配置
   useEffect(() => {
     const init = async () => {
       try {
@@ -107,7 +118,11 @@ export default function Settings() {
     setTesting(true);
     setTestResult(null);
     try {
-      const result = await invoke<{ success: boolean; latency_ms: number; message: string }>("test_llm_connection", {
+      const result = await invoke<{
+        success: boolean;
+        latency_ms: number;
+        message: string;
+      }>("test_llm_connection", {
         config: {
           provider: apiConfig.provider,
           api_key: apiConfig.apiKey,
@@ -125,9 +140,12 @@ export default function Settings() {
   };
 
   return (
-    <div className="flex h-full bg-[#ECECEC]">
-      <aside className="w-[260px] bg-[#F5F5F7] p-5">
-        <h1 className="mb-4 text-[13px] font-semibold tracking-wide text-[#86868B]">设置</h1>
+    <div className="flex h-full bg-canvas-parchment">
+      {/* Sidebar */}
+      <aside className="w-[260px] bg-canvas-parchment p-5">
+        <h1 className="mb-4 text-[13px] font-semibold tracking-wide text-ink-muted-48">
+          设置
+        </h1>
         <nav className="flex flex-col gap-0.5">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -137,10 +155,15 @@ export default function Settings() {
                 key={item.id}
                 onClick={() => setActiveNav(item.id)}
                 className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] transition-colors ${
-                  isActive ? "bg-[#0A84FF] text-white" : "text-[#1D1D1F] hover:bg-black/5"
+                  isActive
+                    ? "bg-primary text-white"
+                    : "text-ink hover:bg-black/5"
                 }`}
               >
-                <Icon size={16} className={isActive ? "text-white" : "text-[#86868B]"} />
+                <Icon
+                  size={16}
+                  className={isActive ? "text-white" : "text-ink-muted-48"}
+                />
                 {item.label}
               </button>
             );
@@ -148,11 +171,14 @@ export default function Settings() {
         </nav>
       </aside>
 
-      <main className="flex-1 overflow-auto bg-white p-8">
-        <h2 className="mb-1 text-[28px] font-bold text-[#1D1D1F]">
+      {/* Main Content */}
+      <main className="flex-1 overflow-auto bg-canvas p-8">
+        <h2 className="mb-1 text-[28px] font-bold tracking-tight text-ink">
           {navItems.find((n) => n.id === activeNav)?.label}
         </h2>
-        <p className="mb-7 text-[13px] text-[#86868B]">管理应用的基本配置</p>
+        <p className="mb-7 text-[13px] text-ink-muted-48">
+          管理应用的基本配置
+        </p>
 
         <div className="space-y-5">
           {/* General */}
@@ -169,9 +195,15 @@ export default function Settings() {
                   label="界面语言"
                   value={language}
                   suffix="chevron-right"
-                  onClick={() => setLanguage(language === "简体中文" ? "English" : "简体中文")}
+                  onClick={() =>
+                    setLanguage(language === "简体中文" ? "English" : "简体中文")
+                  }
                 />
-                <SettingsRow label="深色模式" toggle={darkMode} onToggle={toggleDarkMode} />
+                <SettingsRow
+                  label="深色模式"
+                  toggle={darkMode}
+                  onToggle={toggleDarkMode}
+                />
               </Section>
             </>
           )}
@@ -187,21 +219,25 @@ export default function Settings() {
                   onClick={() => setShowModelDropdown(!showModelDropdown)}
                 />
                 {showModelDropdown && (
-                  <div className="absolute right-4 top-full z-10 mt-1 w-48 rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg">
-                    {["Pod Agent Pro", "Pod Agent Standard", "Pod Agent Lite"].map((model) => (
-                      <button
-                        key={model}
-                        onClick={() => {
-                          setAgentModel(model);
-                          setShowModelDropdown(false);
-                        }}
-                        className={`w-full px-3 py-2 text-left text-[13px] hover:bg-[#F3F4F6] ${
-                          agentModel === model ? "font-medium text-[#0A84FF]" : "text-[#374151]"
-                        }`}
-                      >
-                        {model}
-                      </button>
-                    ))}
+                  <div className="absolute right-4 top-full z-10 mt-1 w-48 rounded-lg border border-hairline bg-canvas py-1 shadow-lg">
+                    {["Pod Agent Pro", "Pod Agent Standard", "Pod Agent Lite"].map(
+                      (model) => (
+                        <button
+                          key={model}
+                          onClick={() => {
+                            setAgentModel(model);
+                            setShowModelDropdown(false);
+                          }}
+                          className={`w-full px-3 py-2 text-left text-[13px] hover:bg-canvas-parchment ${
+                            agentModel === model
+                              ? "font-medium text-primary"
+                              : "text-ink"
+                          }`}
+                        >
+                          {model}
+                        </button>
+                      )
+                    )}
                   </div>
                 )}
               </div>
@@ -213,17 +249,21 @@ export default function Settings() {
                   onClick={() => setShowTempInput(!showTempInput)}
                 />
                 {showTempInput && (
-                  <div className="absolute right-4 top-full z-10 mt-1 rounded-lg border border-[#E5E7EB] bg-white p-3 shadow-lg">
+                  <div className="absolute right-4 top-full z-10 mt-1 rounded-lg border border-hairline bg-canvas p-3 shadow-lg">
                     <input
                       type="range"
                       min="0"
                       max="2"
                       step="0.1"
                       value={temperature}
-                      onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                      onChange={(e) =>
+                        setTemperature(parseFloat(e.target.value))
+                      }
                       className="w-48"
                     />
-                    <p className="mt-1 text-center text-[12px] text-[#6B7280]">{temperature}</p>
+                    <p className="mt-1 text-center text-[12px] text-ink-muted-48">
+                      {temperature}
+                    </p>
                   </div>
                 )}
               </div>
@@ -231,9 +271,17 @@ export default function Settings() {
                 label="上下文长度"
                 value={contextLength}
                 suffix="chevron-right"
-                onClick={() => setContextLength(contextLength === "128K tokens" ? "64K tokens" : "128K tokens")}
+                onClick={() =>
+                  setContextLength(
+                    contextLength === "128K tokens" ? "64K tokens" : "128K tokens"
+                  )
+                }
               />
-              <SettingsRow label="自动保存对话" toggle={autoSave} onToggle={toggleAutoSave} />
+              <SettingsRow
+                label="自动保存对话"
+                toggle={autoSave}
+                onToggle={toggleAutoSave}
+              />
             </Section>
           )}
 
@@ -242,28 +290,44 @@ export default function Settings() {
             <>
               <Section title="LLM API 配置">
                 <div className="px-4 py-3">
-                  <label className="mb-1.5 block text-[12px] font-medium text-[#6B7280]">服务提供商</label>
+                  <label className="mb-1.5 block text-[12px] font-medium text-ink-muted-48">
+                    服务提供商
+                  </label>
                   <div className="relative">
                     <button
-                      onClick={() => setShowProviderDropdown(!showProviderDropdown)}
-                      className="flex w-full items-center justify-between rounded-lg border border-[#D1D5DB] bg-white px-3 py-2 text-[13px] text-[#374151] hover:border-[#9CA3AF]"
+                      onClick={() =>
+                        setShowProviderDropdown(!showProviderDropdown)
+                      }
+                      className="flex w-full items-center justify-between rounded-lg border border-hairline bg-canvas px-3 py-2 text-[13px] text-ink hover:border-surface-chip"
                     >
-                      {providers.find((p) => p.id === apiConfig.provider)?.name || "选择提供商"}
-                      <svg className="h-4 w-4 text-[#6B7280]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      {providers.find((p) => p.id === apiConfig.provider)
+                        ?.name || "选择提供商"}
+                      <svg
+                        className="h-4 w-4 text-ink-muted-48"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
                         <path d="M6 9l6 6 6-6" />
                       </svg>
                     </button>
                     {showProviderDropdown && (
-                      <div className="absolute left-0 top-full z-10 mt-1 w-full rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg">
+                      <div className="absolute left-0 top-full z-10 mt-1 w-full rounded-lg border border-hairline bg-canvas py-1 shadow-lg">
                         {providers.map((p) => (
                           <button
                             key={p.id}
                             onClick={() => {
-                              setApiConfig({ provider: p.id, endpoint: p.endpoint });
+                              setApiConfig({
+                                provider: p.id,
+                                endpoint: p.endpoint,
+                              });
                               setShowProviderDropdown(false);
                             }}
-                            className={`w-full px-3 py-2 text-left text-[13px] hover:bg-[#F3F4F6] ${
-                              apiConfig.provider === p.id ? "font-medium text-[#0A84FF]" : "text-[#374151]"
+                            className={`w-full px-3 py-2 text-left text-[13px] hover:bg-canvas-parchment ${
+                              apiConfig.provider === p.id
+                                ? "font-medium text-primary"
+                                : "text-ink"
                             }`}
                           >
                             {p.name}
@@ -275,37 +339,55 @@ export default function Settings() {
                 </div>
 
                 <div className="px-4 py-3">
-                  <label className="mb-1.5 block text-[12px] font-medium text-[#6B7280]">API Endpoint</label>
+                  <label className="mb-1.5 block text-[12px] font-medium text-ink-muted-48">
+                    API Endpoint
+                  </label>
                   <input
                     type="text"
                     value={apiConfig.endpoint}
                     onChange={(e) => setApiConfig({ endpoint: e.target.value })}
                     placeholder="https://api.openai.com/v1"
-                    className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2 text-[13px] text-[#374151] outline-none focus:border-[#0A84FF]"
+                    className="w-full rounded-lg border border-hairline bg-canvas px-3 py-2 text-[13px] text-ink outline-none focus:border-primary"
                   />
                 </div>
 
                 <div className="px-4 py-3">
-                  <label className="mb-1.5 block text-[12px] font-medium text-[#6B7280]">API Key</label>
+                  <label className="mb-1.5 block text-[12px] font-medium text-ink-muted-48">
+                    API Key
+                  </label>
                   <div className="relative">
                     <input
                       type={showApiKey ? "text" : "password"}
                       value={apiConfig.apiKey}
-                      onChange={(e) => setApiConfig({ apiKey: e.target.value })}
+                      onChange={(e) =>
+                        setApiConfig({ apiKey: e.target.value })
+                      }
                       placeholder="sk-..."
-                      className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2 pr-10 text-[13px] text-[#374151] outline-none focus:border-[#0A84FF]"
+                      className="w-full rounded-lg border border-hairline bg-canvas px-3 py-2 pr-10 text-[13px] text-ink outline-none focus:border-primary"
                     />
                     <button
                       onClick={() => setShowApiKey(!showApiKey)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#374151]"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted-48 hover:text-ink"
                     >
                       {showApiKey ? (
-                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                        <svg
+                          className="h-4 w-4"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
                           <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                           <circle cx="12" cy="12" r="3" />
                         </svg>
                       ) : (
-                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                        <svg
+                          className="h-4 w-4"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
                           <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
                           <line x1="1" y1="1" x2="23" y2="23" />
                         </svg>
@@ -315,33 +397,39 @@ export default function Settings() {
                 </div>
 
                 <div className="px-4 py-3">
-                  <label className="mb-1.5 block text-[12px] font-medium text-[#6B7280]">模型名称</label>
+                  <label className="mb-1.5 block text-[12px] font-medium text-ink-muted-48">
+                    模型名称
+                  </label>
                   <input
                     type="text"
                     value={apiConfig.model}
                     onChange={(e) => setApiConfig({ model: e.target.value })}
                     placeholder="gpt-4"
-                    className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2 text-[13px] text-[#374151] outline-none focus:border-[#0A84FF]"
+                    className="w-full rounded-lg border border-hairline bg-canvas px-3 py-2 text-[13px] text-ink outline-none focus:border-primary"
                   />
                 </div>
               </Section>
 
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleSaveApiConfig}
-                  className="rounded-lg bg-[#0A84FF] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#0070E0]"
-                >
-                  {saved ? "已保存 ✓" : "保存配置"}
-                </button>
+              <div className="flex items-center justify-end gap-3">
                 <button
                   onClick={handleTestConnection}
                   disabled={testing}
-                  className="rounded-lg bg-[#374151] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#4B5563] disabled:opacity-50"
+                  className="rounded-full border border-primary bg-canvas px-5 py-2 text-[13px] font-medium text-primary transition-colors hover:bg-canvas-parchment disabled:opacity-50"
                 >
                   {testing ? "测试中..." : "测试连接"}
                 </button>
+                <button
+                  onClick={handleSaveApiConfig}
+                  className="rounded-full bg-primary px-5 py-2 text-[13px] font-medium text-white transition-colors hover:bg-primary-focus"
+                >
+                  {saved ? "已保存 ✓" : "保存配置"}
+                </button>
                 {testResult && (
-                  <span className={`text-[12px] ${testResult.success ? "text-[#22C55E]" : "text-[#EF4444]"}`}>
+                  <span
+                    className={`text-[12px] ${
+                      testResult.success ? "text-success" : "text-danger"
+                    }`}
+                  >
                     {testResult.message}
                   </span>
                 )}
@@ -353,58 +441,78 @@ export default function Settings() {
           {activeNav === "data" && (
             <Section title="数据管理">
               <div className="px-4 py-3">
-                <label className="mb-1.5 block text-[12px] font-medium text-[#6B7280]">数据存储路径</label>
+                <label className="mb-1.5 block text-[12px] font-medium text-ink-muted-48">
+                  数据存储路径
+                </label>
                 <input
                   type="text"
                   value={storagePath}
                   onChange={(e) => setStoragePath(e.target.value)}
                   placeholder="~/.pod-agent/data"
-                  className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2 text-[13px] text-[#374151] outline-none focus:border-[#0A84FF]"
+                  className="w-full rounded-lg border border-hairline bg-canvas px-3 py-2 text-[13px] text-ink outline-none focus:border-primary"
                 />
-                <p className="mt-1 text-[11px] text-[#9CA3AF]">
+                <p className="mt-1 text-[11px] text-ink-muted-48">
                   会话数据和育种数据将存储在此路径下
                 </p>
               </div>
               <div className="px-4 py-3">
-                <label className="mb-1.5 block text-[12px] font-medium text-[#6B7280]">会话数据库路径</label>
+                <label className="mb-1.5 block text-[12px] font-medium text-ink-muted-48">
+                  会话数据库路径
+                </label>
                 <input
                   type="text"
                   value={sessionDbPath}
                   onChange={(e) => setSessionDbPath(e.target.value)}
                   placeholder="~/.pod-agent/sessions.db"
-                  className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2 text-[13px] text-[#374151] outline-none focus:border-[#0A84FF]"
+                  className="w-full rounded-lg border border-hairline bg-canvas px-3 py-2 text-[13px] text-ink outline-none focus:border-primary"
                 />
-                <p className="mt-1 text-[11px] text-[#9CA3AF]">
+                <p className="mt-1 text-[11px] text-ink-muted-48">
                   会话历史数据将存储在此 SQLite 数据库文件中
                 </p>
               </div>
-              <SettingsRow label="自动备份" toggle={autoBackup} onToggle={toggleAutoBackup} />
+              <SettingsRow
+                label="自动备份"
+                toggle={autoBackup}
+                onToggle={toggleAutoBackup}
+              />
               <SettingsRow
                 label="备份频率"
                 value={backupFrequency}
                 suffix="chevron-right"
-                onClick={() => setBackupFrequency(backupFrequency === "每天" ? "每周" : "每天")}
+                onClick={() =>
+                  setBackupFrequency(
+                    backupFrequency === "每天" ? "每周" : "每天"
+                  )
+                }
               />
               <SettingsRow
                 label="数据格式"
                 value={dataFormat}
                 suffix="chevron-right"
-                onClick={() => setDataFormat(dataFormat === "CSV + JSON" ? "CSV" : "CSV + JSON")}
+                onClick={() =>
+                  setDataFormat(
+                    dataFormat === "CSV + JSON" ? "CSV" : "CSV + JSON"
+                  )
+                }
               />
-              <SettingsRow label="清理缓存" action="清理" onAction={() => alert("缓存已清理")} />
+              <SettingsRow
+                label="清理缓存"
+                action="清理"
+                onAction={() => alert("缓存已清理")}
+              />
             </Section>
           )}
 
           {/* Placeholder for other sections */}
           {!["general", "agent", "api", "data"].includes(activeNav) && (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="mb-4 rounded-full bg-[#F3F4F6] p-4">
+              <div className="mb-4 rounded-full bg-canvas-parchment p-4">
                 {navItems.find((n) => n.id === activeNav) && (
-                  <Key size={32} className="text-[#9CA3AF]" />
+                  <Key size={32} className="text-ink-muted-48" />
                 )}
               </div>
-              <p className="text-[14px] font-medium text-[#374151]">功能开发中</p>
-              <p className="text-[13px] text-[#9CA3AF]">此模块即将上线</p>
+              <p className="text-[14px] font-medium text-ink">功能开发中</p>
+              <p className="text-[13px] text-ink-muted-48">此模块即将上线</p>
             </div>
           )}
         </div>
