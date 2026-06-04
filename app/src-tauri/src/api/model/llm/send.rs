@@ -1,5 +1,5 @@
 use crate::agent::session::{Message, db::DbState};
-use crate::api::model::llm::llm_provider::LLMConfig;
+use crate::api::model::llm::llm_provider;
 
 use chrono::Local;
 use rusqlite::params;
@@ -23,17 +23,6 @@ struct LlmThinkingEvent {
 struct LlmDoneEvent {
     session_id: String,
     message: Message,
-}
-
-/// 内部：读取 LLM 配置文件
-fn load_config() -> Result<LLMConfig, String> {
-    let path = crate::paths::get_config_path();
-    if !path.exists() {
-        return Ok(LLMConfig::default());
-    }
-    let json = std::fs::read_to_string(&path).map_err(|e| format!("读取配置失败: {}", e))?;
-    let config: LLMConfig = serde_json::from_str(&json).map_err(|e| format!("解析配置失败: {}", e))?;
-    Ok(config)
 }
 
 /// 内部：从数据库读取会话历史消息
@@ -89,7 +78,7 @@ pub async fn send_llm_message(
     app: tauri::AppHandle,
     db: State<'_, DbState>,
 ) -> Result<Message, String> {
-    let config = load_config()?;
+    let config = llm_provider::load_llm_config()?;
 
     // 1. 持久化用户消息 + 加载历史
     let (user_msg, messages) = {
