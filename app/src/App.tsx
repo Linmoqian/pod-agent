@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
-import { Home as HomeIcon, Settings as SettingsIcon, FolderOpen, MessageSquare, Camera as CameraIcon, Table2 } from "lucide-react";
+import { Search } from "lucide-react";
 import "./styles/global.css";
 
 import HomePage from "./pages/home/Home";
@@ -10,41 +10,45 @@ import CameraPage from "./pages/camera/Camera";
 import ExcelPreviewPage from "./pages/excel/ExcelPreview";
 
 const navItems = [
-  { to: "/", label: "首页", icon: HomeIcon },
-  { to: "/chat", label: "Agent 聊天", icon: MessageSquare },
-  { to: "/files", label: "文件管理", icon: FolderOpen },
-  { to: "/excel", label: "表格预览", icon: Table2 },
-  { to: "/camera", label: "相机", icon: CameraIcon },
-  { to: "/settings", label: "设置", icon: SettingsIcon },
+  { to: "/", label: "首页" },
+  { to: "/chat", label: "智能体对话" },
+  { to: "/files", label: "文件管理" },
+  { to: "/camera", label: "相机" },
+  { to: "/excel", label: "数据预览" },
+  { to: "/settings", label: "设置" },
 ];
 
 function App() {
   return (
     <BrowserRouter>
       <div className="flex h-screen flex-col">
-        {/* Top Navigation Bar */}
-        <nav className="flex items-center gap-1 border-b border-[#E5E7EB] bg-[#0F172A] px-4 py-2">
-          <span className="mr-4 text-[15px] font-bold text-white">Pod Agent</span>
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
+        {/* Apple-style global nav: 44px black bar */}
+        <nav className="flex h-[44px] shrink-0 items-center justify-between bg-surface-black px-6">
+          <span className="text-sm font-semibold text-body-on-dark">Pod Agent</span>
+
+          <div className="flex items-center gap-6">
+            {navItems.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 end={item.to === "/"}
                 className={({ isActive }) =>
-                  `flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] transition-colors ${
+                  `text-xs transition-colors ${
                     isActive
-                      ? "bg-white/15 text-white"
-                      : "text-white/60 hover:bg-white/10 hover:text-white"
+                      ? "text-body-on-dark"
+                      : "text-white/50 hover:text-white/80"
                   }`
                 }
               >
-                <Icon size={15} />
                 {item.label}
               </NavLink>
-            );
-          })}
+            ))}
+          </div>
+
+          <div className="flex items-center gap-4">
+            <Search size={14} className="text-body-on-dark" />
+            <div className="h-7 w-7 rounded-full bg-primary" />
+          </div>
         </nav>
 
         {/* Page Content */}
