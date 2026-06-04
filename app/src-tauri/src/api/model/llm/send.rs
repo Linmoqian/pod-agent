@@ -27,8 +27,7 @@ struct LlmDoneEvent {
 
 /// 内部：读取 LLM 配置文件
 fn load_config() -> Result<LLMConfig, String> {
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let path = std::path::PathBuf::from(home).join(".pod-agent").join("config.json");
+    let path = crate::paths::get_config_path();
     if !path.exists() {
         return Ok(LLMConfig::default());
     }

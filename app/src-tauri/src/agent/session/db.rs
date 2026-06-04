@@ -6,14 +6,6 @@ pub struct DbState {
     pub conn: Mutex<Connection>,
 }
 
-pub fn get_default_db_path() -> PathBuf {
-    let exe_dir = std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
-        .unwrap_or_else(|| PathBuf::from("."));
-    exe_dir.join("data").join("sessions.db")
-}
-
 pub fn init_db(db_path: &str) -> Result<DbState, String> {
     let path = PathBuf::from(db_path);
     if let Some(parent) = path.parent() {

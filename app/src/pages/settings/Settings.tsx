@@ -89,6 +89,9 @@ export default function Settings() {
         if (config.session_db_path) {
           setSessionDbPath(config.session_db_path);
         }
+        // 从后端获取实际数据目录
+        const dataDir = await invoke<string>("get_data_dir_cmd");
+        setStoragePath(dataDir);
       } catch (e) {
         console.error("加载配置失败:", e);
       }
@@ -447,28 +450,34 @@ export default function Settings() {
                 <input
                   type="text"
                   value={storagePath}
-                  onChange={(e) => setStoragePath(e.target.value)}
-                  placeholder="~/.pod-agent/data"
-                  className="w-full rounded-lg border border-hairline bg-canvas px-3 py-2 text-[13px] text-ink outline-none focus:border-primary"
+                  readOnly
+                  className="w-full rounded-lg border border-hairline bg-canvas-parchment px-3 py-2 text-[13px] text-ink-muted-48 outline-none"
                 />
                 <p className="mt-1 text-[11px] text-ink-muted-48">
-                  会话数据和育种数据将存储在此路径下
+                  所有应用数据（配置、数据库、照片）均存储在此目录下
                 </p>
               </div>
               <div className="px-4 py-3">
                 <label className="mb-1.5 block text-[12px] font-medium text-ink-muted-48">
-                  会话数据库路径
+                  照片目录
                 </label>
                 <input
                   type="text"
-                  value={sessionDbPath}
-                  onChange={(e) => setSessionDbPath(e.target.value)}
-                  placeholder="~/.pod-agent/sessions.db"
-                  className="w-full rounded-lg border border-hairline bg-canvas px-3 py-2 text-[13px] text-ink outline-none focus:border-primary"
+                  value={storagePath ? `${storagePath}/photos/` : ""}
+                  readOnly
+                  className="w-full rounded-lg border border-hairline bg-canvas-parchment px-3 py-2 text-[13px] text-ink-muted-48 outline-none"
                 />
-                <p className="mt-1 text-[11px] text-ink-muted-48">
-                  会话历史数据将存储在此 SQLite 数据库文件中
-                </p>
+              </div>
+              <div className="px-4 py-3">
+                <label className="mb-1.5 block text-[12px] font-medium text-ink-muted-48">
+                  会话数据库
+                </label>
+                <input
+                  type="text"
+                  value={storagePath ? `${storagePath}/sessions.db` : ""}
+                  readOnly
+                  className="w-full rounded-lg border border-hairline bg-canvas-parchment px-3 py-2 text-[13px] text-ink-muted-48 outline-none"
+                />
               </div>
               <SettingsRow
                 label="自动备份"

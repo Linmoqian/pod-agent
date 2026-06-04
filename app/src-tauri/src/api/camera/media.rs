@@ -20,23 +20,14 @@ pub struct CaptureResult {
     pub thumbnail_data: String,
 }
 
-/// 照片保存到 ~/.pod-agent/photos/
-fn photos_dir() -> Result<PathBuf, String> {
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let dir = PathBuf::from(home).join(".pod-agent").join("photos");
-    fs::create_dir_all(&dir).map_err(|e| format!("创建照片目录失败: {}", e))?;
-    Ok(dir)
+/// 照片保存到 {data_dir}/photos/
+fn photos_dir() -> PathBuf {
+    crate::paths::get_photos_dir()
 }
 
-/// 缩略图保存到 ~/.pod-agent/photos/thumbnails/
-fn thumbnails_dir() -> Result<PathBuf, String> {
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let dir = PathBuf::from(home)
-        .join(".pod-agent")
-        .join("photos")
-        .join("thumbnails");
-    fs::create_dir_all(&dir).map_err(|e| format!("创建缩略图目录失败: {}", e))?;
-    Ok(dir)
+/// 缩略图保存到 {data_dir}/photos/thumbnails/
+fn thumbnails_dir() -> PathBuf {
+    crate::paths::get_thumbnails_dir()
 }
 
 /// 从当前 pump 截取一帧，保存原图 + 缩略图，写入数据库
@@ -60,7 +51,7 @@ pub fn capture_photo(
     let captured_at = now.format("%Y-%m-%d %H:%M:%S").to_string();
 
     // ── 保存原图 (Q=95) ──────────────────────────────────────
-    let photo_dir = photos_dir()?;
+    let photo_dir = photos_dir();
     let photo_path = photo_dir.join(&filename);
 
     let mut jpeg_buf = Vec::new();
@@ -74,7 +65,7 @@ pub fn capture_photo(
     let photo_data = base64::engine::general_purpose::STANDARD.encode(&jpeg_buf);
 
     // ── 生成缩略图 (200×200, Q=80) ──────────────────────────
-    let thumb_dir = thumbnails_dir()?;
+    let thumb_dir = thumbnails_dir();
     let thumb_path = thumb_dir.join(&filename);
 
     let img =

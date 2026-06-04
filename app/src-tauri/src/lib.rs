@@ -1,5 +1,6 @@
 mod api;
 mod agent;
+mod paths;
 
 use api::camera::media::{capture_photo, load_last_photo, list_photos, read_photo_data};
 use api::camera::stream::{list_cameras, start_camera_preview, stop_camera_preview};
@@ -31,6 +32,7 @@ pub fn run() {
         .manage(std::sync::Mutex::new(api::camera::CameraState::new()))
         .invoke_handler(tauri::generate_handler![
             greet,
+            paths::get_data_dir_cmd,
             save_llm_config,
             load_llm_config,
             get_llm_config_path,
