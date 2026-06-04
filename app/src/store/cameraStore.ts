@@ -30,6 +30,7 @@ interface CameraState {
 
   // 最近拍摄
   lastPhotoPath: string | null;
+  lastPhotoData: string | null;
   lastThumbnailData: string | null;
 
   // Actions
@@ -46,6 +47,7 @@ interface CameraState {
   stopPreview: () => Promise<void>;
   switchDevice: (deviceId: string) => Promise<void>;
   capturePhoto: () => Promise<string | null>;
+  loadLastPhoto: () => Promise<void>;
 }
 
 export const useCameraStore = create<CameraState>((set, get) => ({
@@ -59,6 +61,7 @@ export const useCameraStore = create<CameraState>((set, get) => ({
   isStreaming: false,
 
   lastPhotoPath: null,
+  lastPhotoData: null,
   lastThumbnailData: null,
 
   setMode: (mode) => set({ mode }),
@@ -108,12 +111,27 @@ export const useCameraStore = create<CameraState>((set, get) => ({
 
   capturePhoto: async () => {
     try {
-      const result = await invoke<{ photoPath: string; thumbnailData: string }>("capture_photo");
-      set({ lastPhotoPath: result.photoPath, lastThumbnailData: result.thumbnailData });
+      const result = await invoke<{ photoPath: string; photoData: string; thumbnailData: string }>("capture_photo");
+      set({
+        lastPhotoPath: result.photoPath,
+        lastPhotoData: result.photoData,
+        lastThumbnailData: result.thumbnailData,
+      });
       return result.photoPath;
     } catch (e) {
       console.error("拍照失败:", e);
       return null;
+    }
+  },
+
+  loadLastPhoto: async () => {
+    try {
+      const thumbnailData = await invoke<string | null>("load_last_photo");
+      if (thumbnailData) {
+        set({ lastThumbnailData: thumbnailData });
+      }
+    } catch (e) {
+      console.error("加载最近照片失败:", e);
     }
   },
 }));

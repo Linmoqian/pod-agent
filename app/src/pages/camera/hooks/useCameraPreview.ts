@@ -3,7 +3,7 @@ import { useCameraStore } from "../../../store";
 
 export function useCameraPreview() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { loadDevices, startPreview, stopPreview, isStreaming } = useCameraStore();
+  const { loadDevices, startPreview, stopPreview, loadLastPhoto, isStreaming } = useCameraStore();
 
   const handleFrame = useCallback((b64: string, width: number, height: number) => {
     const canvas = canvasRef.current;
@@ -26,6 +26,7 @@ export function useCameraPreview() {
 
     (async () => {
       await loadDevices();
+      loadLastPhoto();
       if (!cancelled) {
         await startPreview(null, handleFrame);
       }

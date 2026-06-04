@@ -1,3 +1,4 @@
+pub mod db;
 pub mod stream;
 pub mod media;
 
@@ -9,6 +10,18 @@ use std::sync::Mutex;
 pub struct CameraDevice {
     pub id: String,
     pub name: String,
+}
+
+/// 照片记录（对应 photos 表）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Photo {
+    pub id: String,
+    pub file_path: String,
+    pub thumbnail_path: String,
+    pub captured_at: String,
+    pub width: u32,
+    pub height: u32,
+    pub mode: String,
 }
 
 /// 全局摄像头状态

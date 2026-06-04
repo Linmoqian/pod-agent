@@ -56,6 +56,8 @@ pub fn init_db(db_path: &str) -> Result<DbState, String> {
             .map_err(|e| format!("添加 thinking 列失败: {}", e))?;
     }
 
+    crate::api::camera::db::init_photos_table(&conn)?;
+
     Ok(DbState {
         conn: Mutex::new(conn),
     })

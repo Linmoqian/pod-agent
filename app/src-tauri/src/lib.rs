@@ -1,7 +1,7 @@
 mod api;
 mod agent;
 
-use api::camera::media::capture_photo;
+use api::camera::media::{capture_photo, load_last_photo, list_photos};
 use api::camera::stream::{list_cameras, start_camera_preview, stop_camera_preview};
 use api::model::llm::llm_provider::{save_llm_config, load_llm_config, get_llm_config_path, resolve_db_path, test_llm_connection};
 use api::model::llm::send::send_llm_message;
@@ -50,6 +50,8 @@ pub fn run() {
             start_camera_preview,
             stop_camera_preview,
             capture_photo,
+            load_last_photo,
+            list_photos,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
