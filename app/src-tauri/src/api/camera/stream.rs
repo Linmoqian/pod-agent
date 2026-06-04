@@ -141,3 +141,21 @@ pub fn stop_camera_preview(state: State<'_, CameraStateMutex>) -> Result<(), Str
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_list_cameras() {
+        match cameras::devices() {
+            Ok(devices) => {
+                println!("找到 {} 个摄像头设备:", devices.len());
+                for d in &devices {
+                    println!("  - id: {}, name: {}", d.id.0, d.name);
+                }
+            }
+            Err(e) => {
+                println!("枚举摄像头失败: {}", e);
+            }
+        }
+    }
+}
