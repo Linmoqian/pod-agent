@@ -71,7 +71,7 @@ export const useCameraStore = create<CameraState>((set, get) => ({
       }
     };
 
-    await invoke("start_camera_preview", { deviceId, onFrame });
+    await invoke("start_camera_preview", { deviceId, onFrame: onEvent });
 
     set({ isStreaming: true, activeDeviceId: deviceId ?? get().devices[0]?.id ?? null });
   },
