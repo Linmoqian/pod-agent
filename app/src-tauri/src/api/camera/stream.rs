@@ -188,6 +188,11 @@ pub fn set_yolo_detecting(
 ) -> Result<(), String> {
     let cam_state = state.lock().map_err(|e| e.to_string())?;
     cam_state.detecting.store(enabled, Ordering::Relaxed);
+    if enabled {
+        println!("[YOLO] 实时检测已启动");
+    } else {
+        println!("[YOLO] 实时检测已关闭");
+    }
     Ok(())
 }
 
