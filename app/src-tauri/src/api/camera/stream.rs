@@ -143,15 +143,15 @@ pub fn start_camera_preview(
         if detecting.load(Ordering::Relaxed) {
             let count = frame_counter.fetch_add(1, Ordering::Relaxed) + 1;
             if count % DETECT_INTERVAL == 0 {
-                if let Ok(image) = usls::Image::from_u8s(&rgb, frame.width, frame.height) {
-                    if let Ok(mut model) = yolo_handle.lock() {
-                        if model.is_some() {
-                            if let Ok(result) = run_detect(image, &mut model) {
-                                let _ = channel.send(CameraEvent::Detections {
-                                    detections: result.detections,
-                                    inference_ms: result.inference_ms,
-                                });
-                            }
+                if let Ok(mut model) = yolo_handle.lock() {
+                    if model.is_some() {
+                        let fw = frame.width;
+                        let fh = frame.height;
+                        if let Ok(result) = run_detect(&rgb, fw, fh, &mut model) {
+                            let _ = channel.send(CameraEvent::Detections {
+                                detections: result.detections,
+                                inference_ms: result.inference_ms,
+                            });
                         }
                     }
                 }
