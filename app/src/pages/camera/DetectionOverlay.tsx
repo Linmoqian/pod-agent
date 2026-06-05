@@ -2,24 +2,29 @@ import type { Detection } from "../../store";
 
 interface DetectionOverlayProps {
   detections: Detection[];
-  canvasWidth: number;
-  canvasHeight: number;
+  imageWidth: number;
+  imageHeight: number;
 }
 
-export default function DetectionOverlay({ detections, canvasWidth, canvasHeight }: DetectionOverlayProps) {
-  if (!detections.length || !canvasWidth || !canvasHeight) return null;
+/**
+ * 检测框叠加层。
+ * imageWidth/imageHeight 是 canvas 内部分辨率（摄像头原始像素，也是 YOLO 坐标的基准）。
+ * 外层容器用 object-contain 保持与 canvas 画面相同的宽高比和居中方式。
+ */
+export default function DetectionOverlay({ detections, imageWidth, imageHeight }: DetectionOverlayProps) {
+  if (!detections.length) return null;
 
   return (
     <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
       <div
-        className="relative"
-        style={{ width: canvasWidth, height: canvasHeight }}
+        className="relative max-h-full max-w-full"
+        style={{ aspectRatio: `${imageWidth} / ${imageHeight}` }}
       >
         {detections.map((det, i) => {
-          const left = (det.xMin / canvasWidth) * 100;
-          const top = (det.yMin / canvasHeight) * 100;
-          const width = ((det.xMax - det.xMin) / canvasWidth) * 100;
-          const height = ((det.yMax - det.yMin) / canvasHeight) * 100;
+          const left = (det.xMin / imageWidth) * 100;
+          const top = (det.yMin / imageHeight) * 100;
+          const width = ((det.xMax - det.xMin) / imageWidth) * 100;
+          const height = ((det.yMax - det.yMin) / imageHeight) * 100;
 
           return (
             <div

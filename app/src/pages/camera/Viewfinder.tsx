@@ -1,4 +1,3 @@
-import { useRef, useEffect } from "react";
 import { useCameraPreview } from "./hooks/useCameraPreview";
 import { useCameraStore } from "../../store";
 import GridOverlay from "./GridOverlay";
@@ -11,20 +10,11 @@ interface ViewfinderProps {
 export default function Viewfinder({ captured }: ViewfinderProps) {
   const { canvasRef, isStreaming } = useCameraPreview();
   const { isDetecting, detections } = useCameraStore();
-  const canvasSizeRef = useRef({ width: 0, height: 0 });
 
-  // 跟踪 canvas 实际尺寸，供 DetectionOverlay 使用
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const observer = new ResizeObserver(() => {
-      canvasSizeRef.current = { width: canvas.clientWidth, height: canvas.clientHeight };
-    });
-    observer.observe(canvas);
-
-    return () => observer.disconnect();
-  }, [canvasRef]);
+  // 用 canvas 内部分辨率（等于摄像头像素，YOLO 坐标也基于此）
+  const canvas = canvasRef.current;
+  const imageWidth = canvas?.width ?? 0;
+  const imageHeight = canvas?.height ?? 0;
 
   return (
     <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#1A1A2E]">
@@ -44,12 +34,12 @@ export default function Viewfinder({ captured }: ViewfinderProps) {
       {/* 拍照闪光 */}
       {captured && <div className="absolute inset-0 bg-white" />}
 
-      {/* YOLO 检测框 */}
-      {isDetecting && (
+      {/* YOLO 检测框：用 canvas 内部分辨率算百分比，CSS 容器与 canvas 同尺寸 */}
+      {isDetecting && imageWidth > 0 && imageHeight > 0 && (
         <DetectionOverlay
           detections={detections}
-          canvasWidth={canvasSizeRef.current.width}
-          canvasHeight={canvasSizeRef.current.height}
+          imageWidth={imageWidth}
+          imageHeight={imageHeight}
         />
       )}
 
