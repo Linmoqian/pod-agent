@@ -25,7 +25,7 @@ pub fn run_detect(
     // 1. Letterbox 预处理（原图 → 640×640）
     let (preprocessed, info) = preprocess::letterbox(rgb, width, height);
 
-    // 2. 创建推理图像（已经是模型输入尺寸，usls 不再缩放）
+    // 2. 创建推理图像（已经是模型输入尺寸，usls letterbox 是 identity）
     let image = usls::Image::from_u8s(
         &preprocessed,
         preprocess::MODEL_INPUT_SIZE,

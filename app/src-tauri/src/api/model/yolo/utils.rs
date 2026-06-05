@@ -22,8 +22,7 @@ pub fn build_detect_config(model_path: &str) -> Result<Config, String> {
     };
     Ok(Config::yolo_detect()
         .with_version(Version::new(8, 0))
-        .with_model(ort_config)
-        .with_do_resize(false))
+        .with_model(ort_config))
 }
 
 /// 从 usls 的 Y 结果中提取检测框
