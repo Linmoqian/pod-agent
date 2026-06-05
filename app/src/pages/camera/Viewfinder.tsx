@@ -10,24 +10,8 @@ interface ViewfinderProps {
 
 export default function Viewfinder({ captured }: ViewfinderProps) {
   const { canvasRef, isStreaming } = useCameraPreview();
-  const { isDetecting, runDetection, detections } = useCameraStore();
+  const { isDetecting, detections } = useCameraStore();
   const canvasSizeRef = useRef({ width: 0, height: 0 });
-
-  // 检测循环：isDetecting 为 true 时周期性调用
-  useEffect(() => {
-    if (!isDetecting || !isStreaming) return;
-
-    let timer: ReturnType<typeof setTimeout>;
-
-    const loop = async () => {
-      await runDetection();
-      timer = setTimeout(loop, 300);
-    };
-
-    loop();
-
-    return () => clearTimeout(timer);
-  }, [isDetecting, isStreaming, runDetection]);
 
   // 跟踪 canvas 实际尺寸，供 DetectionOverlay 使用
   useEffect(() => {

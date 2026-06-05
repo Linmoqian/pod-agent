@@ -1,4 +1,5 @@
 use std::io::Cursor;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use base64::Engine;
@@ -7,7 +8,12 @@ use serde::Serialize;
 use tauri::ipc::Channel;
 use tauri::State;
 
+use crate::api::model::yolo::detect::run_detect;
+use crate::api::model::yolo::utils;
 use super::{CameraDevice, CameraStateMutex};
+
+/// pump 回调内每 N 帧执行一次 YOLO 推理
+const DETECT_INTERVAL: usize = 10;
 
 // ── Tauri Channel 事件 ──────────────────────────────────────────
 
@@ -19,6 +25,11 @@ pub enum CameraEvent {
         data: String,
         width: u32,
         height: u32,
+    },
+    /// YOLO 检测结果（与上一帧同步）
+    Detections {
+        detections: Vec<utils::Detection>,
+        inference_ms: u128,
     },
     /// 错误
     Error {
@@ -85,6 +96,13 @@ pub fn start_camera_preview(
     let channel = Arc::new(on_frame);
     let send_error = channel.clone();
 
+    // 克隆 YOLO 句柄和检测开关，移入 pump 闭包
+    let (yolo_handle, detecting) = {
+        let cam_state = state.lock().map_err(|e| e.to_string())?;
+        (cam_state.yolo.clone(), cam_state.detecting.clone())
+    };
+    let frame_counter = Arc::new(AtomicUsize::new(0));
+
     let pump = cameras::pump::spawn(camera, move |frame| {
         // BGRA → RGB
         let rgb = match cameras::to_rgb8(&frame) {
@@ -113,14 +131,34 @@ pub fn start_camera_preview(
             return;
         }
 
-        // JPEG → base64
+        // JPEG → base64 → 发送帧
         let b64 = base64::engine::general_purpose::STANDARD.encode(&jpeg_buf);
-
         let _ = channel.send(CameraEvent::Frame {
             data: b64,
             width: frame.width,
             height: frame.height,
         });
+
+        // 每 N 帧执行 YOLO 推理（仅当模型已加载且检测已启用）
+        if detecting.load(Ordering::Relaxed) {
+            let count = frame_counter.fetch_add(1, Ordering::Relaxed) + 1;
+            if count % DETECT_INTERVAL == 0 {
+                if let Ok(image) = usls::Image::from_u8s(&rgb, frame.width, frame.height) {
+                    if let Ok(mut model) = yolo_handle.lock() {
+                        if model.is_some() {
+                            if let Ok(result) = run_detect(image, &mut model) {
+                                let _ = channel.send(CameraEvent::Detections {
+                                    detections: result.detections,
+                                    inference_ms: result.inference_ms,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            frame_counter.store(0, Ordering::Relaxed);
+        }
     });
 
     // 保存 pump 句柄
@@ -139,6 +177,17 @@ pub fn stop_camera_preview(state: State<'_, CameraStateMutex>) -> Result<(), Str
     if let Some(p) = cam_state.pump.take() {
         cameras::pump::stop_and_join(p);
     }
+    Ok(())
+}
+
+/// 切换实时检测开关（前端 toggleDetection 同步到 Rust）
+#[tauri::command]
+pub fn set_yolo_detecting(
+    enabled: bool,
+    state: State<'_, CameraStateMutex>,
+) -> Result<(), String> {
+    let cam_state = state.lock().map_err(|e| e.to_string())?;
+    cam_state.detecting.store(enabled, Ordering::Relaxed);
     Ok(())
 }
 

@@ -30,6 +30,7 @@ export interface Detection {
 
 type CameraEvent =
   | { event: "frame"; data: { data: string; width: number; height: number } }
+  | { event: "detections"; data: { detections: Detection[]; inferenceMs: number } }
   | { event: "error"; data: { message: string } };
 
 // ── State ─────────────────────────────────────────────────────
@@ -90,7 +91,6 @@ interface CameraState {
   // YOLO 实时检测
   loadYoloModel: () => Promise<void>;
   toggleDetection: () => void;
-  runDetection: () => Promise<void>;
 }
 
 export const useCameraStore = create<CameraState>((set, get) => ({
@@ -138,6 +138,8 @@ export const useCameraStore = create<CameraState>((set, get) => ({
       const e = msg as CameraEvent;
       if (e.event === "frame") {
         frameCallback?.(e.data.data, e.data.width, e.data.height);
+      } else if (e.event === "detections") {
+        set({ detections: e.data.detections, detectionMs: e.data.inferenceMs });
       }
     };
 
@@ -249,18 +251,8 @@ export const useCameraStore = create<CameraState>((set, get) => ({
   },
 
   toggleDetection: () => {
-    set((state) => {
-      const next = !state.isDetecting;
-      return { isDetecting: next, detections: next ? state.detections : [] };
-    });
-  },
-
-  runDetection: async () => {
-    try {
-      const result = await invoke<{ detections: Detection[]; inferenceMs: number }>("detect_from_camera");
-      set({ detections: result.detections, detectionMs: result.inferenceMs });
-    } catch {
-      // 摄像头未启动或模型未加载，静默忽略
-    }
+    const next = !get().isDetecting;
+    set({ isDetecting: next, detections: next ? get().detections : [] });
+    invoke("set_yolo_detecting", { enabled: next }).catch(() => {});
   },
 }));
