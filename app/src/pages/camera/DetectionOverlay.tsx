@@ -8,51 +8,63 @@ interface DetectionOverlayProps {
 
 /**
  * 检测框叠加层。
- * imageWidth/imageHeight 是 canvas 内部分辨率（摄像头原始像素，也是 YOLO 坐标的基准）。
- * 外层容器用 object-contain 保持与 canvas 画面相同的宽高比和居中方式。
+ * 使用 SVG viewBox + preserveAspectRatio="xMidYMid meet" 与 canvas object-contain 完全对齐。
+ * 检测坐标直接在 viewBox 坐标空间（= 原图像素空间）使用，无需 CSS 尺寸计算。
  */
 export default function DetectionOverlay({ detections, imageWidth, imageHeight }: DetectionOverlayProps) {
   if (!detections.length) return null;
 
   return (
-    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-      <div
-        className="relative max-h-full max-w-full"
-        style={{ aspectRatio: `${imageWidth} / ${imageHeight}` }}
-      >
-        {detections.map((det, i) => {
-          const left = (det.xMin / imageWidth) * 100;
-          const top = (det.yMin / imageHeight) * 100;
-          const width = ((det.xMax - det.xMin) / imageWidth) * 100;
-          const height = ((det.yMax - det.yMin) / imageHeight) * 100;
+    <svg
+      viewBox={`0 0 ${imageWidth} ${imageHeight}`}
+      preserveAspectRatio="xMidYMid meet"
+      className="pointer-events-none absolute inset-0 h-full w-full"
+    >
+      {detections.map((det, i) => {
+        const x = det.xMin;
+        const y = det.yMin;
+        const w = det.xMax - det.xMin;
+        const h = det.yMax - det.yMin;
 
-          return (
-            <div
-              key={i}
-              className="absolute"
-              style={{
-                left: `${left}%`,
-                top: `${top}%`,
-                width: `${width}%`,
-                height: `${height}%`,
-              }}
+        return (
+          <g key={i}>
+            {/* 检测框 */}
+            <rect
+              x={x}
+              y={y}
+              width={w}
+              height={h}
+              fill="none"
+              stroke="rgb(74, 222, 128)"
+              strokeWidth="2"
+              rx="2"
+              vectorEffect="non-scaling-stroke"
+            />
+
+            {/* 标签背景 */}
+            <rect
+              x={x}
+              y={y - 18}
+              width={det.className.length * 8 + 36}
+              height="18"
+              fill="rgba(74, 222, 128, 0.9)"
+              rx="2"
+            />
+
+            {/* 标签文字 */}
+            <text
+              x={x + 4}
+              y={y - 4}
+              fill="black"
+              fontSize="12"
+              fontFamily="system-ui, sans-serif"
+              fontWeight="500"
             >
-              {/* 边框 */}
-              <div className="absolute inset-0 rounded-sm border-2 border-green-400" />
-
-              {/* 标签 */}
-              <div className="absolute -top-5 left-0 flex items-center gap-1 rounded bg-green-400/90 px-1.5 py-0.5">
-                <span className="text-[10px] font-medium text-black">
-                  {det.className}
-                </span>
-                <span className="text-[10px] text-black/60">
-                  {Math.round(det.confidence * 100)}%
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+              {det.className} {Math.round(det.confidence * 100)}%
+            </text>
+          </g>
+        );
+      })}
+    </svg>
   );
 }
