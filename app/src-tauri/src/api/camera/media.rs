@@ -94,9 +94,7 @@ pub fn capture_photo(
     let photo_path_str = photo_path.to_string_lossy().to_string();
     let thumb_path_str = thumb_path.to_string_lossy().to_string();
 
-    let detections_json = detections
-        .filter(|d| !d.is_empty())
-        .map(|d| serde_json::to_string(&d).unwrap_or_else(|_| "[]".to_string()));
+    let detections_json = detections.and_then(|d| serde_json::to_string(&d).ok());
 
     let conn = db.conn.lock().map_err(|e| format!("数据库锁获取失败: {}", e))?;
     conn.execute(

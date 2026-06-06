@@ -175,7 +175,7 @@ export const useCameraStore = create<CameraState>((set, get) => ({
     try {
       const { isDetecting, detections } = get();
       const result = await invoke<{ photoPath: string; photoData: string; thumbnailData: string }>("capture_photo", {
-        detections: isDetecting && detections.length > 0 ? detections : null,
+        detections: isDetecting ? detections : null,
       });
       set({
         lastPhotoPath: result.photoPath,
