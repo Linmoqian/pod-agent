@@ -87,6 +87,7 @@ interface CameraState {
   loadLastPhoto: () => Promise<void>;
 
   // 照片浏览
+  loadPhotoList: () => Promise<void>;
   openPhotoViewer: (startIndex: number) => Promise<void>;
   navigatePhoto: (direction: 1 | -1) => Promise<void>;
   closePhotoViewer: () => void;
@@ -197,6 +198,16 @@ export const useCameraStore = create<CameraState>((set, get) => ({
       }
     } catch (e) {
       console.error("加载最近照片失败:", e);
+    }
+  },
+
+  loadPhotoList: async () => {
+    try {
+      const list = await invoke<PhotoRecord[]>("list_photos", { limit: 100, offset: 0 });
+      set({ photoList: list });
+      get().loadThumbnails();
+    } catch (e) {
+      console.error("加载照片列表失败:", e);
     }
   },
 
