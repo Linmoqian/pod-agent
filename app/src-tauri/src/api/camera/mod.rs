@@ -26,6 +26,8 @@ pub struct Photo {
     pub width: u32,
     pub height: u32,
     pub mode: String,
+    /// JSON 编码的检测结果，无检测数据时为 None
+    pub detections: Option<String>,
 }
 
 /// YOLO 模型的共享句柄，pump 回调可 clone Arc 进闭包

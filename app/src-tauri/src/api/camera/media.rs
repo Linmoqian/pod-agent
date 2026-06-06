@@ -8,6 +8,7 @@ use serde::Serialize;
 use tauri::State;
 
 use crate::agent::session::db::DbState;
+use crate::api::model::yolo::utils;
 use super::{CameraStateMutex, Photo};
 
 #[derive(Debug, Clone, Serialize)]
@@ -35,6 +36,7 @@ fn thumbnails_dir() -> PathBuf {
 pub fn capture_photo(
     camera: State<'_, CameraStateMutex>,
     db: State<'_, DbState>,
+    detections: Option<Vec<utils::Detection>>,
 ) -> Result<CaptureResult, String> {
     let cam_state = camera.lock().map_err(|e| e.to_string())?;
     let pump = cam_state
@@ -92,10 +94,14 @@ pub fn capture_photo(
     let photo_path_str = photo_path.to_string_lossy().to_string();
     let thumb_path_str = thumb_path.to_string_lossy().to_string();
 
+    let detections_json = detections
+        .filter(|d| !d.is_empty())
+        .map(|d| serde_json::to_string(&d).unwrap_or_else(|_| "[]".to_string()));
+
     let conn = db.conn.lock().map_err(|e| format!("数据库锁获取失败: {}", e))?;
     conn.execute(
-        "INSERT INTO photos (id, file_path, thumbnail_path, captured_at, width, height, mode) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        rusqlite::params![id, photo_path_str, thumb_path_str, captured_at, frame.width, frame.height, "photo"],
+        "INSERT INTO photos (id, file_path, thumbnail_path, captured_at, width, height, mode, detections) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        rusqlite::params![id, photo_path_str, thumb_path_str, captured_at, frame.width, frame.height, "photo", detections_json],
     )
     .map_err(|e| format!("写入照片记录失败: {}", e))?;
 
@@ -143,7 +149,7 @@ pub fn list_photos(limit: u32, offset: u32, db: State<'_, DbState>) -> Result<Ve
     let conn = db.conn.lock().map_err(|e| format!("数据库锁获取失败: {}", e))?;
 
     let mut stmt = conn
-        .prepare("SELECT id, file_path, thumbnail_path, captured_at, width, height, mode FROM photos ORDER BY captured_at DESC LIMIT ?1 OFFSET ?2")
+        .prepare("SELECT id, file_path, thumbnail_path, captured_at, width, height, mode, detections FROM photos ORDER BY captured_at DESC LIMIT ?1 OFFSET ?2")
         .map_err(|e| format!("查询照片列表失败: {}", e))?;
 
     let photos = stmt
@@ -156,6 +162,7 @@ pub fn list_photos(limit: u32, offset: u32, db: State<'_, DbState>) -> Result<Ve
                 width: row.get(4)?,
                 height: row.get(5)?,
                 mode: row.get(6)?,
+                detections: row.get(7)?,
             })
         })
         .map_err(|e| format!("解析照片记录失败: {}", e))?

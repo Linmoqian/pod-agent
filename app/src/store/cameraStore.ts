@@ -16,6 +16,8 @@ export interface PhotoRecord {
   width: number;
   height: number;
   mode: string;
+  /** JSON 编码的检测结果，无检测数据时为 null */
+  detections: string | null;
 }
 
 export interface Detection {
@@ -65,6 +67,8 @@ interface CameraState {
   isDetecting: boolean;
   detections: Detection[];
   detectionMs: number | null;
+  frameWidth: number;
+  frameHeight: number;
 
   // Actions
   setMode: (mode: "photo" | "video" | "document" | "scan") => void;
@@ -116,6 +120,8 @@ export const useCameraStore = create<CameraState>((set, get) => ({
   isDetecting: false,
   detections: [],
   detectionMs: null,
+  frameWidth: 0,
+  frameHeight: 0,
 
   setMode: (mode) => set({ mode }),
   toggleFlash: () =>
@@ -137,6 +143,7 @@ export const useCameraStore = create<CameraState>((set, get) => ({
     onEvent.onmessage = (msg) => {
       const e = msg as CameraEvent;
       if (e.event === "frame") {
+        set({ frameWidth: e.data.width, frameHeight: e.data.height });
         frameCallback?.(e.data.data, e.data.width, e.data.height);
       } else if (e.event === "detections") {
         set({ detections: e.data.detections, detectionMs: e.data.inferenceMs });
@@ -166,7 +173,10 @@ export const useCameraStore = create<CameraState>((set, get) => ({
 
   capturePhoto: async () => {
     try {
-      const result = await invoke<{ photoPath: string; photoData: string; thumbnailData: string }>("capture_photo");
+      const { isDetecting, detections } = get();
+      const result = await invoke<{ photoPath: string; photoData: string; thumbnailData: string }>("capture_photo", {
+        detections: isDetecting && detections.length > 0 ? detections : null,
+      });
       set({
         lastPhotoPath: result.photoPath,
         lastPhotoData: result.photoData,

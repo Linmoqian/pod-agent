@@ -16,5 +16,14 @@ pub fn init_photos_table(conn: &Connection) -> Result<(), String> {
     )
     .map_err(|e| format!("创建 photos 表失败: {}", e))?;
 
+    // 兼容旧数据库：如果 photos 表没有 detections 列，自动添加
+    let has_detections: bool = conn
+        .prepare("SELECT detections FROM photos LIMIT 0")
+        .is_ok();
+    if !has_detections {
+        conn.execute_batch("ALTER TABLE photos ADD COLUMN detections TEXT;")
+            .map_err(|e| format!("添加 detections 列失败: {}", e))?;
+    }
+
     Ok(())
 }
