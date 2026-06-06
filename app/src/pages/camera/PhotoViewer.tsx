@@ -1,14 +1,19 @@
-import { useCameraStore } from "../../store";
+import { useCameraStore, type Detection } from "../../store";
 import PhotoStripBar from "./PhotoStripBar";
+import DetectionOverlay from "./DetectionOverlay";
 
 interface PhotoViewerProps {
   onClose: () => void;
 }
 
 export default function PhotoViewer({ onClose }: PhotoViewerProps) {
-  const { viewingPhotoData, closePhotoViewer } = useCameraStore();
+  const { viewingPhotoData, photoList, currentPhotoIndex, closePhotoViewer } = useCameraStore();
 
   if (!viewingPhotoData) return null;
+
+  const currentPhoto = photoList[currentPhotoIndex];
+  const parsedDetections: Detection[] =
+    currentPhoto?.detections ? JSON.parse(currentPhoto.detections) : [];
 
   const handleClose = () => {
     closePhotoViewer();
@@ -20,12 +25,22 @@ export default function PhotoViewer({ onClose }: PhotoViewerProps) {
       className="absolute inset-0 z-30 flex cursor-pointer items-center justify-center bg-black"
       onClick={handleClose}
     >
-      <img
-        src={`data:image/jpeg;base64,${viewingPhotoData}`}
-        alt="照片"
-        className="max-h-full max-w-full object-contain"
-        onClick={(e) => e.stopPropagation()}
-      />
+      <div className="relative max-h-full max-w-full">
+        <img
+          src={`data:image/jpeg;base64,${viewingPhotoData}`}
+          alt="照片"
+          className="max-h-full max-w-full object-contain"
+          onClick={(e) => e.stopPropagation()}
+        />
+
+        {parsedDetections.length > 0 && currentPhoto && (
+          <DetectionOverlay
+            detections={parsedDetections}
+            imageWidth={currentPhoto.width}
+            imageHeight={currentPhoto.height}
+          />
+        )}
+      </div>
 
       {/* 底部缩略图条 */}
       <PhotoStripBar />
