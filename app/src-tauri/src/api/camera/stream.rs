@@ -13,7 +13,7 @@ use crate::api::model::yolo::utils;
 use super::{CameraDevice, CameraStateMutex};
 
 /// pump 回调内每 N 帧执行一次 YOLO 推理
-const DETECT_INTERVAL: usize = 10;
+const DETECT_INTERVAL: usize = 1;
 
 // ── Tauri Channel 事件 ──────────────────────────────────────────
 
@@ -147,11 +147,17 @@ pub fn start_camera_preview(
                     if model.is_some() {
                         let fw = frame.width;
                         let fh = frame.height;
-                        if let Ok(result) = run_detect(&rgb, fw, fh, &mut model) {
-                            let _ = channel.send(CameraEvent::Detections {
-                                detections: result.detections,
-                                inference_ms: result.inference_ms,
-                            });
+                        match run_detect(&rgb, fw, fh, &mut model) {
+                            Ok(result) => {
+                                println!("[YOLO] pump 发送检测: {} 个框", result.detections.len());
+                                let _ = channel.send(CameraEvent::Detections {
+                                    detections: result.detections,
+                                    inference_ms: result.inference_ms,
+                                });
+                            }
+                            Err(e) => {
+                                println!("[YOLO] pump 推理失败: {}", e);
+                            }
                         }
                     }
                 }
