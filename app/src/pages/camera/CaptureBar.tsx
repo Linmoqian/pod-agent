@@ -3,6 +3,7 @@ import GalleryPreview from "./GalleryPreview";
 import CaptureButton from "./CaptureButton";
 import SwitchCameraButton from "./SwitchCameraButton";
 import { useCameraStore } from "../../store";
+import { useCameraActions } from "./hooks/useCameraActions";
 
 interface CaptureBarProps {
   onCapture: () => void;
@@ -11,16 +12,8 @@ interface CaptureBarProps {
 }
 
 export default function CaptureBar({ onCapture, onSwitchCamera, onViewPhoto }: CaptureBarProps) {
-  const { yoloLoaded, isDetecting, loadYoloModel, toggleDetection } = useCameraStore();
-
-  const handleYoloButton = async () => {
-    if (!yoloLoaded) {
-      await loadYoloModel();
-    }
-    if (useCameraStore.getState().yoloLoaded) {
-      toggleDetection();
-    }
-  };
+  const { yoloLoaded, isDetecting } = useCameraStore();
+  const { handleYoloToggle } = useCameraActions();
 
   return (
     <div className="flex shrink-0 items-center justify-around bg-black px-6 py-4">
@@ -28,7 +21,7 @@ export default function CaptureBar({ onCapture, onSwitchCamera, onViewPhoto }: C
 
       {/* YOLO 检测按钮 */}
       <button
-        onClick={handleYoloButton}
+        onClick={handleYoloToggle}
         className={`flex flex-col items-center gap-1 rounded-full p-3 transition-colors ${
           isDetecting
             ? "bg-green-500/20 text-green-400"

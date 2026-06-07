@@ -1,4 +1,5 @@
-import { useCameraStore, type Detection } from "../../store";
+import { useCameraStore } from "../../store";
+import { usePhotoViewer } from "./hooks/usePhotoViewer";
 import PhotoStripBar from "./PhotoStripBar";
 import DetectionOverlay from "./DetectionOverlay";
 
@@ -7,13 +8,10 @@ interface PhotoViewerProps {
 }
 
 export default function PhotoViewer({ onClose }: PhotoViewerProps) {
-  const { viewingPhotoData, photoList, currentPhotoIndex, closePhotoViewer } = useCameraStore();
+  const { viewingPhotoData, closePhotoViewer } = useCameraStore();
+  const { currentPhoto, parsedDetections } = usePhotoViewer();
 
   if (!viewingPhotoData) return null;
-
-  const currentPhoto = photoList[currentPhotoIndex];
-  const parsedDetections: Detection[] =
-    currentPhoto?.detections ? JSON.parse(currentPhoto.detections) : [];
 
   const handleClose = () => {
     closePhotoViewer();

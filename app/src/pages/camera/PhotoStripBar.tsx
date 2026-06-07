@@ -1,9 +1,10 @@
 import { useRef, useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { useCameraStore } from "../../store";
+import { usePhotoViewer } from "./hooks/usePhotoViewer";
 
 export default function PhotoStripBar() {
   const { photoList, currentPhotoIndex, thumbnailMap } = useCameraStore();
+  const { loadPhoto } = usePhotoViewer();
   const stripRef = useRef<HTMLDivElement>(null);
 
   // 当前照片变化时自动滚动到可见区域
@@ -14,17 +15,6 @@ export default function PhotoStripBar() {
     if (!active) return;
     active.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
   }, [currentPhotoIndex]);
-
-  const handleClick = async (index: number) => {
-    if (index === currentPhotoIndex) return;
-    const { photoList } = useCameraStore.getState();
-    try {
-      const b64 = await invoke<string>("read_photo_data", { path: photoList[index].filePath });
-      useCameraStore.setState({ currentPhotoIndex: index, viewingPhotoData: b64 });
-    } catch (e) {
-      console.error("加载照片失败:", e);
-    }
-  };
 
   if (photoList.length <= 1) return null;
 
@@ -41,7 +31,7 @@ export default function PhotoStripBar() {
         {photoList.map((photo, index) => (
           <button
             key={photo.id}
-            onClick={() => handleClick(index)}
+            onClick={() => loadPhoto(index)}
             className={`h-12 w-12 shrink-0 overflow-hidden rounded-lg border-2 transition-all ${
               index === currentPhotoIndex
                 ? "scale-110 border-white"
