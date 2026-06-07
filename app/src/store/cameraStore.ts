@@ -213,16 +213,13 @@ export const useCameraStore = create<CameraState>((set, get) => ({
 
   openPhotoViewer: async (startIndex: number) => {
     try {
-      const list = await invoke<PhotoRecord[]>("list_photos", { limit: 100, offset: 0 });
-      if (list.length === 0) return;
+      await get().loadPhotoList();
+      const { photoList } = get();
+      if (photoList.length === 0) return;
 
-      const index = Math.min(startIndex, list.length - 1);
-      const b64 = await invoke<string>("read_photo_data", { path: list[index].filePath });
-
-      set({ photoList: list, currentPhotoIndex: index, viewingPhotoData: b64 });
-
-      // 后台批量加载缩略图
-      get().loadThumbnails();
+      const index = Math.min(startIndex, photoList.length - 1);
+      const b64 = await invoke<string>("read_photo_data", { path: photoList[index].filePath });
+      set({ currentPhotoIndex: index, viewingPhotoData: b64 });
     } catch (e) {
       console.error("打开照片浏览器失败:", e);
     }
@@ -247,19 +244,16 @@ export const useCameraStore = create<CameraState>((set, get) => ({
 
   loadThumbnails: async () => {
     const { photoList, thumbnailMap } = get();
-    const newMap = { ...thumbnailMap };
 
-    for (const photo of photoList) {
-      if (newMap[photo.id]) continue;
+    photoList.forEach(async (photo) => {
+      if (thumbnailMap[photo.id]) return;
       try {
         const b64 = await invoke<string>("read_photo_data", { path: photo.thumbnailPath });
-        newMap[photo.id] = b64;
+        set((state) => ({ thumbnailMap: { ...state.thumbnailMap, [photo.id]: b64 } }));
       } catch {
         // 跳过加载失败的缩略图
       }
-    }
-
-    set({ thumbnailMap: newMap });
+    });
   },
 
   loadYoloModel: async () => {
