@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 export interface ChatSession {
   id: string;
@@ -147,41 +148,40 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const sessionId = get().activeSessionId;
     if (!sessionId) return;
 
-    const tempAssistantId = `temp-assistant-${Date.now()}`;
+    const now = Date.now();
+    const tempAssistantId = `temp-assistant-${now}`;
     set((state) => ({
       messages: [
         ...state.messages,
-        { id: `temp-user-${Date.now()}`, session_id: sessionId, role: "user", content, thinking: "", created_at: new Date().toISOString() },
-        { id: tempAssistantId, session_id: sessionId, role: "assistant", content: "", thinking: "", created_at: new Date().toISOString() },
+        { id: `temp-user-${now}`, session_id: sessionId, role: "user", content, thinking: "", created_at: new Date(now).toISOString() },
+        { id: tempAssistantId, session_id: sessionId, role: "assistant", content: "", thinking: "", created_at: new Date(now).toISOString() },
       ],
       sending: true,
     }));
 
     try {
-      const { listen } = await import("@tauri-apps/api/event");
-      const unlisten = await listen<{ session_id: string; delta: string }>("llm-chunk", (event) => {
-        if (event.payload.session_id !== sessionId) return;
+      const onStream = (field: "content" | "thinking", event: { session_id: string; delta: string }) => {
+        if (event.session_id !== sessionId) return;
         set((state) => ({
           messages: state.messages.map((m) =>
-            m.id === tempAssistantId ? { ...m, content: m.content + event.payload.delta } : m
+            m.id === tempAssistantId ? { ...m, [field]: m[field] + event.delta } : m
           ),
         }));
-      });
+      };
 
-      const unlistenThinking = await listen<{ session_id: string; delta: string }>("llm-thinking", (event) => {
-        if (event.payload.session_id !== sessionId) return;
-        set((state) => ({
-          messages: state.messages.map((m) =>
-            m.id === tempAssistantId ? { ...m, thinking: m.thinking + event.payload.delta } : m
-          ),
-        }));
-      });
+      const unlistenChunk = await listen<{ session_id: string; delta: string }>("llm-chunk", (e) => onStream("content", e.payload));
+      const unlistenThinking = await listen<{ session_id: string; delta: string }>("llm-thinking", (e) => onStream("thinking", e.payload));
 
       await invoke("send_llm_message", { sessionId, content });
-      unlisten();
+      unlistenChunk();
       unlistenThinking();
 
-      await Promise.all([get().loadMessages(sessionId), get().loadSessions()]);
+      await get().loadMessages(sessionId);
+      set((state) => ({
+        sessions: state.sessions.map((s) =>
+          s.id === sessionId ? { ...s, updated_at: new Date().toISOString() } : s
+        ),
+      }));
     } catch (e) {
       console.error("发送消息失败:", e);
       set((state) => ({ messages: state.messages.filter((m) => m.id !== tempAssistantId) }));
