@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useChatStore } from "../../store";
 import { Plus, Search, FileSpreadsheet, Columns2, X } from "lucide-react";
+import { open } from "@tauri-apps/plugin-dialog";
 import SessionItem from "./SessionItem";
 
 export default function ChatSidebar() {
@@ -13,9 +14,22 @@ export default function ChatSidebar() {
     deleteConversation,
     toggleSidebar,
     detachFile,
+    attachFile,
   } = useChatStore();
 
   const [searchQuery, setSearchQuery] = useState("");
+
+  const handleAddFile = async () => {
+    const selected = await open({
+      multiple: true,
+      directory: false,
+    });
+    if (selected) {
+      for (const path of selected) {
+        attachFile(path);
+      }
+    }
+  };
 
   const filteredSessions = sessions.filter((s) =>
     s.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -67,7 +81,16 @@ export default function ChatSidebar() {
         ))}
       </div>
 
-      <p className="mb-2 text-[11px] font-medium tracking-wide text-[#9CA3AF]">已选文件</p>
+      <p className="mb-2 flex items-center justify-between text-[11px] font-medium tracking-wide text-[#9CA3AF]">
+        <span>已选文件</span>
+        <button
+          onClick={handleAddFile}
+          className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-[#6B7280] hover:bg-[#E5E7EB]"
+        >
+          <Plus size={12} />
+          添加
+        </button>
+      </p>
       <div className="flex flex-col gap-2">
         {attachedFiles.map((f: string) => (
           <div key={f} className="flex items-center gap-2.5 rounded-lg bg-[#F3F4F6] px-3 py-2">

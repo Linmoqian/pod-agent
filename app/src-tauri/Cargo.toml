@@ -33,6 +33,7 @@ cameras = { version = "0.2", features = ["analysis"] }
 base64 = "0.22"
 image = { version = "0.25", features = ["jpeg"] }
 usls = { version = "0.2.0-alpha.3", features = ["vision", "annotator"] }
+tauri-plugin-dialog = "2.7.1"
 
 [[test]]
 name = "yolo_integration"
