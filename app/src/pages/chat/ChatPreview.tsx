@@ -5,6 +5,7 @@ import { FileText, FileSpreadsheet, Folder, Camera, X } from "lucide-react";
 
 export default function ChatPreview() {
   const { previewFileId, previewPhotoMeta, setPreviewFile } = useChatStore();
+  const { files } = useFileManagerStore();
 
   // 照片优先
   if (previewPhotoMeta) {
@@ -12,7 +13,6 @@ export default function ChatPreview() {
   }
 
   // 文件预览
-  const { files } = useFileManagerStore();
   const file = files.find((f) => f.id === previewFileId);
 
   if (!file) {
