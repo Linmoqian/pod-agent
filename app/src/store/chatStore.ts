@@ -31,7 +31,6 @@ interface ChatState {
   loading: boolean;
   sending: boolean;
   previewFileId: string | null;
-  previewPhotoPath: string | null;
   previewPhotoMeta: PhotoRecord | null;
 
   loadSessions: () => Promise<void>;
@@ -63,7 +62,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
   loading: false,
   sending: false,
   previewFileId: null,
-  previewPhotoPath: null,
   previewPhotoMeta: null,
 
   loadSessions: async () => {
@@ -211,9 +209,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => ({
       attachedFiles: state.attachedFiles.filter((f) => f !== file),
     })),
-  setPreviewFile: (id) => set({ previewFileId: id, previewPhotoPath: null, previewPhotoMeta: null }),
+  setPreviewFile: (id) => set({ previewFileId: id, previewPhotoMeta: null }),
   setPreviewPhoto: (photo) => set({
-    previewPhotoPath: photo?.filePath ?? null,
     previewPhotoMeta: photo,
     previewFileId: null,
   }),

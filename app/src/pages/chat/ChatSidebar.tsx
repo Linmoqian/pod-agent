@@ -1,7 +1,5 @@
 import { useState, useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { useChatStore, useFileManagerStore } from "../../store";
-import type { PhotoRecord } from "../../store";
+import { useChatStore, useFileManagerStore, useCameraStore } from "../../store";
 import { Plus, Search, FileSpreadsheet, FileText, Folder, Columns2, Camera } from "lucide-react";
 import SessionItem from "./SessionItem";
 
@@ -20,14 +18,13 @@ export default function ChatSidebar() {
   } = useChatStore();
 
   const { files } = useFileManagerStore();
+  const photoList = useCameraStore((s) => s.photoList);
+  const loadPhotoList = useCameraStore((s) => s.loadPhotoList);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [photos, setPhotos] = useState<PhotoRecord[]>([]);
 
   useEffect(() => {
-    invoke<PhotoRecord[]>("list_photos", { limit: 50, offset: 0 })
-      .then(setPhotos)
-      .catch(() => {});
+    loadPhotoList();
   }, []);
 
   const filteredSessions = sessions.filter((s) =>
@@ -105,10 +102,10 @@ export default function ChatSidebar() {
 
       <p className="mb-2 text-[11px] font-medium tracking-wide text-[#9CA3AF]">照片</p>
       <div className="flex flex-col gap-0.5">
-        {photos.length === 0 && (
+        {photoList.length === 0 && (
           <p className="px-2.5 py-2 text-[12px] text-[#9CA3AF]">暂无照片</p>
         )}
-        {photos.map((photo) => {
+        {photoList.map((photo) => {
           const isActive = previewPhotoMeta?.id === photo.id;
           return (
             <button

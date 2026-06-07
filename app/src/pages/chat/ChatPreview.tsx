@@ -4,10 +4,10 @@ import { useChatStore, useFileManagerStore } from "../../store";
 import { FileText, FileSpreadsheet, Folder, Camera, X } from "lucide-react";
 
 export default function ChatPreview() {
-  const { previewFileId, previewPhotoPath, previewPhotoMeta, setPreviewFile } = useChatStore();
+  const { previewFileId, previewPhotoMeta, setPreviewFile } = useChatStore();
 
   // 照片优先
-  if (previewPhotoPath && previewPhotoMeta) {
+  if (previewPhotoMeta) {
     return <PhotoPreview />;
   }
 
@@ -75,18 +75,20 @@ export default function ChatPreview() {
 }
 
 function PhotoPreview() {
-  const { previewPhotoPath, previewPhotoMeta, setPreviewPhoto } = useChatStore();
+  const { previewPhotoMeta, setPreviewPhoto } = useChatStore();
   const [imageData, setImageData] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const photoPath = previewPhotoMeta?.filePath;
+
   useEffect(() => {
-    if (!previewPhotoPath) return;
+    if (!photoPath) return;
     setLoading(true);
-    invoke<string>("read_photo_data", { path: previewPhotoPath })
+    invoke<string>("read_photo_data", { path: photoPath })
       .then((b64) => setImageData(b64))
       .catch(() => setImageData(null))
       .finally(() => setLoading(false));
-  }, [previewPhotoPath]);
+  }, [photoPath]);
 
   if (!previewPhotoMeta) return null;
 

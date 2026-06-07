@@ -3,7 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { useCameraStore, type Detection } from "../../../store";
 
 export function usePhotoViewer() {
-  const { photoList, currentPhotoIndex } = useCameraStore();
+  const photoList = useCameraStore((s) => s.photoList);
+  const currentPhotoIndex = useCameraStore((s) => s.currentPhotoIndex);
   const currentPhoto = photoList[currentPhotoIndex];
 
   const parsedDetections: Detection[] = useMemo(
