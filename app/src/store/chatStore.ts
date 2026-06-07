@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import type { PhotoRecord } from "./cameraStore";
 
 export interface ChatSession {
   id: string;
@@ -30,6 +31,8 @@ interface ChatState {
   loading: boolean;
   sending: boolean;
   previewFileId: string | null;
+  previewPhotoPath: string | null;
+  previewPhotoMeta: PhotoRecord | null;
 
   loadSessions: () => Promise<void>;
   loadMessages: (sessionId: string) => Promise<void>;
@@ -45,6 +48,7 @@ interface ChatState {
   attachFile: (file: string) => void;
   detachFile: (file: string) => void;
   setPreviewFile: (id: string | null) => void;
+  setPreviewPhoto: (photo: PhotoRecord | null) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -59,6 +63,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   loading: false,
   sending: false,
   previewFileId: null,
+  previewPhotoPath: null,
+  previewPhotoMeta: null,
 
   loadSessions: async () => {
     try {
@@ -205,5 +211,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => ({
       attachedFiles: state.attachedFiles.filter((f) => f !== file),
     })),
-  setPreviewFile: (id) => set({ previewFileId: id }),
+  setPreviewFile: (id) => set({ previewFileId: id, previewPhotoPath: null, previewPhotoMeta: null }),
+  setPreviewPhoto: (photo) => set({
+    previewPhotoPath: photo?.filePath ?? null,
+    previewPhotoMeta: photo,
+    previewFileId: null,
+  }),
 }));
