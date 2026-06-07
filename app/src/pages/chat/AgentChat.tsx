@@ -7,7 +7,7 @@ import ChatInput from "./ChatInput";
 import ChatPreview from "./ChatPreview";
 
 export default function AgentChat() {
-  const { sidebarOpen, viewMode, loadSessions } = useChatStore();
+  const { sidebarOpen, viewMode, previewFileId, loadSessions } = useChatStore();
 
   useEffect(() => {
     loadSessions();
@@ -24,6 +24,7 @@ export default function AgentChat() {
           <ChatMessageList />
 
           {viewMode === "split" && <ChatPreview />}
+          {previewFileId && viewMode !== "split" && <ChatPreview />}
         </div>
 
         <ChatInput />

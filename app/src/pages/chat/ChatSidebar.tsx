@@ -1,38 +1,27 @@
 import { useState } from "react";
 import { useChatStore, useFileManagerStore } from "../../store";
-import { Plus, Search, FileSpreadsheet, FileText, Folder, Columns2, X } from "lucide-react";
+import { Plus, Search, FileSpreadsheet, FileText, Folder, Columns2 } from "lucide-react";
 import SessionItem from "./SessionItem";
 
 export default function ChatSidebar() {
   const {
     sessions,
     activeSessionId,
-    attachedFiles,
+    previewFileId,
     createConversation,
     setActiveSession,
     deleteConversation,
     toggleSidebar,
-    detachFile,
-    attachFile,
+    setPreviewFile,
   } = useChatStore();
 
   const { files } = useFileManagerStore();
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [showFilePicker, setShowFilePicker] = useState(false);
 
   const filteredSessions = sessions.filter((s) =>
     s.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  const availableFiles = files.filter((f) => !attachedFiles.includes(f.name));
-
-  const handleAddFile = (name: string) => {
-    attachFile(name);
-    if (availableFiles.length <= 1) {
-      setShowFilePicker(false);
-    }
-  };
 
   return (
     <aside className="w-[280px] flex-shrink-0 border-r border-[#E5E7EB] bg-[#F9FAFB] p-5">
@@ -80,54 +69,27 @@ export default function ChatSidebar() {
         ))}
       </div>
 
-      <p className="mb-2 flex items-center justify-between text-[11px] font-medium tracking-wide text-[#9CA3AF]">
-        <span>已选文件</span>
-        {availableFiles.length > 0 && (
-          <button
-            onClick={() => setShowFilePicker(!showFilePicker)}
-            className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-[#6B7280] hover:bg-[#E5E7EB]"
-          >
-            <Plus size={12} />
-            添加
-          </button>
-        )}
-      </p>
-
-      {/* 文件选择列表 */}
-      {showFilePicker && (
-        <div className="mb-2 flex flex-col gap-0.5 rounded-lg border border-[#E5E7EB] bg-white p-1.5">
-          {availableFiles.map((f) => {
-            const Icon = f.type === "文件夹" ? Folder : f.icon === "file-spreadsheet" ? FileSpreadsheet : FileText;
-            return (
-              <button
-                key={f.id}
-                onClick={() => handleAddFile(f.name)}
-                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-[#F3F4F6]"
-              >
-                <Icon size={14} style={{ color: f.color }} />
-                <span className="truncate text-[12px] text-[#374151]">{f.name}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* 已选文件列表 */}
-      <div className="flex flex-col gap-2">
-        {attachedFiles.map((f: string) => (
-          <div key={f} className="flex items-center gap-2.5 rounded-lg bg-[#F3F4F6] px-3 py-2">
-            <FileSpreadsheet size={16} className="text-[#22C55E]" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[12px] font-medium text-[#374151]">{f}</p>
-            </div>
+      <p className="mb-2 text-[11px] font-medium tracking-wide text-[#9CA3AF]">文件管理</p>
+      <div className="flex flex-col gap-0.5">
+        {files.map((f) => {
+          const Icon = f.type === "文件夹" ? Folder : f.icon === "file-spreadsheet" ? FileSpreadsheet : FileText;
+          const isActive = previewFileId === f.id;
+          return (
             <button
-              onClick={() => detachFile(f)}
-              className="text-[#9CA3AF] hover:text-[#EF4444]"
+              key={f.id}
+              onClick={() => setPreviewFile(isActive ? null : f.id)}
+              className={`flex items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors ${
+                isActive ? "bg-[#EFF6FF]" : "hover:bg-[#F3F4F6]"
+              }`}
             >
-              <X size={14} />
+              <Icon size={16} style={{ color: f.color }} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[12px] font-medium text-[#374151]">{f.name}</p>
+                <p className="text-[10px] text-[#9CA3AF]">{f.size !== "-" ? f.size : f.type}</p>
+              </div>
             </button>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </aside>
   );

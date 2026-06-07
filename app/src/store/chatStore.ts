@@ -29,6 +29,7 @@ interface ChatState {
   attachedFiles: string[];
   loading: boolean;
   sending: boolean;
+  previewFileId: string | null;
 
   loadSessions: () => Promise<void>;
   loadMessages: (sessionId: string) => Promise<void>;
@@ -43,6 +44,7 @@ interface ChatState {
   setSelectedModel: (model: string) => void;
   attachFile: (file: string) => void;
   detachFile: (file: string) => void;
+  setPreviewFile: (id: string | null) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -56,6 +58,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   attachedFiles: [],
   loading: false,
   sending: false,
+  previewFileId: null,
 
   loadSessions: async () => {
     try {
@@ -202,4 +205,5 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => ({
       attachedFiles: state.attachedFiles.filter((f) => f !== file),
     })),
+  setPreviewFile: (id) => set({ previewFileId: id }),
 }));
