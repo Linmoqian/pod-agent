@@ -2,7 +2,7 @@ pub mod api;
 pub mod agent;
 mod paths;
 
-use api::camera::media::{capture_photo, load_last_photo, list_photos, read_photo_data};
+use api::camera::media::{capture_photo, load_last_photo, list_photos, read_photo_data, get_phenotypes};
 use api::camera::stream::{list_cameras, start_camera_preview, stop_camera_preview, set_yolo_detecting};
 use api::model::llm::llm_provider::{save_llm_config, load_llm_config, get_llm_config_path, resolve_db_path, test_llm_connection};
 use api::model::llm::send::send_llm_message;
@@ -58,6 +58,7 @@ pub fn run() {
             load_last_photo,
             list_photos,
             read_photo_data,
+            get_phenotypes,
             load_yolo_model,
             unload_yolo_model,
             detect_photo,

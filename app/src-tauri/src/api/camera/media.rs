@@ -14,6 +14,20 @@ use super::{CameraStateMutex, PhenotypeItem, PhenotypeSummary, Photo};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PhenotypeRecord {
+    pub id: String,
+    pub photo_id: String,
+    pub class_name: String,
+    pub count: usize,
+    pub avg_confidence: f32,
+    pub min_confidence: f32,
+    pub max_confidence: f32,
+    pub items: Vec<PhenotypeItem>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CaptureResult {
     pub photo_path: String,
     /// 原图 base64
@@ -232,4 +246,36 @@ fn compute_phenotypes(
             }
         })
         .collect()
+}
+
+/// 查询指定照片的表型数据
+#[tauri::command]
+pub fn get_phenotypes(photo_id: String, db: State<'_, DbState>) -> Result<Vec<PhenotypeRecord>, String> {
+    let conn = db.conn.lock().map_err(|e| format!("数据库锁获取失败: {}", e))?;
+
+    let mut stmt = conn
+        .prepare("SELECT id, photo_id, class_name, count, avg_confidence, min_confidence, max_confidence, items, created_at FROM phenotypes WHERE photo_id = ?1")
+        .map_err(|e| format!("查询表型数据失败: {}", e))?;
+
+    let records = stmt
+        .query_map([photo_id], |row| {
+            let items_json: String = row.get(7)?;
+            let items: Vec<PhenotypeItem> = serde_json::from_str(&items_json).unwrap_or_default();
+            Ok(PhenotypeRecord {
+                id: row.get(0)?,
+                photo_id: row.get(1)?,
+                class_name: row.get(2)?,
+                count: row.get::<_, i32>(3)? as usize,
+                avg_confidence: row.get(4)?,
+                min_confidence: row.get(5)?,
+                max_confidence: row.get(6)?,
+                items,
+                created_at: row.get(8)?,
+            })
+        })
+        .map_err(|e| format!("解析表型记录失败: {}", e))?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(records)
 }
