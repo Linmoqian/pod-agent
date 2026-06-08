@@ -27,3 +27,25 @@ pub fn init_photos_table(conn: &Connection) -> Result<(), String> {
 
     Ok(())
 }
+
+/// 初始化 phenotypes 表，在 init_db 中调用
+pub fn init_phenotypes_table(conn: &Connection) -> Result<(), String> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS phenotypes (
+            id TEXT PRIMARY KEY,
+            photo_id TEXT NOT NULL REFERENCES photos(id),
+            class_name TEXT NOT NULL,
+            count INTEGER NOT NULL,
+            avg_confidence REAL NOT NULL,
+            min_confidence REAL NOT NULL,
+            max_confidence REAL NOT NULL,
+            items TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_phenotypes_photo_id ON phenotypes(photo_id);
+        CREATE INDEX IF NOT EXISTS idx_phenotypes_class_name ON phenotypes(class_name);",
+    )
+    .map_err(|e| format!("创建 phenotypes 表失败: {}", e))?;
+
+    Ok(())
+}

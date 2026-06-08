@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs;
 use std::io::Cursor;
 use std::path::PathBuf;
@@ -9,7 +10,7 @@ use tauri::State;
 
 use crate::agent::session::db::DbState;
 use crate::api::model::yolo::utils;
-use super::{CameraStateMutex, Photo};
+use super::{CameraStateMutex, PhenotypeItem, PhenotypeSummary, Photo};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -94,7 +95,7 @@ pub fn capture_photo(
     let photo_path_str = photo_path.to_string_lossy().to_string();
     let thumb_path_str = thumb_path.to_string_lossy().to_string();
 
-    let detections_json = detections.and_then(|d| serde_json::to_string(&d).ok());
+    let detections_json = detections.as_ref().and_then(|d| serde_json::to_string(d).ok());
 
     let conn = db.conn.lock().map_err(|e| format!("数据库锁获取失败: {}", e))?;
     conn.execute(
@@ -102,6 +103,22 @@ pub fn capture_photo(
         rusqlite::params![id, photo_path_str, thumb_path_str, captured_at, frame.width, frame.height, "photo", detections_json],
     )
     .map_err(|e| format!("写入照片记录失败: {}", e))?;
+
+    // ── 计算并写入表型数据 ──────────────────────────────────
+    if let Some(ref dets) = detections {
+        if !dets.is_empty() {
+            let summaries = compute_phenotypes(dets, &id, &captured_at);
+            for s in &summaries {
+                let items_json = serde_json::to_string(&s.items)
+                    .map_err(|e| format!("序列化表型 items 失败: {}", e))?;
+                conn.execute(
+                    "INSERT INTO phenotypes (id, photo_id, class_name, count, avg_confidence, min_confidence, max_confidence, items, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                    rusqlite::params![s.id, s.photo_id, s.class_name, s.count as i32, s.avg_confidence, s.min_confidence, s.max_confidence, items_json, s.created_at],
+                )
+                .map_err(|e| format!("写入表型数据失败: {}", e))?;
+            }
+        }
+    }
 
     Ok(CaptureResult {
         photo_path: photo_path.to_string_lossy().to_string(),
@@ -168,4 +185,51 @@ pub fn list_photos(limit: u32, offset: u32, db: State<'_, DbState>) -> Result<Ve
         .collect();
 
     Ok(photos)
+}
+
+/// 按 class_name 分组计算表型数据
+fn compute_phenotypes(
+    detections: &[utils::Detection],
+    photo_id: &str,
+    captured_at: &str,
+) -> Vec<PhenotypeSummary> {
+    let mut groups: HashMap<&str, Vec<&utils::Detection>> = HashMap::new();
+    for d in detections {
+        groups.entry(&d.class_name).or_default().push(d);
+    }
+
+    groups
+        .into_iter()
+        .map(|(class_name, dets)| {
+            let count = dets.len();
+            let items: Vec<PhenotypeItem> = dets
+                .iter()
+                .map(|d| {
+                    let w = d.x_max - d.x_min;
+                    let h = d.y_max - d.y_min;
+                    PhenotypeItem {
+                        width: w,
+                        height: h,
+                        area: w * h,
+                        confidence: d.confidence,
+                    }
+                })
+                .collect();
+
+            let confs: Vec<f32> = items.iter().map(|i| i.confidence).collect();
+            let sum: f32 = confs.iter().sum();
+
+            PhenotypeSummary {
+                id: uuid::Uuid::new_v4().to_string(),
+                photo_id: photo_id.to_string(),
+                class_name: class_name.to_string(),
+                count,
+                avg_confidence: if count > 0 { sum / count as f32 } else { 0.0 },
+                min_confidence: confs.iter().cloned().fold(f32::INFINITY, f32::min),
+                max_confidence: confs.iter().cloned().fold(f32::NEG_INFINITY, f32::max),
+                items,
+                created_at: captured_at.to_string(),
+            }
+        })
+        .collect()
 }

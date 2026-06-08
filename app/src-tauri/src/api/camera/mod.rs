@@ -30,6 +30,31 @@ pub struct Photo {
     pub detections: Option<String>,
 }
 
+/// 单个检测目标的结构化表型数据
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PhenotypeItem {
+    pub width: f32,
+    pub height: f32,
+    pub area: f32,
+    pub confidence: f32,
+}
+
+/// 按 class_name 聚合的表型摘要
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PhenotypeSummary {
+    pub id: String,
+    pub photo_id: String,
+    pub class_name: String,
+    pub count: usize,
+    pub avg_confidence: f32,
+    pub min_confidence: f32,
+    pub max_confidence: f32,
+    pub items: Vec<PhenotypeItem>,
+    pub created_at: String,
+}
+
 /// YOLO 模型的共享句柄，pump 回调可 clone Arc 进闭包
 pub type YoloHandle = Arc<Mutex<Option<Runtime<YOLO>>>>;
 
