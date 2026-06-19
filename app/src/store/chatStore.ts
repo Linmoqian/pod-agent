@@ -238,7 +238,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }));
     } catch (e) {
       console.error("发送消息失败:", e);
-      set((state) => ({ messages: state.messages.filter((m) => m.id !== tempAssistantId) }));
+      set((state) => ({
+        messages: state.messages.filter(
+          (m) => m.id !== tempAssistantId && !m.id.startsWith("temp-tool-")
+        ),
+      }));
     } finally {
       set({ sending: false });
     }
