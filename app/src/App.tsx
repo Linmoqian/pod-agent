@@ -8,10 +8,12 @@ import FileManagerPage from "./pages/files/FileManager";
 import AgentChatPage from "./pages/chat/AgentChat";
 import CameraPage from "./pages/camera/Camera";
 import ExcelPreviewPage from "./pages/excel/ExcelPreview";
+import ToolsPage from "./pages/tools/Tools";
 
 const navItems = [
   { to: "/", label: "首页" },
   { to: "/chat", label: "智能体对话" },
+  { to: "/tools", label: "工具" },
   { to: "/files", label: "文件管理" },
   { to: "/camera", label: "相机" },
   { to: "/excel", label: "数据预览" },
@@ -60,6 +62,7 @@ function App() {
             <Route path="/chat" element={<AgentChatPage />} />
             <Route path="/camera" element={<CameraPage />} />
             <Route path="/excel" element={<ExcelPreviewPage />} />
+            <Route path="/tools" element={<ToolsPage />} />
           </Routes>
         </div>
       </div>
