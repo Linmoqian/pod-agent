@@ -16,6 +16,8 @@ export interface ChatMessage {
   role: string;
   content: string;
   thinking: string;
+  tool_calls?: string;
+  tool_call_id?: string;
   created_at: string;
 }
 
@@ -179,9 +181,54 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const unlistenChunk = await listen<{ session_id: string; delta: string }>("llm-chunk", (e) => onStream("content", e.payload));
       const unlistenThinking = await listen<{ session_id: string; delta: string }>("llm-thinking", (e) => onStream("thinking", e.payload));
 
+      const unlistenToolCall = await listen<{
+        session_id: string;
+        tool_call_id: string;
+        name: string;
+        args: unknown;
+      }>("llm-tool-call", (e) => {
+        if (e.payload.session_id !== sessionId) return;
+        const toolMsg: ChatMessage = {
+          id: `temp-tool-${e.payload.tool_call_id}`,
+          session_id: sessionId,
+          role: "tool",
+          content: "",
+          thinking: "",
+          tool_calls: JSON.stringify([
+            { function: { name: e.payload.name, arguments: e.payload.args } },
+          ]),
+          tool_call_id: e.payload.tool_call_id,
+          created_at: new Date().toISOString(),
+        };
+        set((state) => {
+          const msgs = [...state.messages];
+          const idx = msgs.findIndex((m) => m.id === tempAssistantId);
+          msgs.splice(idx === -1 ? msgs.length : idx, 0, toolMsg);
+          return { messages: msgs };
+        });
+      });
+
+      const unlistenToolResult = await listen<{
+        session_id: string;
+        tool_call_id: string;
+        success: boolean;
+        result: unknown;
+      }>("llm-tool-result", (e) => {
+        if (e.payload.session_id !== sessionId) return;
+        set((state) => ({
+          messages: state.messages.map((m) =>
+            m.id === `temp-tool-${e.payload.tool_call_id}`
+              ? { ...m, content: JSON.stringify(e.payload.result) }
+              : m
+          ),
+        }));
+      });
+
       await invoke("send_llm_message", { sessionId, content });
       unlistenChunk();
       unlistenThinking();
+      unlistenToolCall();
+      unlistenToolResult();
 
       await get().loadMessages(sessionId);
       set((state) => ({

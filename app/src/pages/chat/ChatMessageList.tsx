@@ -2,6 +2,7 @@ import { useRef, useEffect } from "react";
 import { useChatStore } from "../../store";
 import { MessageSquare } from "lucide-react";
 import MessageBubble from "./MessageBubble";
+import ToolCallBubble from "./ToolCallBubble";
 
 export default function ChatMessageList() {
   const { messages } = useChatStore();
@@ -25,9 +26,16 @@ export default function ChatMessageList() {
 
   return (
     <div className="flex flex-1 flex-col overflow-auto p-6">
-      {messages.map((msg) => (
-        <MessageBubble key={msg.id} msg={msg} />
-      ))}
+      {messages.map((msg) => {
+        // 工具调用载体消息（assistant 且无 content）不单独渲染
+        if (msg.role === "assistant" && !msg.content && msg.tool_calls) {
+          return null;
+        }
+        if (msg.role === "tool") {
+          return <ToolCallBubble key={msg.id} msg={msg} />;
+        }
+        return <MessageBubble key={msg.id} msg={msg} />;
+      })}
       <div ref={messagesEndRef} />
     </div>
   );
