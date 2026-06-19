@@ -186,3 +186,73 @@ pub async fn send_llm_message(
 
     Ok(user_msg)
 }
+
+/// 将持久化 Message 列表组装成 OpenAI chat messages（含 tool_calls / tool 结果）。
+fn build_openai_messages(msgs: &[Message]) -> Vec<serde_json::Value> {
+    msgs.iter()
+        .filter_map(|m| match m.role.as_str() {
+            "assistant" if !m.tool_calls.is_empty() => {
+                let tool_calls: serde_json::Value =
+                    serde_json::from_str(&m.tool_calls).unwrap_or(serde_json::Value::Null);
+                Some(serde_json::json!({
+                    "role": "assistant",
+                    "content": if m.content.is_empty() {
+                        serde_json::Value::Null
+                    } else {
+                        serde_json::Value::String(m.content.clone())
+                    },
+                    "tool_calls": tool_calls,
+                }))
+            }
+            "tool" => Some(serde_json::json!({
+                "role": "tool",
+                "tool_call_id": m.tool_call_id,
+                "content": m.content,
+            })),
+            _ => Some(serde_json::json!({ "role": m.role, "content": m.content })),
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::agent::session::Message;
+
+    fn msg(role: &str, content: &str, tool_calls: &str, tool_call_id: &str) -> Message {
+        Message {
+            id: "x".into(),
+            session_id: "s".into(),
+            role: role.into(),
+            content: content.into(),
+            thinking: "".into(),
+            tool_calls: tool_calls.into(),
+            tool_call_id: tool_call_id.into(),
+            created_at: "".into(),
+        }
+    }
+
+    #[test]
+    fn builds_assistant_with_tool_calls() {
+        let tc = r#"[{"id":"c1","type":"function","function":{"name":"query_phenotypes","arguments":"{}"}}]"#;
+        let v = build_openai_messages(&[msg("assistant", "", tc, "")]);
+        assert_eq!(v[0]["role"], "assistant");
+        assert_eq!(v[0]["tool_calls"][0]["id"], "c1");
+        assert!(v[0]["content"].is_null());
+    }
+
+    #[test]
+    fn builds_tool_result_message() {
+        let v = build_openai_messages(&[msg("tool", "{\"count\":5}", "", "c1")]);
+        assert_eq!(v[0]["role"], "tool");
+        assert_eq!(v[0]["tool_call_id"], "c1");
+        assert_eq!(v[0]["content"], "{\"count\":5}");
+    }
+
+    #[test]
+    fn builds_plain_messages() {
+        let v = build_openai_messages(&[msg("user", "hi", "", "")]);
+        assert_eq!(v[0]["role"], "user");
+        assert_eq!(v[0]["content"], "hi");
+    }
+}
