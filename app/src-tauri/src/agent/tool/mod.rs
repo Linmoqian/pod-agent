@@ -1,0 +1,102 @@
+pub mod db;
+pub mod query_phenotypes;
+
+use rusqlite::Connection;
+use serde::{Deserialize, Serialize};
+use tauri::State;
+
+use crate::agent::session::db::DbState;
+
+/// 工具调用方：人类与 LLM 共用同一套工具，仅此字段区分（历史可回溯的核心维度）
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Caller {
+    Human,
+    Llm,
+}
+
+impl Caller {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Caller::Human => "human",
+            Caller::Llm => "llm",
+        }
+    }
+}
+
+/// 统一工具执行入口：人与 LLM 共用。
+///
+/// 职责：
+/// 1. 留痕——每次调用写 tool_call_log（caller 区分人/LLM，可回溯）
+/// 2. 分发——按 tool_name 路由到具体工具实现（工具少时用 match，YAGNI 不上 trait 注册表）
+/// 3. 返回原始真相——不粉饰，工具返回什么就给调用方什么
+pub fn execute_tool(
+    caller: Caller,
+    tool_name: &str,
+    args: &serde_json::Value,
+    session_id: Option<&str>,
+    conn: &Connection,
+) -> Result<serde_json::Value, String> {
+    let log_id = uuid::Uuid::new_v4().to_string();
+    let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let args_str = serde_json::to_string(args).unwrap_or_default();
+
+    db::start_call(
+        &log_id,
+        caller.as_str(),
+        tool_name,
+        &args_str,
+        session_id,
+        &now,
+        conn,
+    )?;
+
+    let result = match tool_name {
+        "query_phenotypes" => query_phenotypes::run(args, conn),
+        _ => Err(format!("未知工具: {}", tool_name)),
+    };
+
+    match &result {
+        Ok(v) => {
+            let res_str = serde_json::to_string(v).unwrap_or_default();
+            db::finish_call(&log_id, "success", Some(&res_str), None, conn)?;
+        }
+        Err(e) => {
+            db::finish_call(&log_id, "error", None, Some(e), conn)?;
+        }
+    }
+    result
+}
+
+/// 人类调用工具的通用入口（caller 恒为 Human）。
+/// 前端：invoke("invoke_tool", { toolName, args, sessionId? })
+#[tauri::command]
+pub fn invoke_tool(
+    tool_name: String,
+    args: serde_json::Value,
+    session_id: Option<String>,
+    db: State<'_, DbState>,
+) -> Result<serde_json::Value, String> {
+    let conn = db.conn.lock().map_err(|e| format!("数据库锁获取失败: {}", e))?;
+    execute_tool(Caller::Human, &tool_name, &args, session_id.as_deref(), &conn)
+}
+
+/// 查询工具调用历史（按 caller / tool_name / session_id 过滤）。
+/// 前端：invoke("list_tool_calls", { caller?, toolName?, sessionId?, limit? })
+#[tauri::command]
+pub fn list_tool_calls(
+    caller: Option<String>,
+    tool_name: Option<String>,
+    session_id: Option<String>,
+    limit: Option<u32>,
+    db: State<'_, DbState>,
+) -> Result<Vec<db::ToolCallLog>, String> {
+    let conn = db.conn.lock().map_err(|e| format!("数据库锁获取失败: {}", e))?;
+    db::list_calls(
+        caller.as_deref(),
+        tool_name.as_deref(),
+        session_id.as_deref(),
+        limit.unwrap_or(100),
+        &conn,
+    )
+}

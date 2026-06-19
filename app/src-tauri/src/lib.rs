@@ -14,6 +14,7 @@ use agent::session::{
     update_session_title, update_session_timestamp,
 };
 use agent::session::db;
+use agent::tool::{invoke_tool, list_tool_calls};
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -63,6 +64,8 @@ pub fn run() {
             unload_yolo_model,
             detect_photo,
             detect_from_bytes,
+            invoke_tool,
+            list_tool_calls,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

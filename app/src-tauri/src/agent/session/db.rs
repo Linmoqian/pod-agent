@@ -50,6 +50,7 @@ pub fn init_db(db_path: &str) -> Result<DbState, String> {
 
     crate::api::camera::db::init_photos_table(&conn)?;
     crate::api::camera::db::init_phenotypes_table(&conn)?;
+    crate::agent::tool::db::init_tool_call_log_table(&conn)?;
 
     Ok(DbState {
         conn: Mutex::new(conn),
