@@ -1,0 +1,125 @@
+{
+  "topic": "下一步 Pod Agent 的 agent 开发方向",
+  "date": "2026-06-19",
+  "roles": ["架构师", "编程手", "建模手", "恶魔", "苏格拉底"],
+  "rounds": [
+    {
+      "round_number": 1,
+      "round_name": "各抒己见",
+      "statements": [
+        {
+          "role": "Architect",
+          "role_cn": "架构师",
+          "content": "支持渐进增强，第一步锚 phenotypes 做受限工具型 agent（2-3 个工具 query_phenotypes/list_photos/compare_groups，单轮 function call+一次查询）。否 RAG（结构化数据不该向量化）、否完整 tool loop。核心：让 agent 先学会读自己的表。"
+        },
+        {
+          "role": "Programmer",
+          "role_cn": "编程手",
+          "content": "只做单工具+单轮，绝不上 loop。落地顺序：①补 error.rs LlmError enum ②messages 加 tool_calls/tool_call_id 列 ③注册 query_phenotype_stats ④重写 SSE 解析（指出 send.rs 跨 chunk 断行、tool_call 分片需按 index 累积）。否 RAG。"
+        },
+        {
+          "role": "Modeler",
+          "role_cn": "建模手",
+          "content": "现有 4 表缺行动轨迹表，主张加 agent_runs+agent_steps（step_type∈{thought,tool_call,tool_result,observation}）。工具型与 RAG 正交。第一燃料是 phenotypes。缺的是行动不是知识。"
+        },
+        {
+          "role": "DevilsAdvocate",
+          "role_cn": "恶魔",
+          "content": "五个致命错误：标签驱动、照搬 LangChain、虚假二分、脏数据喂 LLM（confidence.unwrap_or(0.0) 照样入库，YOLO 把土块识别成果荚，聚合出 avg_confidence=0.72 让 LLM 基于幻觉做决策）、远程 LLM 断网灾难。先答：育种员高频3问题？断网能否活？置信度阈值？"
+        },
+        {
+          "role": "Socrates",
+          "role_cn": "苏格拉底",
+          "content": "四问：智能体是育种员替身还是聊天代码？缺的是数病害还是决策？表型数据多脏 LLM 会不会用流利语气说错话？agent 是用户需求还是开发者执念？"
+        }
+      ]
+    },
+    {
+      "round_number": 2,
+      "round_name": "激烈交锋",
+      "statements": [
+        {
+          "role": "Architect",
+          "role_cn": "架构师",
+          "content": "(A)让步延后 agent_runs/steps，messages 两列扛，判据是可观测性需求真实出现。(C)接受攻击，分两层：写入门槛 min_confidence_per_class 配置表默认0.5，读取门槛工具返回 n 和置信区间。写入门槛优先级高于 agent.rs。不同意恶魔把需求验证和架构对立。点名建模手：缺的是行动恰好论证先别建模行动表。"
+        },
+        {
+          "role": "Programmer",
+          "role_cn": "编程手",
+          "content": "(A)同意延后(YAGNI)，messages 两列扛。(C)让步：加 filter_confidence 列+media.rs 丢<0.5+tool 返回 included/total。反咬架构师否 RAG 是打稻草人（单工具返回结构化 JSON 本不在 RAG 路径）。"
+        },
+        {
+          "role": "Modeler",
+          "role_cn": "建模手",
+          "content": "(A)让步 messages 能扛单工具，钉三判据（第二个工具/多步推理/需回放审计）出现才加表。(C)更彻底方案：confidence_dist JSON 直方图（0.3 离群混0.9被平均成0.84）+reviewed BOOLEAN。明确站现阶段 agent 做查询器不做决策器（决策需要 phenotypes 没有的维度）。反咬编程手：tool_call 解析别混进 SSE，单独写 parse_tool_call_stream。"
+        },
+        {
+          "role": "DevilsAdvocate",
+          "role_cn": "恶魔",
+          "content": "定位实锤 media.rs:241 count=0 avg=0.0、db.rs 三列 NOT NULL。撕架构师：compare_groups 在 min_confidence 全0两组间比噪声。撕编程手：先补 error.rs 是工程卫生偷换战略，单工具单轮是 RPC 套嘴皮子。撕建模手：给不存在的循环建 ReAct 四态表违反 CLAUDE.md 第18条。裁决：第一版先修脏数据别做 agent。"
+        },
+        {
+          "role": "Socrates",
+          "role_cn": "苏格拉底",
+          "content": "三锤：让 agent 读谎话连篇的表是变聪明还是学会撒谎？在数据可信度没答案的系统里记行动轨迹是记智慧还是忠实记录错误？只会查表的 agent 和加筛选器的 Excel 有什么本质区别？育种员缺的是看得见数据的人还是敢说我不确定的伙伴？"
+        }
+      ]
+    },
+    {
+      "round_number": 3,
+      "round_name": "最终辩护",
+      "statements": [
+        {
+          "role": "Architect",
+          "role_cn": "架构师",
+          "content": "①做，修脏数据+agent.rs 单工具同 PR 语义单元提交，否决修完就停。②让步接受 Option<f32>+reviewed，否决自己 per-class 阈值配置表（过度设计）。③agent≠Excel 定义=跨表因果追问（少30%是光照还是品种）。3步落地：avg→Option<f32>+reviewed；query_phenotypes 单工具；暂停观察。"
+        },
+        {
+          "role": "Programmer",
+          "role_cn": "编程手",
+          "content": "新发现 min/max 用 ±INFINITY 写进 REAL（更隐蔽脏数据）。①做但脏数据先修再上不并行（工程阻塞）。撤回独立 error.rs，就近3变体。②站 filter+丢<0.5+included/total，否 confidence_dist JSON（YAGNI）。③配叫 agent 判据三选一过2条：模型自主触发+拒绝空结果+tool_call_id 可见。"
+        },
+        {
+          "role": "Modeler",
+          "role_cn": "建模手",
+          "content": "①脏数据修复就是第一版 agent 全部内容（建模即第一版 agent）。②confidence_dist 降级让步为 n_low/n_high 两 INT，reviewed 不让（是敢说不确定的物理载体）。③查询器凭什么叫 agent：reviewed 维度让 agent 能拒绝回答（这class只3点0复核不可信），把不确定从 LLM 口癖变成可查询字段。"
+        },
+        {
+          "role": "DevilsAdvocate",
+          "role_cn": "恶魔",
+          "content": "存活：建模手三判据+苏格拉底查询器/决策器。崩塌：编程手先补error.rs、架构师渐进增强（无就绪判据）。最头疼建模手（人审标定是真实育种工作流）。回避奖架构师。承认被说服：三专家要的是带置信度披露的查询器不是决策器。解锁判据四条全绿才动 agent：修NULL+写入过滤+真实用户≥50张/≥20张人审+工具返回included/total。"
+        },
+        {
+          "role": "Socrates",
+          "role_cn": "苏格拉底",
+          "content": "终极一问：这个 agent 在哪一次具体对话里，会让育种员做出他独自面对 Excel 时绝对不会做的决定？把那一幕精确到他说什么、agent 回什么、他改了什么动作——讲给我听。讲不出别写 agent.rs，诚实叫它看板。讲得出，第一个工具就不是查 phenotypes，而是能触发那一幕的那一个。"
+        }
+      ]
+    }
+  ],
+  "moderator": {
+    "intro": "决定 Pod Agent 的 agent 开发方向。事实锚点：agent.rs 0 行空文件，现状只是流式聊天封装无 tool calling；但相机+YOLO+表型聚合+SQLite 4 表已成熟。三大张力：工具型 vs RAG vs 渐进；育种领域锚点 phenotypes；单人开发复杂度边界+provider 兼容。",
+    "highlights": "①生死分歧：第一版做不做 agent（恶魔否决要先修脏数据 vs 三专家坚持）。②脏数据修复方案四套分叉：Option<f32>、per-class 阈值、filter 列、confidence_dist JSON。③agent 存在根基：查询器还是决策器，agent 相对 Excel 的差异化是不是敢说我不确定。",
+    "summary": {
+      "consensus": [
+        "第一版 agent = 单工具单轮查询器，无人支持 ReAct loop / agent_runs+steps（建模手三判据）",
+        "脏数据是真 bug 必须修：media.rs:241 count=0→0.0、min/max ±INFINITY、db.rs NOT NULL，基础解 Option<f32>/NULL",
+        "现阶段是查询器不是决策器（决策需 phenotypes 没有的维度）",
+        "reviewed BOOLEAN 是高价值低成本共识，是 agent 敢说不确定的物理载体",
+        "messages 加 tool_calls/tool_call_id 两列扛单轮，SSE 单独写 parse_tool_call_stream 不污染原 reasoning 流"
+      ],
+      "disagreements": [
+        "脏数据修复深度：Option<f32>（最小）vs filter+丢<0.5 vs n_low/n_high 离散计数，可叠加但一次做多少未定",
+        "先有用户验证（恶魔四门槛全绿含真实用户数据）vs 先有闭环可演示（三专家同 PR/先修后上）",
+        "agent vs Excel 定义三说：跨表因果追问（架构师）/ reviewed 维度拒绝回答（建模手）/ 模型自主触发+拒绝空结果（编程手），未统一"
+      ],
+      "recommendations": [
+        "第0步：回答苏格拉底绝杀问（动手前）——讲不出 agent 让育种员做出独自做不出的决定那一幕，诚实降级为育种数据看板，避免标签驱动",
+        "第1步：修脏数据（无条件半天，与 agent 无关也该做）——Option<f32>/NULL+聚合前过滤<0.5+加 reviewed/n_low/n_high，一次迁移",
+        "第2步：采纳恶魔四条解锁判据作为何时真正投入 agent.rs 的触发器，但不阻塞第1步",
+        "第3步：若做第一版 agent——单工具 query_phenotypes，过编程手三条判据（自主触发/拒绝空结果/tool_call_id 可见），SSE 单独解析",
+        "延后清单（全部 YAGNI）：agent_runs/steps、confidence_dist 直方图、per-class 阈值配置表、决策器、独立 error.rs enum"
+      ]
+    }
+  }
+}
