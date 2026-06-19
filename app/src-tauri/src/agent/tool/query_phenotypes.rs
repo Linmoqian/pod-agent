@@ -86,3 +86,22 @@ pub fn run(args: &Value, conn: &Connection) -> Result<Value, String> {
         "total": total,
     }))
 }
+
+/// OpenAI function calling 工具 schema（与 QueryArgs camelCase 一致）。
+pub fn schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "function",
+        "function": {
+            "name": "query_phenotypes",
+            "description": "查询已拍摄照片的表型统计聚合（数量、置信度、人工复核情况）。用户问某类别数量/置信度/可信度时调用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "className": {"type": "string", "description": "表型类别，如'豆荚'。留空返回全部类别。"},
+                    "photoId": {"type": "string", "description": "限定某张照片。通常留空。"},
+                    "limit": {"type": "integer", "description": "返回行数上限，默认 50。"}
+                }
+            }
+        }
+    })
+}

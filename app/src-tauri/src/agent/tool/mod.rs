@@ -24,6 +24,11 @@ impl Caller {
     }
 }
 
+/// 聚合所有可被 LLM 调用的工具 schema。新增工具时在此注册。
+pub fn tool_schemas() -> Vec<serde_json::Value> {
+    vec![query_phenotypes::schema()]
+}
+
 /// 统一工具执行入口：人与 LLM 共用。
 ///
 /// 职责：
@@ -99,4 +104,23 @@ pub fn list_tool_calls(
         limit.unwrap_or(100),
         &conn,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn schemas_include_query_phenotypes() {
+        let s = tool_schemas();
+        assert!(!s.is_empty());
+        let name = s[0]
+            .get("function")
+            .unwrap()
+            .get("name")
+            .unwrap()
+            .as_str()
+            .unwrap();
+        assert_eq!(name, "query_phenotypes");
+    }
 }
