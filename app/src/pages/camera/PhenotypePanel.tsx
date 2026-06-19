@@ -18,6 +18,12 @@ export interface PhenotypeRecord {
   maxConfidence: number;
   items: PhenotypeItem[];
   createdAt: string;
+  /// 低于置信阈值的检测框数（被过滤的脏数据量）
+  nLow?: number;
+  /// 高置信检测框数
+  nHigh?: number;
+  /// 是否经人工审核
+  reviewed?: boolean;
 }
 
 interface PhenotypePanelProps {

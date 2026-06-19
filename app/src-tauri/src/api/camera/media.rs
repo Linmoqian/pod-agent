@@ -22,6 +22,9 @@ pub struct PhenotypeRecord {
     pub avg_confidence: f32,
     pub min_confidence: f32,
     pub max_confidence: f32,
+    pub n_low: i32,
+    pub n_high: i32,
+    pub reviewed: bool,
     pub items: Vec<PhenotypeItem>,
     pub created_at: String,
 }
@@ -126,8 +129,8 @@ pub fn capture_photo(
                 let items_json = serde_json::to_string(&s.items)
                     .map_err(|e| format!("序列化表型 items 失败: {}", e))?;
                 conn.execute(
-                    "INSERT INTO phenotypes (id, photo_id, class_name, count, avg_confidence, min_confidence, max_confidence, items, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-                    rusqlite::params![s.id, s.photo_id, s.class_name, s.count as i32, s.avg_confidence, s.min_confidence, s.max_confidence, items_json, s.created_at],
+                    "INSERT INTO phenotypes (id, photo_id, class_name, count, avg_confidence, min_confidence, max_confidence, items, created_at, n_low, n_high, reviewed) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                    rusqlite::params![s.id, s.photo_id, s.class_name, s.count as i32, s.avg_confidence, s.min_confidence, s.max_confidence, items_json, s.created_at, s.n_low, s.n_high, s.reviewed as i32],
                 )
                 .map_err(|e| format!("写入表型数据失败: {}", e))?;
             }
@@ -201,7 +204,17 @@ pub fn list_photos(limit: u32, offset: u32, db: State<'_, DbState>) -> Result<Ve
     Ok(photos)
 }
 
+/// 置信度门槛：低于此值的检测框不纳入表型聚合（保留为 n_low 计数，不静默丢弃）
+const MIN_CONFIDENCE: f32 = 0.5;
+/// 高置信阈值（用于 n_high 统计，标识可信检测）
+const HIGH_CONFIDENCE: f32 = 0.8;
+
 /// 按 class_name 分组计算表型数据
+///
+/// 尊重数据真相：
+/// - 仅对 confidence >= MIN_CONFIDENCE 的有效框聚合 avg/min/max（修复旧的 count=0→avg=0.0、空集→±INFINITY 两处脏数据）
+/// - 全部低于阈值的 class 不生成聚合行（原始检测仍完整保留在 photos.detections JSON，可追溯）
+/// - n_low 记录被过滤的低置信框数，n_high 记录高置信框数，让脏度可见而非被平均掩盖
 fn compute_phenotypes(
     detections: &[utils::Detection],
     photo_id: &str,
@@ -214,9 +227,21 @@ fn compute_phenotypes(
 
     groups
         .into_iter()
-        .map(|(class_name, dets)| {
-            let count = dets.len();
-            let items: Vec<PhenotypeItem> = dets
+        .filter_map(|(class_name, dets)| {
+            let n_low = dets.iter().filter(|d| d.confidence < MIN_CONFIDENCE).count();
+            let n_high = dets.iter().filter(|d| d.confidence >= HIGH_CONFIDENCE).count();
+
+            // 仅有效框参与聚合
+            let valid: Vec<&utils::Detection> = dets
+                .iter()
+                .copied()
+                .filter(|d| d.confidence >= MIN_CONFIDENCE)
+                .collect();
+            if valid.is_empty() {
+                return None;
+            }
+
+            let items: Vec<PhenotypeItem> = valid
                 .iter()
                 .map(|d| {
                     let w = d.x_max - d.x_min;
@@ -231,19 +256,23 @@ fn compute_phenotypes(
                 .collect();
 
             let confs: Vec<f32> = items.iter().map(|i| i.confidence).collect();
+            let count = items.len();
             let sum: f32 = confs.iter().sum();
 
-            PhenotypeSummary {
+            Some(PhenotypeSummary {
                 id: uuid::Uuid::new_v4().to_string(),
                 photo_id: photo_id.to_string(),
                 class_name: class_name.to_string(),
                 count,
-                avg_confidence: if count > 0 { sum / count as f32 } else { 0.0 },
+                avg_confidence: sum / count as f32,
                 min_confidence: confs.iter().cloned().fold(f32::INFINITY, f32::min),
                 max_confidence: confs.iter().cloned().fold(f32::NEG_INFINITY, f32::max),
+                n_low: n_low as i32,
+                n_high: n_high as i32,
+                reviewed: false,
                 items,
                 created_at: captured_at.to_string(),
-            }
+            })
         })
         .collect()
 }
@@ -254,7 +283,7 @@ pub fn get_phenotypes(photo_id: String, db: State<'_, DbState>) -> Result<Vec<Ph
     let conn = db.conn.lock().map_err(|e| format!("数据库锁获取失败: {}", e))?;
 
     let mut stmt = conn
-        .prepare("SELECT id, photo_id, class_name, count, avg_confidence, min_confidence, max_confidence, items, created_at FROM phenotypes WHERE photo_id = ?1")
+        .prepare("SELECT id, photo_id, class_name, count, avg_confidence, min_confidence, max_confidence, items, created_at, n_low, n_high, reviewed FROM phenotypes WHERE photo_id = ?1")
         .map_err(|e| format!("查询表型数据失败: {}", e))?;
 
     let records = stmt
@@ -271,6 +300,9 @@ pub fn get_phenotypes(photo_id: String, db: State<'_, DbState>) -> Result<Vec<Ph
                 max_confidence: row.get(6)?,
                 items,
                 created_at: row.get(8)?,
+                n_low: row.get(9)?,
+                n_high: row.get(10)?,
+                reviewed: row.get::<_, i32>(11)? != 0,
             })
         })
         .map_err(|e| format!("解析表型记录失败: {}", e))?

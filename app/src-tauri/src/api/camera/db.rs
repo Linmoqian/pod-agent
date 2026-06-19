@@ -40,12 +40,37 @@ pub fn init_phenotypes_table(conn: &Connection) -> Result<(), String> {
             min_confidence REAL NOT NULL,
             max_confidence REAL NOT NULL,
             items TEXT NOT NULL,
-            created_at TEXT NOT NULL
+            created_at TEXT NOT NULL,
+            n_low INTEGER NOT NULL DEFAULT 0,
+            n_high INTEGER NOT NULL DEFAULT 0,
+            reviewed INTEGER NOT NULL DEFAULT 0
         );
         CREATE INDEX IF NOT EXISTS idx_phenotypes_photo_id ON phenotypes(photo_id);
         CREATE INDEX IF NOT EXISTS idx_phenotypes_class_name ON phenotypes(class_name);",
     )
     .map_err(|e| format!("创建 phenotypes 表失败: {}", e))?;
 
+    // 兼容旧数据库：补齐真相字段（reviewed/n_low/n_high）
+    add_column_if_missing(conn, "phenotypes", "n_low", "INTEGER NOT NULL DEFAULT 0")?;
+    add_column_if_missing(conn, "phenotypes", "n_high", "INTEGER NOT NULL DEFAULT 0")?;
+    add_column_if_missing(conn, "phenotypes", "reviewed", "INTEGER NOT NULL DEFAULT 0")?;
+
+    Ok(())
+}
+
+/// 若列不存在则添加（与 thinking/detections 列的兼容模式一致）
+fn add_column_if_missing(
+    conn: &Connection,
+    table: &str,
+    column: &str,
+    decl: &str,
+) -> Result<(), String> {
+    let probe = format!("SELECT {} FROM {} LIMIT 0", column, table);
+    let has_column = conn.prepare(&probe).is_ok();
+    if !has_column {
+        let sql = format!("ALTER TABLE {} ADD COLUMN {} {}", table, column, decl);
+        conn.execute_batch(&sql)
+            .map_err(|e| format!("添加 {} 列失败: {}", column, e))?;
+    }
     Ok(())
 }

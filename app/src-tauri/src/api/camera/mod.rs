@@ -47,10 +47,17 @@ pub struct PhenotypeSummary {
     pub id: String,
     pub photo_id: String,
     pub class_name: String,
+    /// 有效检测框数（confidence >= MIN_CONFIDENCE）
     pub count: usize,
     pub avg_confidence: f32,
     pub min_confidence: f32,
     pub max_confidence: f32,
+    /// 低于置信阈值的检测框数（被过滤的脏数据量，尊重真相：不假装它们不存在）
+    pub n_low: i32,
+    /// 高置信检测框数（confidence >= HIGH_CONFIDENCE）
+    pub n_high: i32,
+    /// 是否经人工审核（默认 false，agent/人据此判断数据可信度）
+    pub reviewed: bool,
     pub items: Vec<PhenotypeItem>,
     pub created_at: String,
 }
