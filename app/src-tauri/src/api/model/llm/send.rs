@@ -50,6 +50,8 @@ fn insert_message(conn: &rusqlite::Connection, session_id: &str, role: &str, con
         role: role.to_string(),
         content: content.to_string(),
         thinking: thinking.to_string(),
+        tool_calls: String::new(),
+        tool_call_id: String::new(),
         created_at: now,
     };
     conn.execute(

@@ -22,6 +22,8 @@ pub struct Message {
     pub role: String,
     pub content: String,
     pub thinking: String,
+    pub tool_calls: String,
+    pub tool_call_id: String,
     pub created_at: String,
 }
 
@@ -41,7 +43,9 @@ pub fn message_from_row(row: &Row) -> Result<Message, rusqlite::Error> {
         role: row.get(2)?,
         content: row.get(3)?,
         thinking: row.get(4)?,
-        created_at: row.get(5)?,
+        tool_calls: row.get(5)?,
+        tool_call_id: row.get(6)?,
+        created_at: row.get(7)?,
     })
 }
 
