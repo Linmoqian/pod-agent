@@ -8,6 +8,8 @@ use image::ImageEncoder;
 use serde::Serialize;
 use tauri::State;
 
+use rusqlite::Connection;
+
 use crate::agent::session::db::DbState;
 use crate::api::model::yolo::utils;
 use super::{CameraStateMutex, PhenotypeItem, PhenotypeSummary, Photo};
@@ -55,6 +57,7 @@ pub fn capture_photo(
     camera: State<'_, CameraStateMutex>,
     db: State<'_, DbState>,
     detections: Option<Vec<utils::Detection>>,
+    batch_label: Option<String>,
 ) -> Result<CaptureResult, String> {
     let cam_state = camera.lock().map_err(|e| e.to_string())?;
     let pump = cam_state
@@ -115,9 +118,10 @@ pub fn capture_photo(
     let detections_json = detections.as_ref().and_then(|d| serde_json::to_string(d).ok());
 
     let conn = db.conn.lock().map_err(|e| format!("数据库锁获取失败: {}", e))?;
+    let batch = batch_label.unwrap_or_default();
     conn.execute(
-        "INSERT INTO photos (id, file_path, thumbnail_path, captured_at, width, height, mode, detections) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-        rusqlite::params![id, photo_path_str, thumb_path_str, captured_at, frame.width, frame.height, "photo", detections_json],
+        "INSERT INTO photos (id, file_path, thumbnail_path, captured_at, width, height, mode, detections, batch_label) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        rusqlite::params![id, photo_path_str, thumb_path_str, captured_at, frame.width, frame.height, "photo", detections_json, batch],
     )
     .map_err(|e| format!("写入照片记录失败: {}", e))?;
 
@@ -311,4 +315,51 @@ pub fn get_phenotypes(photo_id: String, db: State<'_, DbState>) -> Result<Vec<Ph
         .collect();
 
     Ok(records)
+}
+
+/// 查询所有已使用的批次标签（去重、排除空串、排序）。纯函数，可测。
+fn distinct_batch_labels(conn: &Connection) -> Result<Vec<String>, String> {
+    let mut stmt = conn
+        .prepare("SELECT DISTINCT batch_label FROM photos WHERE batch_label != '' ORDER BY batch_label")
+        .map_err(|e| format!("查询批次列表失败: {}", e))?;
+    let labels: Vec<String> = stmt
+        .query_map([], |row| row.get(0))
+        .map_err(|e| format!("解析批次列表失败: {}", e))?
+        .filter_map(|l| l.ok())
+        .collect();
+    Ok(labels)
+}
+
+/// 供批次栏下拉复用历史批次。前端：invoke("list_batch_labels")
+#[tauri::command]
+pub fn list_batch_labels(db: State<'_, DbState>) -> Result<Vec<String>, String> {
+    let conn = db.conn.lock().map_err(|e| format!("数据库锁获取失败: {}", e))?;
+    distinct_batch_labels(&conn)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::agent::session::db::init_db;
+
+    fn insert_photo(conn: &Connection, id: &str, label: &str) {
+        conn.execute(
+            "INSERT INTO photos (id, file_path, thumbnail_path, captured_at, width, height, mode, batch_label) \
+             VALUES (?1,'/x','/t','2026-01-01 00:00:00',1,1,'photo',?2)",
+            rusqlite::params![id, label],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn distinct_batch_labels_sorted_no_empty() {
+        let state = init_db(":memory:").expect("init_db 失败");
+        let conn = state.conn.lock().unwrap();
+        insert_photo(&conn, "p1", "B小区");
+        insert_photo(&conn, "p2", "A小区");
+        insert_photo(&conn, "p3", ""); // 空串应被排除
+        insert_photo(&conn, "p4", "B小区"); // 重复应去重
+        let labels = distinct_batch_labels(&conn).unwrap();
+        assert_eq!(labels, vec!["A小区".to_string(), "B小区".to_string()]);
+    }
 }
