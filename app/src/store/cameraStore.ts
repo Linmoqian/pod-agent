@@ -188,15 +188,21 @@ export const useCameraStore = create<CameraState>((set, get) => ({
 
   capturePhoto: async () => {
     try {
-      const { isDetecting, detections, currentBatchLabel } = get();
+      const { isDetecting, detections, currentBatchLabel, batchLabels } = get();
       const result = await invoke<{ photoPath: string; photoData: string; thumbnailData: string }>("capture_photo", {
         detections: isDetecting ? detections : null,
         batchLabel: currentBatchLabel || null,
       });
+      // 新批次首次使用 → 本地补入 datalist，避免重新挂载才可见
+      const nextBatchLabels =
+        currentBatchLabel && !batchLabels.includes(currentBatchLabel)
+          ? [...batchLabels, currentBatchLabel].sort()
+          : batchLabels;
       set({
         lastPhotoPath: result.photoPath,
         lastPhotoData: result.photoData,
         lastThumbnailData: result.thumbnailData,
+        batchLabels: nextBatchLabels,
       });
       return result.photoPath;
     } catch (e) {
