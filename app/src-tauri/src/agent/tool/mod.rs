@@ -1,5 +1,6 @@
 pub mod db;
 pub mod query_phenotypes;
+pub mod search_photos;
 
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
