@@ -27,7 +27,7 @@ impl Caller {
 
 /// 聚合所有可被 LLM 调用的工具 schema。新增工具时在此注册。
 pub fn tool_schemas() -> Vec<serde_json::Value> {
-    vec![query_phenotypes::schema()]
+    vec![query_phenotypes::schema(), search_photos::schema()]
 }
 
 /// 统一工具执行入口：人与 LLM 共用。
@@ -59,6 +59,7 @@ pub fn execute_tool(
 
     let result = match tool_name {
         "query_phenotypes" => query_phenotypes::run(args, conn),
+        "search_photos" => search_photos::run(args, conn),
         _ => Err(format!("未知工具: {}", tool_name)),
     };
 
@@ -123,5 +124,30 @@ mod tests {
             .as_str()
             .unwrap();
         assert_eq!(name, "query_phenotypes");
+    }
+
+    #[test]
+    fn schemas_include_search_photos() {
+        let s = tool_schemas();
+        let names: Vec<&str> = s
+            .iter()
+            .filter_map(|v| v.get("function")?.get("name")?.as_str())
+            .collect();
+        assert!(names.contains(&"search_photos"));
+    }
+
+    #[test]
+    fn execute_tool_dispatches_search_photos() {
+        use crate::agent::session::db::init_db;
+        let state = init_db(":memory:").expect("init_db 失败");
+        let conn = state.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO photos (id, file_path, thumbnail_path, captured_at, width, height, mode, batch_label) \
+             VALUES ('p1','/p.jpg','/t.jpg','2026-06-01 09:00:00',1,1,'photo','')", []).unwrap();
+        conn.execute(
+            "INSERT INTO phenotypes (id, photo_id, class_name, count, avg_confidence, min_confidence, max_confidence, items, created_at) \
+             VALUES ('ph1','p1','豆荚',1,0.9,0.9,0.9,'[]','2026-06-01 09:00:00')", []).unwrap();
+        let v = execute_tool(Caller::Llm, "search_photos", &serde_json::json!({}), None, &conn).unwrap();
+        assert_eq!(v["photos"].as_array().unwrap().len(), 1);
     }
 }
