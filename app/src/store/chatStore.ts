@@ -230,7 +230,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       unlistenToolCall();
       unlistenToolResult();
 
-      await get().loadMessages(sessionId);
       set((state) => ({
         sessions: state.sessions.map((s) =>
           s.id === sessionId ? { ...s, updated_at: new Date().toISOString() } : s
