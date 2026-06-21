@@ -13,7 +13,7 @@ use crate::api::model::yolo::utils;
 use super::{CameraDevice, CameraStateMutex};
 
 /// pump 回调内每 N 帧执行一次 YOLO 推理
-const DETECT_INTERVAL: usize = 1;
+const DETECT_INTERVAL: usize = 3;
 
 // ── Tauri Channel 事件 ──────────────────────────────────────────
 
