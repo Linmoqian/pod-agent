@@ -25,7 +25,13 @@ function ThinkingBlock({ thinking }: { thinking: string }) {
   );
 }
 
-export default function MessageBubble({ msg }: { msg: ChatMessage }) {
+export default function MessageBubble({
+  msg,
+  isStreaming = false,
+}: {
+  msg: ChatMessage;
+  isStreaming?: boolean;
+}) {
   return (
     <div className="mb-6 flex gap-3">
       <div
@@ -41,7 +47,12 @@ export default function MessageBubble({ msg }: { msg: ChatMessage }) {
         )}
         {msg.content && (
           msg.role === "assistant" ? (
-            <MarkdownContent content={msg.content} className="text-[14px] leading-relaxed text-[#374151]" />
+            <div>
+              <MarkdownContent content={msg.content} className="text-[14px] leading-relaxed text-[#374151]" />
+              {isStreaming && (
+                <span className="ml-0.5 inline-block animate-pulse text-[#8B5CF6]">▋</span>
+              )}
+            </div>
           ) : (
             <p className="text-[14px] leading-relaxed text-[#374151]">{msg.content}</p>
           )

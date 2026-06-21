@@ -4,7 +4,6 @@ import { MessageSquare } from "lucide-react";
 import MessageBubble from "./MessageBubble";
 import ToolCallBubble from "./ToolCallBubble";
 
-/// 距底部小于此阈值视为「在底部」，触发自动跟随
 const SCROLL_BOTTOM_THRESHOLD = 80;
 
 export default function ChatMessageList() {
@@ -14,12 +13,15 @@ export default function ChatMessageList() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
 
-  // 切换会话 → 重置为底部跟随
+  // 流式目标：sending 时最后一条 assistant 消息 id；非 sending 时为 null（无光标）
+  const streamingMsgId = sending
+    ? [...messages].reverse().find((m) => m.role === "assistant")?.id ?? null
+    : null;
+
   useEffect(() => {
     setIsAtBottom(true);
   }, [activeSessionId]);
 
-  // 消息变化 → 仅在底部时跟随；sending 时 instant 避免抖动，非 sending smooth
   useEffect(() => {
     if (!isAtBottom) return;
     const el = containerRef.current;
@@ -52,14 +54,13 @@ export default function ChatMessageList() {
   return (
     <div ref={containerRef} onScroll={handleScroll} className="flex flex-1 flex-col overflow-auto p-6">
       {messages.map((msg) => {
-        // 工具调用载体消息（assistant 且无 content）不单独渲染
         if (msg.role === "assistant" && !msg.content && msg.tool_calls) {
           return null;
         }
         if (msg.role === "tool") {
           return <ToolCallBubble key={msg.id} msg={msg} />;
         }
-        return <MessageBubble key={msg.id} msg={msg} />;
+        return <MessageBubble key={msg.id} msg={msg} isStreaming={msg.id === streamingMsgId} />;
       })}
     </div>
   );
