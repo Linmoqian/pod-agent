@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight, Wrench } from "lucide-react";
 import type { ChatMessage } from "../../store";
+import PhotoGrid, { type PhotoItem } from "./PhotoGrid";
 
 interface ToolCallInfo {
   function?: { name?: string; arguments?: unknown };
@@ -29,6 +30,11 @@ export default function ToolCallBubble({ msg }: { msg: ChatMessage }) {
     resultParsed !== null && typeof resultParsed === "object" && !Array.isArray(resultParsed);
   const failed = isObject && (resultParsed as Record<string, unknown>).error !== undefined;
   const running = !msg.content;
+  const isPhotoSearch = name === "search_photos";
+  const photos: PhotoItem[] =
+    isPhotoSearch && isObject && !failed
+      ? ((resultParsed as { photos?: PhotoItem[] }).photos ?? [])
+      : [];
   const status: "running" | "success" | "failed" = failed
     ? "failed"
     : running
@@ -76,9 +82,13 @@ export default function ToolCallBubble({ msg }: { msg: ChatMessage }) {
                   <div className="mb-0.5 text-[#9CA3AF]">
                     {status === "failed" ? "错误" : "结果"}
                   </div>
-                  <pre className="overflow-auto whitespace-pre-wrap break-all font-mono text-[#374151]">
-                    {JSON.stringify(resultParsed, null, 2)}
-                  </pre>
+                  {isPhotoSearch && !failed ? (
+                    <PhotoGrid photos={photos} />
+                  ) : (
+                    <pre className="overflow-auto whitespace-pre-wrap break-all font-mono text-[#374151]">
+                      {JSON.stringify(resultParsed, null, 2)}
+                    </pre>
+                  )}
                 </div>
               )}
             </div>
