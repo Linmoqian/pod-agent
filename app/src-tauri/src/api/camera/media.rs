@@ -384,9 +384,9 @@ fn aggregate_phenotypes(conn: &Connection, batch_label: Option<&str>) -> Result<
         .map_err(|e| format!("聚合查询失败: {}", e))
 }
 
-/// CSV 值转义：含逗号/引号/换行的值用双引号包裹，内部引号双写
+/// CSV 值转义：含逗号/引号/换行（含 \r）的值用双引号包裹，内部引号双写
 fn csv_escape(s: &str) -> String {
-    if s.contains(',') || s.contains('"') || s.contains('\n') {
+    if s.contains(',') || s.contains('"') || s.contains('\n') || s.contains('\r') {
         format!("\"{}\"", s.replace('"', "\"\""))
     } else {
         s.to_string()
@@ -537,5 +537,8 @@ mod tests {
         assert_eq!(csv_escape("豆荚"), "豆荚");
         assert_eq!(csv_escape("A,小区"), "\"A,小区\"");
         assert_eq!(csv_escape("a\"b"), "\"a\"\"b\"");
+        // Windows 行结束符会破坏 Excel 行边界，必须触发转义
+        assert_eq!(csv_escape("a\r\nb"), "\"a\r\nb\"");
+        assert_eq!(csv_escape("a\rb"), "\"a\rb\"");
     }
 }
