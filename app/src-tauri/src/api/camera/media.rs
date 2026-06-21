@@ -337,6 +337,99 @@ pub fn list_batch_labels(db: State<'_, DbState>) -> Result<Vec<String>, String> 
     distinct_batch_labels(&conn)
 }
 
+/// 导出聚合行：批次×类别 的统计（精确 SUM/COUNT/MIN/MAX，不导出近似 avg）
+struct ExportRow {
+    batch_label: String,
+    class_name: String,
+    photo_count: i64,
+    total_count: i64,
+    min_conf: f32,
+    max_conf: f32,
+    n_low: i64,
+    n_high: i64,
+}
+
+/// 按「批次×类别」聚合表型。batch_label=None 导出全部批次。纯函数，可测。
+fn aggregate_phenotypes(conn: &Connection, batch_label: Option<&str>) -> Result<Vec<ExportRow>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT p.batch_label, ph.class_name, \
+                    COUNT(DISTINCT p.id) AS photo_count, \
+                    SUM(ph.count) AS total_count, \
+                    MIN(ph.min_confidence) AS min_conf, \
+                    MAX(ph.max_confidence) AS max_conf, \
+                    SUM(ph.n_low) AS n_low, \
+                    SUM(ph.n_high) AS n_high \
+             FROM photos p JOIN phenotypes ph ON ph.photo_id = p.id \
+             WHERE (?1 IS NULL OR p.batch_label = ?1) \
+             GROUP BY p.batch_label, ph.class_name \
+             ORDER BY p.batch_label, ph.class_name",
+        )
+        .map_err(|e| format!("准备聚合查询失败: {}", e))?;
+    let rows = stmt
+        .query_map([batch_label], |row| {
+            Ok(ExportRow {
+                batch_label: row.get(0)?,
+                class_name: row.get(1)?,
+                photo_count: row.get(2)?,
+                total_count: row.get(3)?,
+                min_conf: row.get(4)?,
+                max_conf: row.get(5)?,
+                n_low: row.get(6)?,
+                n_high: row.get(7)?,
+            })
+        })
+        .map_err(|e| format!("聚合查询失败: {}", e))?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("聚合查询失败: {}", e))
+}
+
+/// CSV 值转义：含逗号/引号/换行的值用双引号包裹，内部引号双写
+fn csv_escape(s: &str) -> String {
+    if s.contains(',') || s.contains('"') || s.contains('\n') {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s.to_string()
+    }
+}
+
+/// 生成 CSV 字符串（UTF-8 BOM 开头，末尾换行）
+fn build_csv(rows: &[ExportRow]) -> String {
+    let header = "批次,类别,照片数,检测总数,最低置信度,最高置信度,低置信数,高置信数";
+    let mut lines = vec![header.to_string()];
+    for r in rows {
+        lines.push(format!(
+            "{},{},{},{},{},{},{},{}",
+            csv_escape(&r.batch_label),
+            csv_escape(&r.class_name),
+            r.photo_count,
+            r.total_count,
+            r.min_conf,
+            r.max_conf,
+            r.n_low,
+            r.n_high,
+        ));
+    }
+    format!("\u{FEFF}{}\n", lines.join("\n"))
+}
+
+/// 按 batch_label 导出表型汇总 CSV。前端：invoke("export_phenotypes", { batchLabel })
+/// 返回 CSV 文件路径；该批次无数据时返回 Err。
+#[tauri::command]
+pub fn export_phenotypes(batch_label: Option<String>, db: State<'_, DbState>) -> Result<String, String> {
+    let conn = db.conn.lock().map_err(|e| format!("数据库锁获取失败: {}", e))?;
+    let rows = aggregate_phenotypes(&conn, batch_label.as_deref())?;
+    if rows.is_empty() {
+        return Err("该批次无表型数据".to_string());
+    }
+    let csv = build_csv(&rows);
+    let dir = crate::paths::get_exports_dir();
+    let now = chrono::Local::now().format("%Y%m%d_%H%M%S");
+    let path = dir.join(format!("export_{}.csv", now));
+    std::fs::write(&path, csv.as_bytes()).map_err(|e| format!("写入导出文件失败: {}", e))?;
+    Ok(path.to_string_lossy().to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -361,5 +454,88 @@ mod tests {
         insert_photo(&conn, "p4", "B小区"); // 重复应去重
         let labels = distinct_batch_labels(&conn).unwrap();
         assert_eq!(labels, vec!["A小区".to_string(), "B小区".to_string()]);
+    }
+
+    fn insert_phenotype(
+        conn: &Connection,
+        id: &str,
+        photo_id: &str,
+        class_name: &str,
+        count: i64,
+        min_conf: f32,
+        max_conf: f32,
+        n_low: i64,
+        n_high: i64,
+    ) {
+        conn.execute(
+            "INSERT INTO phenotypes (id, photo_id, class_name, count, avg_confidence, min_confidence, max_confidence, items, created_at, n_low, n_high, reviewed) \
+             VALUES (?1,?2,?3,?4,0.8,?5,?6,'[]','2026-01-01 00:00:00',?7,?8,0)",
+            rusqlite::params![id, photo_id, class_name, count, min_conf, max_conf, n_low, n_high],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn aggregate_groups_by_batch_and_class() {
+        let state = init_db(":memory:").expect("init_db 失败");
+        let conn = state.conn.lock().unwrap();
+        // batch A: pa1(豆荚10, 叶5), pa2(豆荚20)；batch B: pb1(豆荚3)
+        insert_photo(&conn, "pa1", "A小区");
+        insert_photo(&conn, "pa2", "A小区");
+        insert_photo(&conn, "pb1", "B小区");
+        insert_phenotype(&conn, "x1", "pa1", "豆荚", 10, 0.8, 0.95, 1, 8);
+        insert_phenotype(&conn, "x2", "pa2", "豆荚", 20, 0.7, 0.99, 2, 15);
+        insert_phenotype(&conn, "x3", "pa1", "叶", 5, 0.6, 0.8, 1, 3);
+        insert_phenotype(&conn, "x4", "pb1", "豆荚", 3, 0.5, 0.7, 1, 1);
+
+        // 导出 A 小区：豆荚 + 叶 = 2 行
+        let rows_a = aggregate_phenotypes(&conn, Some("A小区")).unwrap();
+        assert_eq!(rows_a.len(), 2);
+        let dou = rows_a.iter().find(|r| r.class_name == "豆荚").unwrap();
+        assert_eq!(dou.photo_count, 2); // pa1, pa2 不重复计
+        assert_eq!(dou.total_count, 30); // 10+20
+        assert_eq!(dou.n_low, 3); // 1+2
+        assert_eq!(dou.n_high, 23); // 8+15
+        assert!((dou.min_conf - 0.7).abs() < 1e-6); // min(0.8,0.7)
+        assert!((dou.max_conf - 0.99).abs() < 1e-6); // max(0.95,0.99)
+        let ye = rows_a.iter().find(|r| r.class_name == "叶").unwrap();
+        assert_eq!(ye.photo_count, 1);
+
+        // 全部（None）：A豆荚、A叶、B豆荚 = 3 行
+        let rows_all = aggregate_phenotypes(&conn, None).unwrap();
+        assert_eq!(rows_all.len(), 3);
+    }
+
+    #[test]
+    fn aggregate_empty_batch_returns_empty() {
+        let state = init_db(":memory:").expect("init_db 失败");
+        let conn = state.conn.lock().unwrap();
+        let rows = aggregate_phenotypes(&conn, Some("不存在")).unwrap();
+        assert!(rows.is_empty()); // 命令层据此返回 Err
+    }
+
+    #[test]
+    fn build_csv_has_bom_and_columns() {
+        let rows = vec![ExportRow {
+            batch_label: "A".into(),
+            class_name: "豆荚".into(),
+            photo_count: 2,
+            total_count: 30,
+            min_conf: 0.7,
+            max_conf: 0.99,
+            n_low: 3,
+            n_high: 23,
+        }];
+        let csv = build_csv(&rows);
+        assert!(csv.starts_with('\u{FEFF}'), "CSV 应以 UTF-8 BOM 开头");
+        assert!(csv.contains("批次,类别,照片数,检测总数,最低置信度,最高置信度,低置信数,高置信数"));
+        assert!(csv.contains("A,豆荚,2,30,0.7,0.99,3,23"));
+    }
+
+    #[test]
+    fn csv_escape_handles_comma_and_quote() {
+        assert_eq!(csv_escape("豆荚"), "豆荚");
+        assert_eq!(csv_escape("A,小区"), "\"A,小区\"");
+        assert_eq!(csv_escape("a\"b"), "\"a\"\"b\"");
     }
 }
