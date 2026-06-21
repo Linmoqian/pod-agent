@@ -181,7 +181,7 @@ pub fn list_photos(limit: u32, offset: u32, db: State<'_, DbState>) -> Result<Ve
     let conn = db.conn.lock().map_err(|e| format!("数据库锁获取失败: {}", e))?;
 
     let mut stmt = conn
-        .prepare("SELECT id, file_path, thumbnail_path, captured_at, width, height, mode, detections FROM photos ORDER BY captured_at DESC LIMIT ?1 OFFSET ?2")
+        .prepare("SELECT id, file_path, thumbnail_path, captured_at, width, height, mode, detections, batch_label FROM photos ORDER BY captured_at DESC LIMIT ?1 OFFSET ?2")
         .map_err(|e| format!("查询照片列表失败: {}", e))?;
 
     let photos = stmt
@@ -195,6 +195,7 @@ pub fn list_photos(limit: u32, offset: u32, db: State<'_, DbState>) -> Result<Ve
                 height: row.get(5)?,
                 mode: row.get(6)?,
                 detections: row.get(7)?,
+                batch_label: row.get(8)?,
             })
         })
         .map_err(|e| format!("解析照片记录失败: {}", e))?

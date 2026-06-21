@@ -28,6 +28,8 @@ pub struct Photo {
     pub mode: String,
     /// JSON 编码的检测结果，无检测数据时为 None
     pub detections: Option<String>,
+    /// 照片批次归属（用户在批次栏设置，空串=未分组）
+    pub batch_label: String,
 }
 
 /// 单个检测目标的结构化表型数据
