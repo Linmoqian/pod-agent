@@ -18,6 +18,8 @@ export interface PhotoRecord {
   mode: string;
   /** JSON 编码的检测结果，无检测数据时为 null */
   detections: string | null;
+  /** 照片批次归属（空串=未分组） */
+  batchLabel: string;
 }
 
 export interface Detection {
@@ -70,6 +72,10 @@ interface CameraState {
   frameWidth: number;
   frameHeight: number;
 
+  // 批次归属
+  currentBatchLabel: string;
+  batchLabels: string[];
+
   // Actions
   setMode: (mode: "photo" | "video" | "document" | "scan") => void;
   toggleFlash: () => void;
@@ -96,6 +102,11 @@ interface CameraState {
   // YOLO 实时检测
   loadYoloModel: () => Promise<void>;
   toggleDetection: () => void;
+
+  // 批次归属
+  setBatchLabel: (label: string) => void;
+  loadBatchLabels: () => Promise<void>;
+  exportPhenotypes: (batchLabel?: string) => Promise<string | null>;
 }
 
 export const useCameraStore = create<CameraState>((set, get) => ({
@@ -123,6 +134,9 @@ export const useCameraStore = create<CameraState>((set, get) => ({
   detectionMs: null,
   frameWidth: 0,
   frameHeight: 0,
+
+  currentBatchLabel: "",
+  batchLabels: [],
 
   setMode: (mode) => set({ mode }),
   toggleFlash: () =>
@@ -174,14 +188,21 @@ export const useCameraStore = create<CameraState>((set, get) => ({
 
   capturePhoto: async () => {
     try {
-      const { isDetecting, detections } = get();
+      const { isDetecting, detections, currentBatchLabel, batchLabels } = get();
       const result = await invoke<{ photoPath: string; photoData: string; thumbnailData: string }>("capture_photo", {
         detections: isDetecting ? detections : null,
+        batchLabel: currentBatchLabel || null,
       });
+      // 新批次首次使用 → 本地补入 datalist，避免重新挂载才可见
+      const nextBatchLabels =
+        currentBatchLabel && !batchLabels.includes(currentBatchLabel)
+          ? [...batchLabels, currentBatchLabel].sort()
+          : batchLabels;
       set({
         lastPhotoPath: result.photoPath,
         lastPhotoData: result.photoData,
         lastThumbnailData: result.thumbnailData,
+        batchLabels: nextBatchLabels,
       });
       return result.photoPath;
     } catch (e) {
@@ -269,5 +290,29 @@ export const useCameraStore = create<CameraState>((set, get) => ({
     const next = !get().isDetecting;
     set({ isDetecting: next, detections: next ? get().detections : [] });
     invoke("set_yolo_detecting", { enabled: next }).catch(() => {});
+  },
+
+  setBatchLabel: (label) => set({ currentBatchLabel: label }),
+
+  loadBatchLabels: async () => {
+    try {
+      const labels = await invoke<string[]>("list_batch_labels");
+      set({ batchLabels: labels });
+    } catch (e) {
+      console.error("加载批次列表失败:", e);
+    }
+  },
+
+  exportPhenotypes: async (batchLabel) => {
+    try {
+      const target = batchLabel ?? get().currentBatchLabel;
+      const path = await invoke<string>("export_phenotypes", {
+        batchLabel: target || null,
+      });
+      return path;
+    } catch (e) {
+      console.error("导出失败:", e);
+      return null;
+    }
   },
 }));

@@ -49,6 +49,20 @@ pub fn get_models_dir() -> PathBuf {
     dir
 }
 
+/// 导出目录：{data_dir}/exports/
+pub fn get_exports_dir() -> PathBuf {
+    let dir = get_data_dir().join("exports");
+    fs::create_dir_all(&dir).ok();
+    dir
+}
+
+/// 日志目录：{data_dir}/logs/
+pub fn get_logs_dir() -> PathBuf {
+    let dir = get_data_dir().join("logs");
+    fs::create_dir_all(&dir).ok();
+    dir
+}
+
 /// Tauri 命令：返回数据根目录给前端
 #[tauri::command]
 pub fn get_data_dir_cmd() -> String {

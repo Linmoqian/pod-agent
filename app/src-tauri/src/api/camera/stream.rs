@@ -13,7 +13,7 @@ use crate::api::model::yolo::utils;
 use super::{CameraDevice, CameraStateMutex};
 
 /// pump 回调内每 N 帧执行一次 YOLO 推理
-const DETECT_INTERVAL: usize = 1;
+const DETECT_INTERVAL: usize = 3;
 
 // ── Tauri Channel 事件 ──────────────────────────────────────────
 
@@ -35,6 +35,27 @@ pub enum CameraEvent {
     Error {
         message: String,
     },
+}
+
+// ── 相机错误日志（best-effort，写失败不 panic）─────────────────
+
+/// 写一行错误日志到指定 jsonl 文件（每行一个 JSON 对象）。纯函数，可测。
+fn write_camera_error_line(path: &std::path::Path, ts: u128, message: &str) {
+    let line = serde_json::json!({ "ts": ts, "message": message }).to_string();
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        use std::io::Write;
+        let _ = writeln!(f, "{}", line);
+    }
+}
+
+/// 追加一条相机错误日志到 data/logs/camera_errors.jsonl
+fn append_camera_error(message: &str) {
+    let path = crate::paths::get_logs_dir().join("camera_errors.jsonl");
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    write_camera_error_line(&path, ts, message);
 }
 
 // ── 命令 ────────────────────────────────────────────────────────
@@ -156,7 +177,9 @@ pub fn start_camera_preview(
                                 });
                             }
                             Err(e) => {
-                                println!("[YOLO] pump 推理失败: {}", e);
+                                let msg = format!("YOLO 推理失败: {}", e);
+                                let _ = send_error.send(CameraEvent::Error { message: msg.clone() });
+                                append_camera_error(&msg);
                             }
                         }
                     }
@@ -204,6 +227,8 @@ pub fn set_yolo_detecting(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn test_list_cameras() {
         match cameras::devices() {
@@ -217,5 +242,19 @@ mod tests {
                 println!("枚举摄像头失败: {}", e);
             }
         }
+    }
+
+    #[test]
+    fn write_camera_error_line_appends_jsonl() {
+        let tmp = std::env::temp_dir().join("pod_agent_camera_err_test.jsonl");
+        let _ = std::fs::remove_file(&tmp);
+        write_camera_error_line(&tmp, 1700000000, "推理失败: onnx error");
+        write_camera_error_line(&tmp, 1700000001, "第二行");
+        let content = std::fs::read_to_string(&tmp).expect("读取日志失败");
+        let lines: Vec<&str> = content.trim_end().lines().collect();
+        assert_eq!(lines.len(), 2);
+        assert!(lines[0].contains(r#""ts":1700000000"#));
+        assert!(lines[0].contains(r#""message":"推理失败: onnx error""#));
+        let _ = std::fs::remove_file(&tmp);
     }
 }

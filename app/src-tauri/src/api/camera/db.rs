@@ -25,6 +25,9 @@ pub fn init_photos_table(conn: &Connection) -> Result<(), String> {
             .map_err(|e| format!("添加 detections 列失败: {}", e))?;
     }
 
+    // 兼容旧数据库：batch_label 列（照片批次归属，承重墙组织维度）
+    add_column_if_missing(conn, "photos", "batch_label", "TEXT NOT NULL DEFAULT ''")?;
+
     Ok(())
 }
 
@@ -73,4 +76,25 @@ fn add_column_if_missing(
             .map_err(|e| format!("添加 {} 列失败: {}", column, e))?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::agent::session::db::init_db;
+
+    #[test]
+    fn photos_table_has_batch_label() {
+        let state = init_db(":memory:").expect("init_db 失败");
+        let conn = state.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO photos (id, file_path, thumbnail_path, captured_at, width, height, mode, batch_label) \
+             VALUES ('p1','/x.jpg','/t.jpg','2026-01-01 00:00:00',1280,720,'photo','A小区-3棚')",
+            [],
+        )
+        .expect("插入失败");
+        let label: String = conn
+            .query_row("SELECT batch_label FROM photos WHERE id='p1'", [], |r| r.get(0))
+            .expect("查询失败");
+        assert_eq!(label, "A小区-3棚");
+    }
 }
