@@ -9,12 +9,7 @@ interface ViewfinderProps {
 
 export default function Viewfinder({ captured }: ViewfinderProps) {
   const { canvasRef, isStreaming } = useCameraPreview();
-  const { isDetecting, detections } = useCameraStore();
-
-  // 用 canvas 内部分辨率（等于摄像头像素，YOLO 坐标也基于此）
-  const canvas = canvasRef.current;
-  const imageWidth = canvas?.width ?? 0;
-  const imageHeight = canvas?.height ?? 0;
+  const { isDetecting, detections, frameWidth, frameHeight } = useCameraStore();
 
   return (
     <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#1A1A2E]">
@@ -34,12 +29,12 @@ export default function Viewfinder({ captured }: ViewfinderProps) {
       {/* 拍照闪光 */}
       {captured && <div className="absolute inset-0 bg-white" />}
 
-      {/* YOLO 检测框：用 canvas 内部分辨率算百分比，CSS 容器与 canvas 同尺寸 */}
-      {isDetecting && imageWidth > 0 && imageHeight > 0 && (
+      {/* YOLO 检测框：帧尺寸从 store 读取（reactive），不再从 canvas DOM 读取 */}
+      {isDetecting && frameWidth > 0 && frameHeight > 0 && (
         <DetectionOverlay
           detections={detections}
-          imageWidth={imageWidth}
-          imageHeight={imageHeight}
+          imageWidth={frameWidth}
+          imageHeight={frameHeight}
         />
       )}
 
