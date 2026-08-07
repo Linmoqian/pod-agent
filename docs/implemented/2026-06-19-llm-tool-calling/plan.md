@@ -173,6 +173,23 @@ pub fn message_from_row(row: &Row) -> Result<Message, rusqlite::Error> {
     .map_err(|e| format!("插入消息失败: {}", e))?;
 ```
 
+- [ ] **Step 6b: send.rs 的 insert_message 构造补字段（保持 crate 编译通过）**
+
+`send.rs` 现有 `insert_message`（约 `send.rs:45-61`）构造 `Message` 缺新字段，Task 1 后会编译失败。补默认值（**不改 SQL 与函数签名**，Task 5 会重写整个 `insert_message`）：
+
+```rust
+    let msg = Message {
+        id: Uuid::new_v4().to_string(),
+        session_id: session_id.to_string(),
+        role: role.to_string(),
+        content: content.to_string(),
+        thinking: thinking.to_string(),
+        tool_calls: String::new(),
+        tool_call_id: String::new(),
+        created_at: now,
+    };
+```
+
 - [ ] **Step 7: 运行测试确认通过**
 
 Run: `cd app/src-tauri && cargo test --lib session::db::tests`
