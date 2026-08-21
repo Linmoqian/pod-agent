@@ -10,7 +10,13 @@ Pod Agent 项目文档统一入口。工程规范与架构说明见根目录 `AG
 | `implemented/` | 已实施功能的实施文档归档（每个功能一个目录：`design.md` 设计 + `plan.md` 实施计划，均已完成） |
 | `discussions/` | 圆桌讨论历史决策归档（`discussions.md` 合并版 + `raw/` 原始过程 json） |
 | `superpowers/` | **进行中/未来**功能的实施文档工作区（`{plans,specs}/`，当前为空） |
+| `development/` | 项目工程规范（由 `lin-workflow` 合并并按当前技术栈裁剪） |
+| `roadmap/` | 产品目标、学习路线、实战阶段和验收标准 |
 | `design/`（仓库根） | 设计稿参考（已 gitignore） |
+
+## 当前开发方向
+
+- [`roadmap/2026-08-22-phenotype-breeding-agent-demo.md`](roadmap/2026-08-22-phenotype-breeding-agent-demo.md) — 初代“自主表型采集与育种分析”Demo 的目标、理论学习与实战路线
 
 ## 已实施功能（archived）
 
