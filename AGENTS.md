@@ -6,6 +6,32 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 Pod Agent — 以智能体为核心的智慧育种桌面系统。技术栈：Tauri 2 (Rust 后端) + React 19 + TypeScript + Tailwind CSS 4 + Vite 7。
 
+## 规范优先级与协作流程
+
+本项目已合并 `Linmoqian/lin-workflow` 中适用于当前技术栈的工程规则。发生冲突时按以下顺序处理：
+
+1. 工程师在当前任务中的明确要求。
+2. 当前目录或子目录中更具体的项目规范。
+3. 本仓库现有代码、配置、测试与构建约定。
+4. `docs/development/` 中的通用规范。
+5. 通用行业惯例与工具默认行为。
+
+- 开始实现前明确目标、成功标准、修改范围、排除项和验证方式。
+- 修改前检查 `git status --short` 与相关差异；已有未提交改动视为工程师的重要工作，不覆盖、不回滚、不混入提交。
+- 采用满足需求的最小方案，不顺手重构、升级依赖或引入未来抽象。
+- 行为、接口、数据格式、构建或 UI 改动必须做与风险相称的验证；只汇报实际运行过的验证。
+- 本地提交使用中文 Conventional Commits，并精准暂存文件；推送、发布、部署及 PR 操作必须先取得工程师明确确认。
+- 涉及持久化格式、公开契约、重要依赖或明显产品行为变化时，先完成设计讨论并取得确认，再实施。
+
+专题规范：
+
+- `docs/development/rust.md`
+- `docs/development/frontend.md`
+- `docs/development/python.md`
+- `docs/development/verification.md`
+- `docs/development/git-workflow.md`
+- `docs/development/writing.md`
+
 ## 常用命令
 
 为了开发效率，中途不要 build，写完全部代码后再 build。
@@ -164,3 +190,7 @@ app/
 - 代码高度解耦
 - 用公用组件、公有函数、公有 CSS、全局变量来降低代码量
 - 性能优先，流畅优先
+- Tauri command 只承担 IPC 边界、校验与组装；可测试的领域逻辑不得依赖窗口或 IPC 类型
+- 生产路径不随意使用 `unwrap`、`expect`、`panic!`、`todo!` 或 `unimplemented!`
+- 不跨 `await` 持有锁；高频与长任务必须有明确的错误传播、取消、资源回收和背压策略
+- Tauri capabilities、文件路径和敏感配置遵循最小权限原则
