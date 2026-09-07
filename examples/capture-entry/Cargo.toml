@@ -1,0 +1,10 @@
+[package]
+name = "capture-entry-example"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+chrono = "0.4"
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
+uuid = { version = "1", features = ["v4"] }
