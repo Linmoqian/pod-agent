@@ -6,8 +6,9 @@
  */
 
 import { useMemo, useState } from "react";
-import { Button, Input } from "antd";
-import { Plus, Search, Sprout } from "lucide-react";
+import { Button, Input, Tooltip } from "antd";
+import { Camera, Plus, Search, Settings, Sprout } from "lucide-react";
+import CameraModal from "../features/camera/components/CameraModal";
 import type { ChatSession } from "../features/chat/types";
 import styles from "./Sidebar.module.css";
 
@@ -18,6 +19,41 @@ type SidebarProps = {
   onNewSession: () => void;
 };
 
+/* 单个会话项:选中态走品牌绿淡底 + 2px 指示条 */
+function SessionItem({
+  session,
+  active,
+  onSelect,
+}: {
+  session: ChatSession;
+  active: boolean;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        className={styles.sessionItem}
+        aria-current={active ? "true" : undefined}
+        data-active={active}
+        onClick={() => onSelect(session.id)}
+      >
+        <span
+          className={styles.statusDot}
+          data-status={session.status}
+          aria-hidden
+        />
+        <span className={styles.sessionText}>
+          <span className={styles.sessionTitle}>{session.title}</span>
+          <span className={styles.sessionMeta}>
+            {session.messages.length} 条消息
+          </span>
+        </span>
+      </button>
+    </li>
+  );
+}
+
 function Sidebar({
   sessions,
   activeId,
@@ -25,6 +61,7 @@ function Sidebar({
   onNewSession,
 }: SidebarProps) {
   const [keyword, setKeyword] = useState("");
+  const [cameraOpen, setCameraOpen] = useState(false);
 
   const groups = useMemo(() => {
     const filtered = sessions.filter((session) =>
@@ -44,14 +81,23 @@ function Sidebar({
         <span className={styles.brandName}>Pod Agent</span>
       </div>
 
-      <Button
-        type="primary"
-        block
-        icon={<Plus size={18} />}
-        onClick={onNewSession}
-      >
-        新建任务
-      </Button>
+      <div className={styles.actions}>
+        <Button
+          type="primary"
+          block
+          icon={<Plus size={18} />}
+          onClick={onNewSession}
+        >
+          新建任务
+        </Button>
+        <Tooltip title="打开相机">
+          <Button
+            aria-label="打开相机"
+            icon={<Camera size={18} />}
+            onClick={() => setCameraOpen(true)}
+          />
+        </Tooltip>
+      </div>
 
       <Input
         allowClear
@@ -67,34 +113,14 @@ function Sidebar({
           <section key={group} className={styles.group}>
             <h3 className={styles.groupLabel}>{group}</h3>
             <ul className={styles.groupList}>
-              {groupSessions.map((session) => {
-                const active = session.id === activeId;
-                return (
-                  <li key={session.id}>
-                    <button
-                      type="button"
-                      className={styles.sessionItem}
-                      aria-current={active ? "true" : undefined}
-                      data-active={active}
-                      onClick={() => onSelect(session.id)}
-                    >
-                      <span
-                        className={styles.statusDot}
-                        data-status={session.status}
-                        aria-hidden
-                      />
-                      <span className={styles.sessionText}>
-                        <span className={styles.sessionTitle}>
-                          {session.title}
-                        </span>
-                        <span className={styles.sessionMeta}>
-                          {session.messages.length} 条消息
-                        </span>
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
+              {groupSessions.map((session) => (
+                <SessionItem
+                  key={session.id}
+                  session={session}
+                  active={session.id === activeId}
+                  onSelect={onSelect}
+                />
+              ))}
             </ul>
           </section>
         ))}
@@ -102,6 +128,19 @@ function Sidebar({
           <p className={styles.emptyTip}>没有匹配的任务</p>
         )}
       </nav>
+
+      {/* 设置入口固定在侧栏左下角;设置面板尚未实现,当前为占位 */}
+      <footer className={styles.sidebarFooter}>
+        <Tooltip title="设置(占位)">
+          <Button
+            type="text"
+            aria-label="设置"
+            icon={<Settings size={20} />}
+          />
+        </Tooltip>
+      </footer>
+
+      <CameraModal open={cameraOpen} onClose={() => setCameraOpen(false)} />
     </div>
   );
 }

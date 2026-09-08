@@ -29,6 +29,12 @@
   color: var(--color-text-primary);
 }
 
+/* 主操作 + 工具按钮并排,占满侧栏宽度 */
+.actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
 .sessionNav {
   display: flex;
   flex-direction: column;
@@ -136,4 +142,11 @@
   padding: var(--space-4) var(--space-2);
   font-size: var(--font-size-label);
   color: var(--color-text-disabled);
+}
+
+/* 左下角设置入口:贴侧栏底部左缘 */
+.sidebarFooter {
+  display: flex;
+  flex-shrink: 0;
+  padding-top: var(--space-2);
 }

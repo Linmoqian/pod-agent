@@ -6,7 +6,7 @@
  */
 
 import { Button, Tooltip } from "antd";
-import { PanelLeft, Settings2 } from "lucide-react";
+import { PanelLeft } from "lucide-react";
 import type { ChatSession } from "../types";
 import styles from "./ChatHeader.module.css";
 
@@ -41,15 +41,6 @@ function ChatHeader({
           </span>
         )}
       </div>
-
-      <Tooltip title="设置(占位)">
-        <Button
-          type="text"
-          aria-label="设置"
-          icon={<Settings2 size={20} />}
-          disabled
-        />
-      </Tooltip>
     </header>
   );
 }

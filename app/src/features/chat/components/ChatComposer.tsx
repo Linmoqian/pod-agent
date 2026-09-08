@@ -6,9 +6,8 @@
  */
 
 import { useState } from "react";
-import { Button, Input, Tooltip } from "antd";
-import { Camera, SendHorizontal } from "lucide-react";
-import CameraModal from "../../camera/components/CameraModal";
+import { Button, Input } from "antd";
+import { SendHorizontal } from "lucide-react";
 import styles from "./ChatComposer.module.css";
 
 const { TextArea } = Input;
@@ -25,7 +24,6 @@ function ChatComposer({
   autoFocus,
 }: ChatComposerProps) {
   const [value, setValue] = useState("");
-  const [cameraOpen, setCameraOpen] = useState(false);
 
   const submit = () => {
     const trimmed = value.trim();
@@ -37,16 +35,6 @@ function ChatComposer({
   return (
     <div className={styles.composer}>
       <div className={styles.inputCard}>
-        <Tooltip title="打开相机">
-          <Button
-            type="text"
-            shape="circle"
-            className={styles.toolButton}
-            aria-label="打开相机"
-            icon={<Camera size={18} />}
-            onClick={() => setCameraOpen(true)}
-          />
-        </Tooltip>
         <TextArea
           value={value}
           autoFocus={autoFocus}
@@ -72,7 +60,6 @@ function ChatComposer({
         />
       </div>
       <p className={styles.hint}>Enter 发送 · Shift+Enter 换行</p>
-      <CameraModal open={cameraOpen} onClose={() => setCameraOpen(false)} />
     </div>
   );
 }
