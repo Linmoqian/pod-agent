@@ -310,6 +310,12 @@ Pod Agent 应采用“学术可信、农业生命力、克制现代”的视觉�
   --duration-expressive: 400ms;
   --easing-standard: cubic-bezier(0.2, 0, 0, 1);
   --easing-emphasized: ease-in-out;
+
+  --code-comment: #8a917f;
+  --code-keyword: #275a33;
+  --code-string: #1e7d76;
+  --code-number: #9a6b1f;
+  --code-title: #327241;
 }
 ```
 
@@ -323,7 +329,68 @@ Pod Agent 应采用“学术可信、农业生命力、克制现代”的视觉�
 - 在 1600、1280、1000、768 和 480px 附近检查布局，无根字号整体缩放。
 - 未复制官网的校徽、照片、插画、标题字图、图标或字体文件。
 
-## 12. 来源与限制
+## 12. 暗色主题与代码语法色
+
+应用支持明暗双主题。切换机制：`SettingsProvider` 将解析后的主题写入
+`<html data-theme="...">`，`tokens.css` 以 `[data-theme="dark"]` 整体覆盖颜色类
+变量；尺寸、字体与动效 Token 不随主题变化。antd 侧由根组件读取同一状态，
+在 `defaultAlgorithm` 与 `darkAlgorithm` 间切换，并套用下文色板。
+
+派生原则：
+
+- 表面变为带绿调的墨色，亮度关系与亮色一致(画布最暗、卡片最亮)。
+- 品牌绿整体提亮保持暗底可读；亮色中 hover 变浅、按压变深的反馈方向，
+  暗色下统一朝提亮方向走。
+- 大面积反色区(`brand-strong`/`brand-deep`)保持中等深度以维持白字对比。
+
+### 12.1 暗色变量集
+
+| Token | 暗色值 | 说明 |
+| --- | --- | --- |
+| `--color-brand-500` | `#6aa877` | 悬停、链接、选中指示(暗底对比 ≈ 6.0:1) |
+| `--color-brand-600` | `#5b9e6b` | 强调文字、选中标题(暗底对比 ≈ 5.3:1) |
+| `--color-brand-700` | `#7cb989` | 按压反馈，向亮处走 |
+| `--color-brand-strong` | `#0e8f5c` | 反色区，白字大号文本可用 |
+| `--color-brand-deep` | `#0d7a4e` | 深色状态区 |
+| `--color-surface-canvas` | `#101613` | 应用画布 |
+| `--color-surface-subtle` | `#141b16` | 侧栏、代码块底 |
+| `--color-surface-default` | `#1a231d` | 卡片、面板 |
+| `--color-surface-disabled` | `#202a23` | 禁用、只读区 |
+| `--color-text-primary` | `#e8ece7` | 主文本 |
+| `--color-text-secondary` | `#aab4ab` | 次文本 |
+| `--color-text-disabled` | `#7a837b` | 弱文本 |
+| `--color-text-inverse` | `#ffffff` | 品牌绿底上的文字 |
+| `--color-border-subtle` | `#2a332c` | 分隔线 |
+| `--color-border-default` | `#3a443c` | 输入框、面板边界 |
+| `--color-accent-gold` | `#f0cd77` | 提醒、代码数字 |
+| `--color-accent-teal` | `#55c2b8` | 次级分类 |
+| `--color-accent-red` | `#d9705f` | 错误、风险 |
+| `--color-accent-mint` | `#63c29e` | 成功、就绪 |
+| `--color-focus-ring` | `rgba(106, 168, 119, 0.4)` | 键盘焦点外环 |
+| `--shadow-card` | `0 3px 20px rgba(0, 0, 0, 0.32)` | 卡片阴影加深 |
+| `--shadow-media` | `0 3px 20px rgba(0, 0, 0, 0.5)` | 弹层阴影 |
+| `--shadow-header` | `0 5px 10px rgba(0, 0, 0, 0.35)` | 顶栏阴影 |
+
+### 12.2 antd 明暗色板
+
+antd 组件颜色不读 CSS 变量，由根组件按主题切换算法并套用色板；色值与上表一致，
+仅两处独立取舍：暗色 `colorPrimary` 取 `#3f8456`(白字对比 ≈ 4.5:1，按钮文字
+可读)，链接色 `colorLink` 单独取 `#6aa877`(暗底正文可读)。亮色色板见第 3 节。
+
+### 12.3 代码语法色
+
+Markdown 代码块高亮不引入 highlight.js 官方浅色主题，改用跟随主题的语法色
+Token，明暗各一套，映射参考 GitHub 低饱和配色：
+
+| Token | 亮色 | 暗色 | 用途 |
+| --- | --- | --- | --- |
+| `--code-comment` | `#8a917f` | `#7a837b` | 注释、元信息 |
+| `--code-keyword` | `#275a33` | `#7cb989` | 关键字、属性、内建 |
+| `--code-string` | `#1e7d76` | `#63c2b8` | 字符串、正则 |
+| `--code-number` | `#9a6b1f` | `#f0cd77` | 数字、字面量 |
+| `--code-title` | `#327241` | `#5b9e6b` | 函数名、标题、选择器 |
+
+## 13. 来源与限制
 
 本设计 Token 依据 2026-09-08 对官网首页的视觉观察、计算样式和以下官方样式资产提炼：
 

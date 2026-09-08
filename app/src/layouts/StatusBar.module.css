@@ -1,0 +1,58 @@
+/*
+ * Created on 2026-09-08
+ * @author: https://github.com/Linmoqian
+ */
+
+/* 28px 毛玻璃状态栏:参考 X-line app-status-bar,贴窗口底部 */
+.statusBar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  padding-inline: var(--space-3);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-secondary);
+  background: color-mix(
+    in srgb,
+    var(--color-surface-default) 78%,
+    transparent
+  );
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-top: var(--border-subtle);
+}
+
+.leftGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.brand {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.divider {
+  width: 1px;
+  height: 12px;
+  background: var(--color-border-default);
+}
+
+.metric {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 任务进行中:品牌绿提示,同时以文字表达状态 */
+.metric[data-status="working"] {
+  color: var(--color-brand-600);
+}
+
+.env {
+  flex-shrink: 0;
+  color: var(--color-text-disabled);
+}

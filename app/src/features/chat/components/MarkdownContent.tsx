@@ -1,7 +1,6 @@
 import Markdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
-import "highlight.js/styles/github.css";
 import styles from "./MarkdownContent.module.css";
 
 type MarkdownContentProps = {

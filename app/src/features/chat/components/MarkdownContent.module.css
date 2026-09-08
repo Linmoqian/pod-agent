@@ -66,3 +66,64 @@
   border: var(--border-subtle);
   border-radius: var(--radius-sm);
 }
+
+/* highlight.js 语法色:不引官方浅色主题,改用跟随明暗的 --code-* Token,
+ * 保证深色主题下代码块可读;映射参考 GitHub 低饱和配色。 */
+.content .hljs-comment,
+.content .hljs-quote {
+  color: var(--code-comment);
+  font-style: italic;
+}
+
+.content .hljs-keyword,
+.content .hljs-selector-tag,
+.content .hljs-subst,
+.content .hljs-meta,
+.content .hljs-doctag {
+  color: var(--code-keyword);
+}
+
+.content .hljs-string,
+.content .hljs-regexp,
+.content .hljs-addition {
+  color: var(--code-string);
+}
+
+.content .hljs-number,
+.content .hljs-literal,
+.content .hljs-symbol,
+.content .hljs-bullet,
+.content .hljs-link {
+  color: var(--code-number);
+}
+
+.content .hljs-title,
+.content .hljs-section,
+.content .hljs-name,
+.content .hljs-selector-id,
+.content .hljs-selector-class {
+  color: var(--code-title);
+}
+
+.content .hljs-attr,
+.content .hljs-attribute,
+.content .hljs-variable,
+.content .hljs-template-variable,
+.content .hljs-type,
+.content .hljs-built_in,
+.content .hljs-builtin-name,
+.content .hljs-params {
+  color: var(--code-keyword);
+}
+
+.content .hljs-deletion {
+  color: var(--color-accent-red);
+}
+
+.content .hljs-emphasis {
+  font-style: italic;
+}
+
+.content .hljs-strong {
+  font-weight: var(--font-weight-bold);
+}

@@ -98,4 +98,48 @@
   --duration-expressive: 400ms;
   --easing-standard: cubic-bezier(0.2, 0, 0, 1);
   --easing-emphasized: ease-in-out;
+
+  /* 代码语法色(GitHub 式低饱和):供 Markdown 代码块高亮,
+   * 明暗两套跟随 data-theme,见第 13 节 */
+  --code-comment: #8a917f;
+  --code-keyword: #275a33;
+  --code-string: #1e7d76;
+  --code-number: #9a6b1f;
+  --code-title: #327241;
+}
+
+/* 暗色主题:<html data-theme="dark"> 时整体换色,尺寸/字体/动效不变。
+ * 派生原则:表面变暗绿墨色、文字反转、品牌绿提亮保持暗底可读;
+ * 亮色中 hover 变浅/按压变深的反馈方向,暗色下统一朝提亮方向走。 */
+[data-theme="dark"] {
+  --color-brand-500: #6aa877;
+  --color-brand-600: #5b9e6b;
+  --color-brand-700: #7cb989;
+  --color-brand-strong: #0e8f5c;
+  --color-brand-deep: #0d7a4e;
+  --color-surface-canvas: #101613;
+  --color-surface-subtle: #141b16;
+  --color-surface-default: #1a231d;
+  --color-surface-disabled: #202a23;
+  --color-text-primary: #e8ece7;
+  --color-text-secondary: #aab4ab;
+  --color-text-disabled: #7a837b;
+  --color-text-inverse: #ffffff;
+  --color-border-subtle: #2a332c;
+  --color-border-default: #3a443c;
+  --color-accent-gold: #f0cd77;
+  --color-accent-teal: #55c2b8;
+  --color-accent-red: #d9705f;
+  --color-accent-mint: #63c29e;
+  --color-focus-ring: rgba(106, 168, 119, 0.4);
+
+  --shadow-card: 0 3px 20px rgba(0, 0, 0, 0.32);
+  --shadow-media: 0 3px 20px rgba(0, 0, 0, 0.5);
+  --shadow-header: 0 5px 10px rgba(0, 0, 0, 0.35);
+
+  --code-comment: #7a837b;
+  --code-keyword: #7cb989;
+  --code-string: #63c2b8;
+  --code-number: #f0cd77;
+  --code-title: #5b9e6b;
 }

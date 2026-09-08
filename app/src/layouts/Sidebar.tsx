@@ -1,15 +1,13 @@
 /*
- * 左侧会话栏(Codex 式):品牌区、新建任务、搜索与按时间分组的会话列表。
- * 宽度 320px 取自 --layout-sidebar;折叠动画由 AppLayout 的 spring 驱动。
+ * 会话面板(参考 X-line route-panel 职责):新建任务、搜索与按时间分组的会话列表。
+ * 品牌区、相机与设置入口已迁移至 IconRail;折叠与拖宽由 AppLayout 的面板容器驱动。
  * Created on 2026-09-08
  * @author: https://github.com/Linmoqian
  */
 
 import { useMemo, useState } from "react";
-import { Button, Input, Tooltip } from "antd";
-import { Camera, Plus, Search, Settings, Sprout } from "lucide-react";
-import CameraModal from "../features/camera/components/CameraModal";
-import ProviderSettingsModal from "../features/providers/components/ProviderSettingsModal";
+import { Button, Input } from "antd";
+import { Plus, Search } from "lucide-react";
 import type { ChatSession } from "../features/chat/types";
 import styles from "./Sidebar.module.css";
 
@@ -62,8 +60,6 @@ function Sidebar({
   onNewSession,
 }: SidebarProps) {
   const [keyword, setKeyword] = useState("");
-  const [cameraOpen, setCameraOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const groups = useMemo(() => {
     const filtered = sessions.filter((session) =>
@@ -78,28 +74,14 @@ function Sidebar({
 
   return (
     <div className={styles.sidebarInner}>
-      <div className={styles.brand}>
-        <Sprout size={24} aria-hidden />
-        <span className={styles.brandName}>Pod Agent</span>
-      </div>
-
-      <div className={styles.actions}>
-        <Button
-          type="primary"
-          block
-          icon={<Plus size={18} />}
-          onClick={onNewSession}
-        >
-          新建任务
-        </Button>
-        <Tooltip title="打开相机">
-          <Button
-            aria-label="打开相机"
-            icon={<Camera size={18} />}
-            onClick={() => setCameraOpen(true)}
-          />
-        </Tooltip>
-      </div>
+      <Button
+        type="primary"
+        block
+        icon={<Plus size={18} />}
+        onClick={onNewSession}
+      >
+        新建任务
+      </Button>
 
       <Input
         allowClear
@@ -130,24 +112,6 @@ function Sidebar({
           <p className={styles.emptyTip}>没有匹配的任务</p>
         )}
       </nav>
-
-      {/* 设置入口固定在侧栏左下角,打开模型提供商设置面板 */}
-      <footer className={styles.sidebarFooter}>
-        <Tooltip title="模型提供商设置">
-          <Button
-            type="text"
-            aria-label="模型提供商设置"
-            icon={<Settings size={20} />}
-            onClick={() => setSettingsOpen(true)}
-          />
-        </Tooltip>
-      </footer>
-
-      <CameraModal open={cameraOpen} onClose={() => setCameraOpen(false)} />
-      <ProviderSettingsModal
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-      />
     </div>
   );
 }

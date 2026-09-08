@@ -1,0 +1,77 @@
+/*
+ * Created on 2026-09-08
+ * @author: https://github.com/Linmoqian
+ */
+
+/* 68px 窄图标栏:参考 X-line app-sidebar,纵向排列不折叠 */
+.rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  gap: var(--space-3);
+  width: 68px;
+  height: 100%;
+  padding: var(--space-4) 0;
+  border-right: var(--border-subtle);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: var(--space-2);
+  color: var(--color-brand-600);
+  background: color-mix(
+    in srgb,
+    var(--color-brand-500) 10%,
+    transparent
+  );
+  border-radius: var(--radius-lg);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: 14px;
+  cursor: pointer;
+  transition:
+    background var(--duration-normal) var(--easing-standard),
+    color var(--duration-normal) var(--easing-standard);
+}
+
+.navItem:hover {
+  color: var(--color-text-primary);
+  background: color-mix(
+    in srgb,
+    var(--color-text-primary) 6%,
+    transparent
+  );
+}
+
+.navItem:active {
+  transform: scale(0.96);
+}
+
+/* 激活导航位:淡底 + 品牌绿 */
+.navItem[data-active="true"] {
+  color: var(--color-brand-600);
+  background: color-mix(
+    in srgb,
+    var(--color-brand-500) 12%,
+    transparent
+  );
+}

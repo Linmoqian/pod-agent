@@ -3,38 +3,22 @@
  * @author: https://github.com/Linmoqian
  */
 
-/* 内容固定宽度,避免折叠动画压缩内部布局;外层由 motion 控制 width */
+/* 内容宽度自适应拖拽调宽;min-width 保持折叠动画时布局稳定,
+ * 收起时内容从右侧裁切而不会被压缩换行 */
 .sidebarInner {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  width: var(--layout-sidebar);
+  width: 100%;
+  min-width: var(--layout-sidebar);
   height: 100%;
   padding: var(--space-5) var(--space-4);
-  background: var(--color-surface-subtle);
-  border-right: var(--border-subtle);
+  padding-top: calc(var(--space-5) + var(--space-6));
+  background: transparent;
+  border-right: 0;
 }
 
-.brand {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding-inline: var(--space-2);
-  color: var(--color-brand-600);
-}
-
-.brandName {
-  font-size: var(--font-size-subtitle);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-text-primary);
-}
-
-/* 主操作 + 工具按钮并排,占满侧栏宽度 */
-.actions {
-  display: flex;
-  gap: var(--space-2);
-}
-
+/* 单列布局:新建任务与搜索上下排布,顶部让位折叠按钮 */
 .sessionNav {
   display: flex;
   flex-direction: column;
@@ -84,10 +68,14 @@
   background: var(--color-surface-default);
 }
 
-/* 选中项:品牌绿淡底 + 左侧 2px 指示条,不用大面积实色胶囊 */
+/* 选中项:品牌绿淡底 + 左侧 2px 指示条;混合基准取表面色,明暗主题下均成立 */
 .sessionItem[data-active="true"] {
   position: relative;
-  background: color-mix(in srgb, var(--color-brand-500) 10%, white);
+  background: color-mix(
+    in srgb,
+    var(--color-brand-500) 10%,
+    var(--color-surface-default)
+  );
 }
 
 .sessionItem[data-active="true"]::before {
@@ -142,11 +130,4 @@
   padding: var(--space-4) var(--space-2);
   font-size: var(--font-size-label);
   color: var(--color-text-disabled);
-}
-
-/* 左下角设置入口:贴侧栏底部左缘 */
-.sidebarFooter {
-  display: flex;
-  flex-shrink: 0;
-  padding-top: var(--space-2);
 }
