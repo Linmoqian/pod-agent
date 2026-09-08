@@ -41,4 +41,13 @@ describe("App", () => {
     ).toBeGreaterThan(0);
     expect(screen.getAllByText(/本地占位回复/).length).toBeGreaterThan(0);
   });
+
+  it("点击打开相机弹出模态,无摄像头环境展示不支持提示", async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await user.click(screen.getByRole("button", { name: "打开相机" }));
+    expect(screen.getByText("相机")).toBeInTheDocument();
+    // jsdom 无 mediaDevices,验证最诚实的错误分支
+    expect(screen.getByText("当前环境不支持相机。")).toBeInTheDocument();
+  });
 });
