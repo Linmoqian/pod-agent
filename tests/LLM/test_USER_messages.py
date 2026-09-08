@@ -14,23 +14,19 @@ def send_message(message: str):
     try:
         # 连接服务端
         sock.connect((TCP_IP, TCP_PORT))
-
         print(f"用户: {message}")
-
         # 发送消息
         sock.sendall(
             message.encode("utf-8")
         )
-
         # 接收服务端回复
         response = ""
-
         while True:
             data = sock.recv(4096)
 
             if not data:
                 break
-
+            
             text = data.decode("utf-8")
             response += text
 
