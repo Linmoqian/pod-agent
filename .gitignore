@@ -84,5 +84,5 @@ design/
 
 # Private
 CLAUDE.md
-data/
+/data/
 yolov12/
