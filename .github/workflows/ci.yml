@@ -1,0 +1,79 @@
+# CI：拉取请求与 main 推送时运行最小检查
+# 前端复用 package.json 既有脚本（lint / tsc），Rust 侧执行 cargo check --locked
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# 最小权限：只读仓库内容，无其他令牌需求
+permissions:
+  contents: read
+
+# 同一分支的新推送取消旧任务，节省配额
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: 前端静态检查
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+
+      - name: 安装依赖（锁文件）
+        run: pnpm install --frozen-lockfile
+
+      - name: ESLint 检查
+        run: pnpm lint
+
+      - name: TypeScript 类型检查
+        run: pnpm exec tsc
+
+  rust:
+    name: Rust 编译检查
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app/src-tauri
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      # Tauri v2 在 Linux 的编译期系统依赖（webkit2gtk 4.1 / appindicator / librsvg）
+      - name: 安装 Linux 系统依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+
+      - name: 缓存构建产物
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      - name: cargo check（锁文件校验）
+        run: cargo check --locked
