@@ -6,13 +6,52 @@ dist/
 dist-ssr/
 *.local
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+
+# C / C++
+build/
+build-*/
+cmake-build-*/
+out/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CMakeUserPresets.json
+compile_commands.json
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.pdb
+
 # Rust
 target/
+**/*.rs.bk
 
 # IDE
 .vscode/*
 !.vscode/extensions.json
+*.code-workspace
 .idea/
+.ccls-cache/
 *.suo
 *.ntvs*
 *.njsproj
@@ -26,6 +65,11 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+
+# Environment
+.env
+.env.*
+!.env.example
 
 # Tauri generated
 app/src-tauri/gen/schemas
