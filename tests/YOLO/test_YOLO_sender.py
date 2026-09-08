@@ -1,5 +1,4 @@
-# YOLO 客户端示例
-# yolo_sender.py
+# YOLO 推送端示例
 from ultralytics import YOLO
 import socket
 import json

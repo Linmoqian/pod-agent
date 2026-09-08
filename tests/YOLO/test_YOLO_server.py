@@ -1,4 +1,4 @@
-# YOLO 服务端示例
+# YOLO 接收端示例
 import socket
 
 TCP_IP = "0.0.0.0" #简单局域网内
