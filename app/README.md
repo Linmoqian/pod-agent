@@ -75,6 +75,9 @@ cargo test
 
 ## 技术选型与取舍
 
-- 选型遵循仓库前端规范：React Router、Ant Design（Design Token）、CSS Modules、Redux Toolkit、Motion、Lucide React；在实际功能落地时再引入，不提前安装。
+- 已引入（遵循仓库前端规范）：`react-router`（桌面端用 `MemoryRouter`）、`antd`（`ConfigProvider` + `zh_CN`）、`lucide-react`、`@reduxjs/toolkit` + `react-redux`、`motion`；Markdown 链路为 `react-markdown` + `remark-gfm`（表格/删除线）+ `rehype-highlight` + `highlight.js`（代码高亮，显式声明以控版本）。
+- `@reduxjs/toolkit`、`react-redux`、`motion` 已安装但未接线，待出现跨页面工作流状态与动画需求时再建 `store/` 与动效层，不提前抽象。
+- 版本差异验证：antd v6 原生支持 React 19（peer 仅要求 `react >= 18`，无需补丁包）；react-router v8 从统一包 `react-router` 导入 `MemoryRouter` 等声明式 API，不再需要 `react-router-dom`。
 - Lint 采用 ESLint 9 flat config + typescript-eslint + Prettier。规范提及的 Airbnb 风格配置不支持 ESLint 9 flat config 且维护停滞，故以 typescript-eslint 推荐规则 + Prettier 近似覆盖其核心约束（可读性、一致格式），并保留规范要求的 `max-lines` / `max-lines-per-function` warning 提示。
 - `tauri-plugin-opener` 已按最小授权原则移除，出现打开外部链接需求时再评估引入。
+- Markdown 内容当前来源于自有 LLM 回复，暂未接入 `rehype-sanitize`；若后续渲染用户输入的任意 Markdown，需先补消毒层。
