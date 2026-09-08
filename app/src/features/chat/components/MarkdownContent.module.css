@@ -1,6 +1,32 @@
+/*
+ * Created on 2026-09-08
+ * @author: https://github.com/Linmoqian
+ */
+
 .content {
-  max-width: 640px;
-  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  color: var(--color-text-primary);
+}
+
+.content h1,
+.content h2,
+.content h3,
+.content h4 {
+  color: var(--color-text-primary);
+  line-height: var(--line-height-title);
+  margin-top: var(--space-4);
+}
+
+.content p {
+  margin-block: 0;
+}
+
+.content a {
+  color: var(--color-brand-500);
 }
 
 .content table {
@@ -10,13 +36,33 @@
 
 .content th,
 .content td {
-  border: 1px solid #d9d9d9;
-  padding: 6px 10px;
+  border: var(--border-subtle);
+  padding: var(--space-2) var(--space-3);
   text-align: left;
+  font-size: var(--font-size-label);
+}
+
+.content th {
+  background: var(--color-surface-subtle);
+  font-weight: var(--font-weight-semibold);
 }
 
 .content pre {
-  padding: 12px;
-  border-radius: 8px;
+  padding: var(--space-4);
+  background: var(--color-surface-subtle);
+  border: var(--border-subtle);
+  border-radius: var(--radius-md);
   overflow-x: auto;
+  font-size: var(--font-size-label);
+}
+
+.content code {
+  font-size: var(--font-size-label);
+}
+
+.content :not(pre) > code {
+  padding: 2px var(--space-1);
+  background: var(--color-surface-subtle);
+  border: var(--border-subtle);
+  border-radius: var(--radius-sm);
 }

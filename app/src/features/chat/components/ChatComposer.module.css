@@ -1,0 +1,54 @@
+/*
+ * Created on 2026-09-08
+ * @author: https://github.com/Linmoqian
+ */
+
+.composer {
+  flex-shrink: 0;
+  width: 100%;
+  max-width: var(--layout-reading-max);
+  margin-inline: auto;
+  padding: 0 var(--layout-gutter) var(--space-5);
+}
+
+/* 白底卡片承载输入:边框为主,聚焦时才出现外环,不叠加阴影(Token 9.3) */
+.inputCard {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  background: var(--color-surface-default);
+  border: var(--border-default);
+  border-radius: var(--radius-lg);
+  transition:
+    border-color var(--duration-fast) var(--easing-standard),
+    box-shadow var(--duration-fast) var(--easing-standard);
+}
+
+.inputCard:focus-within {
+  border-color: var(--color-brand-500);
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
+}
+
+.inputCard :global(.ant-input) {
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  color: var(--color-text-primary);
+}
+
+.inputCard :global(.ant-input)::placeholder {
+  color: var(--color-text-disabled);
+}
+
+.inputCard button:disabled {
+  background: var(--color-surface-disabled);
+  color: var(--color-text-disabled);
+}
+
+.hint {
+  margin-top: var(--space-2);
+  text-align: center;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-title);
+  color: var(--color-text-disabled);
+}

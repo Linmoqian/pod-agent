@@ -1,0 +1,33 @@
+/*
+ * Created on 2026-09-08
+ * @author: https://github.com/Linmoqian
+ */
+
+.layout {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-surface-canvas);
+}
+
+/* overflow hidden 配合 motion 折叠宽度,收起时不残留内容 */
+.sidebar {
+  flex-shrink: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}

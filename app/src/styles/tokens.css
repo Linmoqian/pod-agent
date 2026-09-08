@@ -1,0 +1,101 @@
+/*
+ * 设计 Token 单一来源:docs/design/2026-09-08-scau-inspired-design-tokens.md
+ * 实现中的变量必须与该文档第 10 节同步,禁止在组件中散落相近色值。
+ * Created on 2026-09-08
+ * @author: https://github.com/Linmoqian
+ */
+
+:root {
+  /* 颜色 */
+  --color-brand-500: #40814f;
+  --color-brand-600: #327241;
+  --color-brand-700: #275a33;
+  --color-brand-strong: #007a49;
+  --color-brand-deep: #027245;
+  --color-surface-canvas: #fafcf8;
+  --color-surface-subtle: #fafff4;
+  --color-surface-default: #ffffff;
+  --color-surface-disabled: #f0f4ed;
+  --color-text-primary: #333333;
+  --color-text-secondary: #666666;
+  --color-text-disabled: #999999;
+  --color-text-inverse: #ffffff;
+  --color-border-subtle: #e8e8e8;
+  --color-border-default: #d5d5d5;
+  --color-accent-gold: #edc25d;
+  --color-accent-teal: #3bb4ab;
+  --color-accent-red: #b93e2e;
+  --color-accent-mint: #4fb18d;
+  --color-state-success: var(--color-brand-500);
+  --color-state-warning: var(--color-accent-gold);
+  --color-state-danger: var(--color-accent-red);
+  --color-state-info: var(--color-accent-teal);
+  --color-overlay-image: rgba(0, 0, 0, 0.4);
+  --color-focus-ring: rgba(64, 129, 79, 0.28);
+
+  /* 字体 */
+  --font-family-sans:
+    "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", system-ui,
+    sans-serif;
+  --font-family-serif-number:
+    "Merriweather", Georgia, "Times New Roman", serif;
+  --font-size-display: 40px;
+  --font-size-section: 30px;
+  --font-size-title: 22px;
+  --font-size-subtitle: 18px;
+  --font-size-body: 16px;
+  --font-size-label: 14px;
+  --font-size-caption: 12px;
+  --font-size-metric: 50px;
+  --line-height-tight: 1.2;
+  --line-height-title: 1.4;
+  --line-height-body: 1.75;
+  --font-weight-regular: 400;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* 间距(4px 基准网格) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+
+  /* 控件与布局尺寸 */
+  --size-control-sm: 32px;
+  --size-control-md: 40px;
+  --size-control-lg: 48px;
+  --size-header: 72px;
+  --size-icon-sm: 16px;
+  --size-icon-md: 20px;
+  --size-icon-lg: 24px;
+  --layout-content-max: 1600px;
+  --layout-reading-max: 960px;
+  --layout-sidebar: 320px;
+  --layout-gutter: clamp(20px, 4vw, 60px);
+
+  /* 圆角、边框与阴影 */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+  --border-subtle: 1px solid var(--color-border-subtle);
+  --border-default: 1px solid var(--color-border-default);
+  --shadow-card: 0 3px 20px rgba(0, 0, 0, 0.08);
+  --shadow-media: 0 3px 20px rgba(0, 0, 0, 0.16);
+  --shadow-header: 0 5px 10px rgba(0, 0, 0, 0.1);
+
+  /* 动效 */
+  --duration-fast: 160ms;
+  --duration-normal: 240ms;
+  --duration-expressive: 400ms;
+  --easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --easing-emphasized: ease-in-out;
+}

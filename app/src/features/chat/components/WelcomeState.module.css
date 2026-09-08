@@ -1,0 +1,83 @@
+/*
+ * Created on 2026-09-08
+ * @author: https://github.com/Linmoqian
+ */
+
+.welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-8);
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: var(--layout-reading-max);
+  margin-inline: auto;
+  padding: var(--space-10) var(--layout-gutter) var(--space-12);
+}
+
+.intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  text-align: center;
+}
+
+/* 品牌绿仅作小面积点缀,满足"不超过单屏 20%"约束 */
+.logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-subtle);
+  border: var(--border-subtle);
+  color: var(--color-brand-600);
+}
+
+.heading {
+  font-size: var(--font-size-section);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  color: var(--color-text-primary);
+}
+
+.subheading {
+  font-size: var(--font-size-subtitle);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-body);
+  color: var(--color-text-secondary);
+}
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3);
+}
+
+/* 建议任务用胶囊按钮:圆形控制器允许 radius-full(Token 第 6 节) */
+.suggestionChip {
+  padding: var(--space-2) var(--space-4);
+  min-height: var(--size-control-sm);
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-title);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-default);
+  border: var(--border-default);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--easing-standard),
+    color var(--duration-fast) var(--easing-standard),
+    background var(--duration-fast) var(--easing-standard);
+}
+
+.suggestionChip:hover {
+  border-color: var(--color-brand-500);
+  color: var(--color-brand-600);
+  background: var(--color-surface-subtle);
+}

@@ -1,4 +1,10 @@
-/* 全局样式只承载重置、字体和应用级规则；组件样式使用就近同名 CSS Module。 */
+/*
+ * 全局样式只承载重置、字体和应用级规则;组件样式使用就近同名 CSS Module。
+ * Created on 2026-09-08
+ * @author: https://github.com/Linmoqian
+ */
+
+@import "./tokens.css";
 
 * {
   box-sizing: border-box;
@@ -13,17 +19,22 @@ body,
 }
 
 body {
-  font-family:
-    "Segoe UI",
-    "PingFang SC",
-    "Microsoft YaHei",
-    system-ui,
-    sans-serif;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  color: var(--color-text-primary);
+  background: var(--color-surface-canvas);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* 桌面端隐藏视觉滚动条，但保留滚轮、触控板与键盘滚动能力 */
+/* 键盘可达性:焦点环统一走 Token,鼠标点击不出现 */
+:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* 桌面端隐藏视觉滚动条,但保留滚轮、触控板与键盘滚动能力 */
 ::-webkit-scrollbar {
   width: 0;
   height: 0;
@@ -31,4 +42,15 @@ body {
 
 * {
   scrollbar-width: none;
+}
+
+/* 遵循系统"减少动态效果":关闭装饰性动画 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

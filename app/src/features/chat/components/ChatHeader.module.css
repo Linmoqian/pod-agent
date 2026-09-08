@@ -1,0 +1,67 @@
+/*
+ * Created on 2026-09-08
+ * @author: https://github.com/Linmoqian
+ */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+  height: var(--size-header);
+  padding-inline: var(--space-5);
+  background: var(--color-surface-default);
+  border-bottom: var(--border-subtle);
+  box-shadow: var(--shadow-header);
+}
+
+.titleGroup {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  min-width: 0;
+  flex: 1;
+}
+
+.title {
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-title);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-title);
+  color: var(--color-text-secondary);
+}
+
+/* 状态点同时用颜色与文字表达,不单靠颜色传递信息(Token 9.4 约束) */
+.badgeDot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent-mint);
+}
+
+.badge[data-status="working"] .badgeDot {
+  background: var(--color-brand-strong);
+  animation: pulse 2s var(--easing-emphasized) infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}

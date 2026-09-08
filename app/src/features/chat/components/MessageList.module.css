@@ -1,0 +1,10 @@
+/*
+ * Created on 2026-09-08
+ * @author: https://github.com/Linmoqian
+ */
+
+.scrollArea {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
