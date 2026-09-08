@@ -1,54 +1,63 @@
-from ultralytics import YOLO
+# YOLO 服务端示例
 import socket
-import json
 
-TCP_IP = "127.0.0.1"
+TCP_IP = "0.0.0.0" #简单局域网内
 TCP_PORT = 5005
 
-MODEL_PATH = "./yolov8n.pt"
-SOURCE = 0
 
-model = YOLO(MODEL_PATH)
-
-
-def run_yolo_and_send():
-
-    sock = socket.socket(
+def run_server():
+    server = socket.socket(
         socket.AF_INET,
         socket.SOCK_STREAM
     )
 
-    sock.connect((TCP_IP, TCP_PORT))
-
-    # stream=True：逐帧获取结果
-    results = model.predict(
-        source=SOURCE,
-        imgsz=640,
-        conf=0.25,
-        stream=True,
-        show=False
+    # 允许程序重启后立即重新绑定端口
+    server.setsockopt(
+        socket.SOL_SOCKET,
+        socket.SO_REUSEADDR,
+        1
     )
 
-    try:
+    server.bind((TCP_IP, TCP_PORT))
+    server.listen(1)
 
-        for result in results:
-            detections = []
-            for box in result.boxes:
-                detections.append({
-                    "class_id": int(box.cls[0]),
-                    "class_name": model.names[int(box.cls[0])],
-                    "confidence": float(box.conf[0]),
-                    "bbox": box.xyxy[0].tolist()
-                })
-            message = json.dumps(
-                detections,
-                ensure_ascii=False
-            )
-            sock.sendall(
-                (message + "\n").encode("utf-8")
-            )
-    finally:
-        sock.close()
+    print(f"Server listening on {TCP_IP}:{TCP_PORT}")
+
+    while True:
+        # 等待 YOLO 客户端连接
+        conn, addr = server.accept()
+
+        print(f"\nClient connected: {addr}")
+
+        buffer = ""
+
+        try:
+            while True:
+                data = conn.recv(4096)
+
+                if not data:
+                    print(f"Client disconnected: {addr}")
+                    break
+
+                # 查看原始二进制数据
+                print(f"RAW: {data}")
+
+                # 解码
+                buffer += data.decode("utf-8")
+
+                # 每条消息使用 \n 分隔
+                while "\n" in buffer:
+                    message, buffer = buffer.split("\n", 1)
+
+                    if message:
+                        print(f"YOLO: {message}")
+
+        except ConnectionResetError:
+            print(f"Client connection reset: {addr}")
+
+        finally:
+            conn.close()
 
 
-run_yolo_and_send()
+if __name__ == "__main__":
+    run_server()
