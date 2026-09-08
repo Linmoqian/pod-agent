@@ -6,7 +6,7 @@ Tauri 2 + React 19 + TypeScript + Vite。前端负责界面，Rust 负责桌面�
 
 ## 目录结构
 
-目录按需创建，不保留空目录；下方为全部职责蓝图，功能开发时逐个落地。
+目录边界已初始化；尚无实现的边界目录以 `.gitkeep` 保留，新增功能时在所属目录内落地。
 
 ```text
 app/
@@ -19,8 +19,8 @@ app/
 │   ├── components/
 │   │   └── common/         # 跨 feature 复用组件（≥2 个 feature 稳定复用才提升）
 │   ├── features/
-│   │   └── <feature>/      # 业务功能域
-│   │       ├── components/ # 该功能私有组件
+│   │   └── chat/           # 聊天业务域
+│   │       ├── components/ # MarkdownContent 等私有组件
 │   │       ├── hooks/
 │   │       ├── services/
 │   │       ├── store/      # 该功能的 Redux Toolkit slice

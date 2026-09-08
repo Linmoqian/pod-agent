@@ -13,27 +13,3 @@
   align-items: center;
   gap: 8px;
 }
-
-.markdown {
-  max-width: 640px;
-  width: 100%;
-}
-
-/* Markdown 渲染容器内的基础排版间距 */
-.markdown table {
-  border-collapse: collapse;
-  width: 100%;
-}
-
-.markdown th,
-.markdown td {
-  border: 1px solid #d9d9d9;
-  padding: 6px 10px;
-  text-align: left;
-}
-
-.markdown pre {
-  padding: 12px;
-  border-radius: 8px;
-  overflow-x: auto;
-}

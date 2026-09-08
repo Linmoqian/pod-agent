@@ -1,9 +1,6 @@
 import { Typography } from "antd";
 import { Leaf, MessageSquareText, Tractor } from "lucide-react";
-import Markdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import rehypeHighlight from "rehype-highlight";
-import "highlight.js/styles/github.css";
+import MarkdownContent from "../features/chat/components/MarkdownContent";
 import styles from "./HomePage.module.css";
 
 const { Title, Paragraph } = Typography;
@@ -40,11 +37,7 @@ function HomePage() {
         <Tractor size={14} aria-hidden style={{ marginLeft: 8 }} />
       </Paragraph>
 
-      <section className={styles.markdown}>
-        <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
-          {SAMPLE_MARKDOWN}
-        </Markdown>
-      </section>
+      <MarkdownContent content={SAMPLE_MARKDOWN} />
     </main>
   );
 }
