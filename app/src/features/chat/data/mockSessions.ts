@@ -7,9 +7,6 @@
 
 import type { ChatSession } from "../types";
 
-export const PLACEHOLDER_REPLY =
-  "本地占位回复:对话与 Agent 后端链路尚未接入,当前仅验证前端布局与渲染管线。";
-
 export const MOCK_SESSIONS: ChatSession[] = [
   {
     id: "session-soybean-trait",

@@ -2,13 +2,17 @@ import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
+import { Provider as ReduxProvider } from "react-redux";
 import App from "./App";
+import { store } from "./store";
 
 function renderApp() {
   return render(
-    <MemoryRouter>
-      <App />
-    </MemoryRouter>,
+    <ReduxProvider store={store}>
+      <MemoryRouter>
+        <App />
+      </MemoryRouter>
+    </ReduxProvider>,
   );
 }
 
@@ -30,7 +34,7 @@ describe("App", () => {
     expect(screen.getByText("中黄 13")).toBeInTheDocument();
   });
 
-  it("在输入器中回车发送消息并出现占位回复", async () => {
+  it("在输入器中回车发送消息,未选模型时给出设置引导", async () => {
     const user = userEvent.setup();
     renderApp();
     const input = screen.getByLabelText("消息输入");
@@ -39,7 +43,7 @@ describe("App", () => {
     expect(
       screen.getAllByText("帮我查一下合丰 50 的产量").length,
     ).toBeGreaterThan(0);
-    expect(screen.getAllByText(/本地占位回复/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/尚未选择模型/).length).toBeGreaterThan(0);
   });
 
   it("点击打开相机弹出模态,无摄像头环境展示不支持提示", async () => {

@@ -9,6 +9,7 @@ import { useMemo, useState } from "react";
 import { Button, Input, Tooltip } from "antd";
 import { Camera, Plus, Search, Settings, Sprout } from "lucide-react";
 import CameraModal from "../features/camera/components/CameraModal";
+import ProviderSettingsModal from "../features/providers/components/ProviderSettingsModal";
 import type { ChatSession } from "../features/chat/types";
 import styles from "./Sidebar.module.css";
 
@@ -62,6 +63,7 @@ function Sidebar({
 }: SidebarProps) {
   const [keyword, setKeyword] = useState("");
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const groups = useMemo(() => {
     const filtered = sessions.filter((session) =>
@@ -129,18 +131,23 @@ function Sidebar({
         )}
       </nav>
 
-      {/* 设置入口固定在侧栏左下角;设置面板尚未实现,当前为占位 */}
+      {/* 设置入口固定在侧栏左下角,打开模型提供商设置面板 */}
       <footer className={styles.sidebarFooter}>
-        <Tooltip title="设置(占位)">
+        <Tooltip title="模型提供商设置">
           <Button
             type="text"
-            aria-label="设置"
+            aria-label="模型提供商设置"
             icon={<Settings size={20} />}
+            onClick={() => setSettingsOpen(true)}
           />
         </Tooltip>
       </footer>
 
       <CameraModal open={cameraOpen} onClose={() => setCameraOpen(false)} />
+      <ProviderSettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
     </div>
   );
 }

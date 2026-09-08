@@ -1,9 +1,11 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { ConfigProvider } from "antd";
+import { App as AntApp, ConfigProvider } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import { MemoryRouter } from "react-router";
+import { Provider as ReduxProvider } from "react-redux";
 import App from "./App";
+import { store } from "./store";
 import "./styles/global.css";
 
 // antd 主题对齐设计 Token(docs/design/2026-09-08-scau-inspired-design-tokens.md)
@@ -24,13 +26,18 @@ const antdTheme = {
   },
 };
 
-// 桌面应用无浏览器地址栏,使用 MemoryRouter 管理窗口内导航
+// 桌面应用无浏览器地址栏,使用 MemoryRouter 管理窗口内导航;
+// ReduxProvider 承载模型提供商等跨组件状态,AntApp 提供 message 上下文
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <ConfigProvider locale={zhCN} theme={antdTheme}>
-      <MemoryRouter>
-        <App />
-      </MemoryRouter>
-    </ConfigProvider>
+    <ReduxProvider store={store}>
+      <ConfigProvider locale={zhCN} theme={antdTheme}>
+        <AntApp>
+          <MemoryRouter>
+            <App />
+          </MemoryRouter>
+        </AntApp>
+      </ConfigProvider>
+    </ReduxProvider>
   </React.StrictMode>,
 );

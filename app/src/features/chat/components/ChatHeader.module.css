@@ -51,6 +51,25 @@
   background: var(--color-accent-mint);
 }
 
+/* 当前模型徽标:标题区右侧的次要信息,不参与状态点语义 */
+.modelBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+  max-width: 240px;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-title);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-canvas);
+  border: var(--border-subtle);
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .badge[data-status="working"] .badgeDot {
   background: var(--color-brand-strong);
   animation: pulse 2s var(--easing-emphasized) infinite;

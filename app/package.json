@@ -17,6 +17,7 @@
     "format": "prettier --write ."
   },
   "dependencies": {
+    "@earendil-works/pi-ai": "^0.85.1",
     "@reduxjs/toolkit": "^2.12.0",
     "@tauri-apps/api": "^2",
     "antd": "^6.6.3",

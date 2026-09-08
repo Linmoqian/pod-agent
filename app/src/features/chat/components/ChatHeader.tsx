@@ -1,12 +1,14 @@
 /*
- * 主区顶栏:侧栏开关、当前会话标题与状态、全局操作入口。
- * 样式依据设计 Token"组件配方 9.1":白底、72px、shadow-header。
+ * 主区顶栏:侧栏开关、当前会话标题与状态、当前模型与全局操作入口。
+ * 样式依据设计 Token“组件配方 9.1”:白底、72px、shadow-header。
  * Created on 2026-09-08
  * @author: https://github.com/Linmoqian
  */
 
 import { Button, Tooltip } from "antd";
-import { PanelLeft } from "lucide-react";
+import { Cpu, PanelLeft } from "lucide-react";
+import { useAppSelector } from "../../../store";
+import { resolveModel } from "../../providers/services/registry";
 import type { ChatSession } from "../types";
 import styles from "./ChatHeader.module.css";
 
@@ -21,6 +23,14 @@ function ChatHeader({
   sidebarCollapsed,
   onToggleSidebar,
 }: ChatHeaderProps) {
+  const currentModel = useAppSelector(
+    (state) => state.providers.currentModel,
+  );
+  const modelName = currentModel
+    ? (resolveModel(currentModel.providerId, currentModel.modelId)?.name ??
+      currentModel.modelId)
+    : null;
+
   return (
     <header className={styles.header}>
       <Tooltip title={sidebarCollapsed ? "展开侧栏" : "收起侧栏"}>
@@ -41,6 +51,13 @@ function ChatHeader({
           </span>
         )}
       </div>
+
+      {modelName && (
+        <span className={styles.modelBadge}>
+          <Cpu size={14} aria-hidden />
+          {modelName}
+        </span>
+      )}
     </header>
   );
 }

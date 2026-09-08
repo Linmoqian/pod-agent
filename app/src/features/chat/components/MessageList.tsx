@@ -1,5 +1,5 @@
 /*
- * 消息流:滚动容器 + 阅读宽度容器,新消息时平滑滚动到底部。
+ * 消息流:滚动容器 + 阅读宽度容器,新消息与流式增量时平滑滚动到底部。
  * Created on 2026-09-08
  * @author: https://github.com/Linmoqian
  */
@@ -13,13 +13,15 @@ import styles from "./MessageList.module.css";
 function MessageList({ session }: { session: ChatSession }) {
   const endRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useReducedMotion();
+  const lastMessage = session.messages[session.messages.length - 1];
 
   useEffect(() => {
     endRef.current?.scrollIntoView({
       behavior: reduceMotion ? "auto" : "smooth",
       block: "end",
     });
-  }, [session.messages.length, reduceMotion]);
+    // 依赖最后一条消息长度:流式增量到达时跟随滚动
+  }, [session.messages.length, lastMessage?.content.length, reduceMotion]);
 
   return (
     <div className={styles.scrollArea}>
