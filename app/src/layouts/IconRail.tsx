@@ -7,13 +7,7 @@
 
 import { useState } from "react";
 import { Tooltip } from "antd";
-import {
-  Camera,
-  MessageSquare,
-  ServerCog,
-  Settings,
-  Sprout,
-} from "lucide-react";
+import AppIcon from "../components/common/AppIcon";
 import CameraModal from "../features/camera/components/CameraModal";
 import ProviderSettingsModal from "../features/providers/components/ProviderSettingsModal";
 import SettingsModal from "../features/settings/components/SettingsModal";
@@ -54,28 +48,28 @@ function IconRail() {
     <nav className={styles.rail} aria-label="主导航">
       {/* 品牌位:仅图标,名称由底部状态栏承载 */}
       <div className={styles.logo} title="Pod Agent">
-        <Sprout size={24} aria-hidden />
+        <AppIcon name="brand-sprout" size={27} />
       </div>
 
       <RailButton label="智能助手" active>
-        <MessageSquare size={22} aria-hidden />
+        <AppIcon name="chat" size={22} />
       </RailButton>
 
       <div className={styles.spacer} />
 
       <Tooltip title="打开相机" placement="right">
         <RailButton label="打开相机" onClick={() => setCameraOpen(true)}>
-          <Camera size={22} aria-hidden />
+          <AppIcon name="camera" size={22} />
         </RailButton>
       </Tooltip>
       <Tooltip title="模型提供商设置" placement="right">
         <RailButton label="模型提供商设置" onClick={() => setProviderOpen(true)}>
-          <ServerCog size={22} aria-hidden />
+          <AppIcon name="provider-server" size={22} />
         </RailButton>
       </Tooltip>
       <Tooltip title="设置" placement="right">
         <RailButton label="设置" onClick={() => setSettingsOpen(true)}>
-          <Settings size={22} aria-hidden />
+          <AppIcon name="settings" size={22} />
         </RailButton>
       </Tooltip>
 

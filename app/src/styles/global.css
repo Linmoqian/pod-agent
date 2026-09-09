@@ -26,6 +26,32 @@ body {
   background: var(--color-surface-canvas);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  font-optical-sizing: auto;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button:not(:disabled) {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:not(:disabled):active {
+  transform: scale(var(--press-scale));
+  transition-duration: var(--duration-press);
+}
+
+::selection {
+  color: var(--color-text-primary);
+  background: color-mix(
+    in srgb,
+    var(--color-brand-500) 24%,
+    transparent
+  );
 }
 
 /* 键盘可达性:焦点环统一走 Token,鼠标点击不出现 */
@@ -52,5 +78,25 @@ body {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --material-rail: var(--color-surface-default);
+    --material-toolbar: var(--color-surface-default);
+    --material-modal: var(--color-surface-default);
+    --blur-chrome: 0px;
+    --blur-modal: 0px;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --color-border-subtle: var(--color-text-secondary);
+    --color-border-default: var(--color-text-primary);
+    --material-rail: var(--color-surface-default);
+    --material-toolbar: var(--color-surface-default);
+    --material-modal: var(--color-surface-default);
   }
 }

@@ -76,7 +76,7 @@ Pod Agent 应采用“学术可信、农业生命力、克制现代”的视觉�
 官网使用定制中文无衬线字体和 `Merriweather` 数字。项目实现不默认复制其字体文件；字体文件的授权、体积和离线分发方式未确认前，使用系统字体栈。
 
 ```css
---font-family-sans: "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+--font-family-sans: system-ui, -apple-system, BlinkMacSystemFont, "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
 --font-family-serif-number: "Merriweather", Georgia, "Times New Roman", serif;
 ```
 
@@ -87,6 +87,7 @@ Pod Agent 应采用“学术可信、农业生命力、克制现代”的视觉�
 | `--type-title` | `22px / 1.4` | 700 | 面板、页面标题 |
 | `--type-subtitle` | `18px / 1.5` | 600 | 卡片标题、强调文本 |
 | `--type-body` | `16px / 1.75` | 400 | 正文、表单文本 |
+| `--type-reading` | `17px / 1.75` | 400 | 对话正文与长篇 Markdown 阅读 |
 | `--type-label` | `14px / 1.4` | 600 | 标签、按钮、导航 |
 | `--type-caption` | `12px / 1.5` | 400 | 时间、来源、辅助信息 |
 | `--type-metric` | `50px / 1` | 700 | 关键指标；使用衬线数字字体 |
@@ -138,6 +139,7 @@ Pod Agent 应采用“学术可信、农业生命力、克制现代”的视觉�
 --radius-sm: 6px;
 --radius-md: 10px;
 --radius-lg: 16px;
+--radius-xl: 20px;
 --radius-full: 9999px;
 
 --border-subtle: 1px solid var(--color-border-subtle);
@@ -146,23 +148,32 @@ Pod Agent 应采用“学术可信、农业生命力、克制现代”的视觉�
 --shadow-card: 0 3px 20px rgba(0, 0, 0, 0.08);
 --shadow-media: 0 3px 20px rgba(0, 0, 0, 0.16);
 --shadow-header: 0 5px 10px rgba(0, 0, 0, 0.10);
+--shadow-elevated: 0 24px 72px rgba(21, 48, 28, 0.18);
 ```
 
 - 默认卡片使用 `--radius-md`；圆形头像、轮播点和图标控制器才使用 `--radius-full`。
 - 普通信息卡优先使用边框或 `--shadow-card` 二选一，不叠加。
-- `--shadow-media` 只用于浮在卡片外的图片、弹层或高层级浮动元素。
+- `--shadow-media` 只用于浮在卡片外的图片；弹层使用 `--shadow-elevated`。
+- 导航、顶栏和侧栏同层级不叠加阴影，以材料表面色、细边界和模糊建立层级。
 
 ## 7. 动效 Token
 
 | Token | 值 | 用途 |
 | --- | --- | --- |
+| `--duration-press` | `100ms` | 按下时的即时缩放反馈 |
 | `--duration-fast` | `160ms` | 悬停、颜色、图标反馈 |
 | `--duration-normal` | `240ms` | 折叠、面板切换 |
 | `--duration-expressive` | `400ms` | 官网式导航展开、图片过渡 |
 | `--easing-standard` | `cubic-bezier(0.2, 0, 0, 1)` | 常规进入与状态变化 |
 | `--easing-emphasized` | `ease-in-out` | 强调型过渡 |
 
-媒体卡悬停可使用 `transform: scale(1.03)`；官网的 `1.05` 仅保留给大幅欢迎页媒体。遵循 `prefers-reduced-motion: reduce`，关闭非必要缩放和自动轮播。
+按钮按下使用 `scale(0.97)`，不等待涟漪或颜色动画；面板与会话切换采用可中断弹簧和连续交叉过渡。动画优先使用 `transform`、`opacity` 等合成属性。媒体卡悬停可使用 `transform: scale(1.03)`；官网的 `1.05` 仅保留给大幅欢迎页媒体。遵循 `prefers-reduced-motion: reduce`，关闭非必要缩放和自动轮播。
+
+### 7.1 材料与辅助功能
+
+- 半透明材料只使用农业表面色混合，不引入 Apple 蓝或装饰渐变。
+- `--material-rail`、`--material-toolbar` 与 `--material-modal` 分别用于导航、工具栏和弹窗；模糊只用于表达层级。
+- `prefers-reduced-transparency: reduce` 时退化为不透明表面；`prefers-contrast: more` 时同时强化边界。
 
 ## 8. 响应式 Token
 
@@ -182,7 +193,7 @@ Pod Agent 应采用“学术可信、农业生命力、克制现代”的视觉�
 
 ### 9.1 顶栏
 
-- 默认工作界面：白底、`--color-text-primary`，高度 72px，底部使用 `--shadow-header`。
+- 默认工作界面：使用 `--material-toolbar`、`--color-text-primary` 和细边界，高度 72px；不叠加多重阴影。
 - 欢迎或专题页面：可透明覆盖在媒体上，文字与图标改为白色；离开媒体区后必须切换为默认工作界面样式。
 - 当前导航项使用品牌绿文字和 2px 底部指示线，不用大面积实色胶囊。
 
@@ -253,13 +264,14 @@ Pod Agent 应采用“学术可信、农业生命力、克制现代”的视觉�
   --color-overlay-image: rgba(0, 0, 0, 0.4);
   --color-focus-ring: rgba(64, 129, 79, 0.28);
 
-  --font-family-sans: "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-family-sans: system-ui, -apple-system, BlinkMacSystemFont, "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
   --font-family-serif-number: "Merriweather", Georgia, "Times New Roman", serif;
   --font-size-display: 40px;
   --font-size-section: 30px;
   --font-size-title: 22px;
   --font-size-subtitle: 18px;
   --font-size-body: 16px;
+  --font-size-reading: 17px;
   --font-size-label: 14px;
   --font-size-caption: 12px;
   --font-size-metric: 50px;
@@ -269,6 +281,8 @@ Pod Agent 应采用“学术可信、农业生命力、克制现代”的视觉�
   --font-weight-regular: 400;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
+  --letter-spacing-display: -0.025em;
+  --letter-spacing-title: -0.015em;
 
   --space-1: 4px;
   --space-2: 8px;
@@ -298,18 +312,30 @@ Pod Agent 应采用“学术可信、农业生命力、克制现代”的视觉�
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 16px;
+  --radius-xl: 20px;
   --radius-full: 9999px;
   --border-subtle: 1px solid var(--color-border-subtle);
   --border-default: 1px solid var(--color-border-default);
   --shadow-card: 0 3px 20px rgba(0, 0, 0, 0.08);
   --shadow-media: 0 3px 20px rgba(0, 0, 0, 0.16);
   --shadow-header: 0 5px 10px rgba(0, 0, 0, 0.1);
+  --shadow-elevated: 0 24px 72px rgba(21, 48, 28, 0.18);
+
+  --material-rail: color-mix(in srgb, var(--color-surface-default) 82%, transparent);
+  --material-toolbar: color-mix(in srgb, var(--color-surface-default) 88%, transparent);
+  --material-modal: color-mix(in srgb, var(--color-surface-default) 94%, transparent);
+  --material-scrim: rgba(15, 25, 18, 0.34);
+  --material-highlight: color-mix(in srgb, var(--color-surface-default) 72%, transparent);
+  --blur-chrome: 20px;
+  --blur-modal: 32px;
 
   --duration-fast: 160ms;
+  --duration-press: 100ms;
   --duration-normal: 240ms;
   --duration-expressive: 400ms;
   --easing-standard: cubic-bezier(0.2, 0, 0, 1);
   --easing-emphasized: ease-in-out;
+  --press-scale: 0.97;
 
   --code-comment: #8a917f;
   --code-keyword: #275a33;
@@ -370,6 +396,8 @@ Pod Agent 应采用“学术可信、农业生命力、克制现代”的视觉�
 | `--shadow-card` | `0 3px 20px rgba(0, 0, 0, 0.32)` | 卡片阴影加深 |
 | `--shadow-media` | `0 3px 20px rgba(0, 0, 0, 0.5)` | 弹层阴影 |
 | `--shadow-header` | `0 5px 10px rgba(0, 0, 0, 0.35)` | 顶栏阴影 |
+| `--shadow-elevated` | `0 24px 72px rgba(0, 0, 0, 0.55)` | 高层级弹窗阴影 |
+| `--material-scrim` | `rgba(0, 0, 0, 0.56)` | 暗色弹窗遮罩 |
 
 ### 12.2 antd 明暗色板
 

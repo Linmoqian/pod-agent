@@ -10,9 +10,10 @@
   flex-shrink: 0;
   height: var(--size-header);
   padding-inline: var(--space-5);
-  background: var(--color-surface-default);
+  background: var(--material-toolbar);
+  backdrop-filter: saturate(180%) blur(var(--blur-chrome));
+  -webkit-backdrop-filter: saturate(180%) blur(var(--blur-chrome));
   border-bottom: var(--border-subtle);
-  box-shadow: var(--shadow-header);
 }
 
 .titleGroup {
@@ -25,12 +26,13 @@
 
 .title {
   font-size: var(--font-size-title);
-  font-weight: var(--font-weight-bold);
+  font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-title);
   color: var(--color-text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  letter-spacing: var(--letter-spacing-title);
 }
 
 .badge {
@@ -41,6 +43,9 @@
   font-size: var(--font-size-caption);
   line-height: var(--line-height-title);
   color: var(--color-text-secondary);
+  padding: var(--space-1) var(--space-2);
+  background: var(--material-highlight);
+  border-radius: var(--radius-full);
 }
 
 /* 状态点同时用颜色与文字表达,不单靠颜色传递信息(Token 9.4 约束) */
@@ -62,12 +67,27 @@
   font-size: var(--font-size-caption);
   line-height: var(--line-height-title);
   color: var(--color-text-secondary);
-  background: var(--color-surface-canvas);
+  background: var(--material-highlight);
   border: var(--border-subtle);
   border-radius: var(--radius-full);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+@media (max-width: 768px) {
+  .header {
+    height: 60px;
+    padding-inline: var(--space-4);
+  }
+
+  .title {
+    font-size: var(--font-size-subtitle);
+  }
+
+  .badge {
+    display: none;
+  }
 }
 
 .badge[data-status="working"] .badgeDot {

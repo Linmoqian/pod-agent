@@ -7,7 +7,7 @@
 
 import { useState } from "react";
 import { Button, Input, Tag } from "antd";
-import { KeyRound } from "lucide-react";
+import AppIcon from "../../../components/common/AppIcon";
 import styles from "./ProviderSettingsModal.module.css";
 
 type ProviderKeyFormProps = {
@@ -41,7 +41,7 @@ function ProviderKeyForm({
     <div className={styles.keyForm}>
       <Tag
         color={keyPreview ? "green" : "default"}
-        icon={<KeyRound size={12} aria-hidden />}
+        icon={<AppIcon name="credential-key" size={12} />}
         className={styles.keyTag}
       >
         {keyPreview ?? "未配置密钥"}

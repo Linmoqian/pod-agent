@@ -7,7 +7,7 @@
 
 import { useMemo, useState } from "react";
 import { Button, Input } from "antd";
-import { Plus, Search } from "lucide-react";
+import AppIcon from "../components/common/AppIcon";
 import type { ChatSession } from "../features/chat/types";
 import styles from "./Sidebar.module.css";
 
@@ -77,7 +77,7 @@ function Sidebar({
       <Button
         type="primary"
         block
-        icon={<Plus size={18} />}
+        icon={<AppIcon name="add" size={17} />}
         onClick={onNewSession}
       >
         新建任务
@@ -88,7 +88,7 @@ function Sidebar({
         value={keyword}
         onChange={(event) => setKeyword(event.target.value)}
         placeholder="搜索任务"
-        prefix={<Search size={16} aria-hidden />}
+        prefix={<AppIcon name="search" size={16} />}
         aria-label="搜索任务"
       />
 

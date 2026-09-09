@@ -35,8 +35,8 @@
 
   /* 字体 */
   --font-family-sans:
-    "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", system-ui,
-    sans-serif;
+    system-ui, -apple-system, BlinkMacSystemFont, "Source Han Sans SC",
+    "PingFang SC", "Microsoft YaHei", sans-serif;
   --font-family-serif-number:
     "Merriweather", Georgia, "Times New Roman", serif;
   --font-size-display: 40px;
@@ -44,6 +44,7 @@
   --font-size-title: 22px;
   --font-size-subtitle: 18px;
   --font-size-body: 16px;
+  --font-size-reading: 17px;
   --font-size-label: 14px;
   --font-size-caption: 12px;
   --font-size-metric: 50px;
@@ -53,6 +54,8 @@
   --font-weight-regular: 400;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
+  --letter-spacing-display: -0.025em;
+  --letter-spacing-title: -0.015em;
 
   /* 间距(4px 基准网格) */
   --space-1: 4px;
@@ -85,19 +88,48 @@
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 16px;
+  --radius-xl: 20px;
   --radius-full: 9999px;
   --border-subtle: 1px solid var(--color-border-subtle);
   --border-default: 1px solid var(--color-border-default);
   --shadow-card: 0 3px 20px rgba(0, 0, 0, 0.08);
   --shadow-media: 0 3px 20px rgba(0, 0, 0, 0.16);
   --shadow-header: 0 5px 10px rgba(0, 0, 0, 0.1);
+  --shadow-elevated: 0 24px 72px rgba(21, 48, 28, 0.18);
+
+  /* Apple 式材料:沿用农业色板,不引入新的品牌色 */
+  --material-rail: color-mix(
+    in srgb,
+    var(--color-surface-default) 82%,
+    transparent
+  );
+  --material-toolbar: color-mix(
+    in srgb,
+    var(--color-surface-default) 88%,
+    transparent
+  );
+  --material-modal: color-mix(
+    in srgb,
+    var(--color-surface-default) 94%,
+    transparent
+  );
+  --material-scrim: rgba(15, 25, 18, 0.34);
+  --material-highlight: color-mix(
+    in srgb,
+    var(--color-surface-default) 72%,
+    transparent
+  );
+  --blur-chrome: 20px;
+  --blur-modal: 32px;
 
   /* 动效 */
   --duration-fast: 160ms;
+  --duration-press: 100ms;
   --duration-normal: 240ms;
   --duration-expressive: 400ms;
   --easing-standard: cubic-bezier(0.2, 0, 0, 1);
   --easing-emphasized: ease-in-out;
+  --press-scale: 0.97;
 
   /* 代码语法色(GitHub 式低饱和):供 Markdown 代码块高亮,
    * 明暗两套跟随 data-theme,见第 13 节 */
@@ -136,6 +168,8 @@
   --shadow-card: 0 3px 20px rgba(0, 0, 0, 0.32);
   --shadow-media: 0 3px 20px rgba(0, 0, 0, 0.5);
   --shadow-header: 0 5px 10px rgba(0, 0, 0, 0.35);
+  --shadow-elevated: 0 24px 72px rgba(0, 0, 0, 0.55);
+  --material-scrim: rgba(0, 0, 0, 0.56);
 
   --code-comment: #7a837b;
   --code-keyword: #7cb989;

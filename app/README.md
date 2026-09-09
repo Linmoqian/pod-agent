@@ -75,7 +75,7 @@ cargo test
 
 ## 技术选型与取舍
 
-- 已引入（遵循仓库前端规范）：`react-router`（桌面端用 `MemoryRouter`）、`antd`（`ConfigProvider` + `zh_CN`）、`lucide-react`、`@reduxjs/toolkit` + `react-redux`、`motion`；Markdown 链路为 `react-markdown` + `remark-gfm`（表格/删除线）+ `rehype-highlight` + `highlight.js`（代码高亮，显式声明以控版本）。
+- 已引入（遵循仓库前端规范）：`react-router`（桌面端用 `MemoryRouter`）、`antd`（`ConfigProvider` + `zh_CN`）、`@reduxjs/toolkit` + `react-redux`、`motion`；界面图标统一由 `AppIcon` 加载农业字形 alpha mask；Markdown 链路为 `react-markdown` + `remark-gfm`（表格/删除线）+ `rehype-highlight` + `highlight.js`（代码高亮，显式声明以控版本）。
 - `@reduxjs/toolkit`、`react-redux`、`motion` 已安装但未接线，待出现跨页面工作流状态与动画需求时再建 `store/` 与动效层，不提前抽象。
 - 版本差异验证：antd v6 原生支持 React 19（peer 仅要求 `react >= 18`，无需补丁包）；react-router v8 从统一包 `react-router` 导入 `MemoryRouter` 等声明式 API，不再需要 `react-router-dom`。
 - Lint 采用 ESLint 9 flat config + typescript-eslint + Prettier。规范提及的 Airbnb 风格配置不支持 ESLint 9 flat config 且维护停滞，故以 typescript-eslint 推荐规则 + Prettier 近似覆盖其核心约束（可读性、一致格式），并保留规范要求的 `max-lines` / `max-lines-per-function` warning 提示。

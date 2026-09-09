@@ -9,17 +9,13 @@
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  height: 28px;
+  height: 30px;
   padding-inline: var(--space-3);
   font-size: var(--font-size-caption);
   color: var(--color-text-secondary);
-  background: color-mix(
-    in srgb,
-    var(--color-surface-default) 78%,
-    transparent
-  );
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  background: var(--material-toolbar);
+  backdrop-filter: saturate(180%) blur(var(--blur-chrome));
+  -webkit-backdrop-filter: saturate(180%) blur(var(--blur-chrome));
   border-top: var(--border-subtle);
 }
 
@@ -32,7 +28,8 @@
 
 .brand {
   font-weight: var(--font-weight-semibold);
-  color: var(--color-text-primary);
+  color: var(--color-brand-600);
+  letter-spacing: var(--letter-spacing-title);
 }
 
 .divider {

@@ -6,7 +6,7 @@
  * @author: https://github.com/Linmoqian
  */
 
-import { Cpu } from "lucide-react";
+import AppIcon from "../../../components/common/AppIcon";
 import { useAppSelector } from "../../../store";
 import { resolveModel } from "../../providers/services/registry";
 import type { ChatSession } from "../types";
@@ -39,7 +39,7 @@ function ChatHeader({ session }: ChatHeaderProps) {
 
       {modelName && (
         <span className={styles.modelBadge}>
-          <Cpu size={14} aria-hidden />
+          <AppIcon name="model-chip" size={14} />
           {modelName}
         </span>
       )}

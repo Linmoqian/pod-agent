@@ -8,7 +8,7 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { ChevronsLeft, ChevronsRight } from "lucide-react";
+import AppIcon from "../components/common/AppIcon";
 import IconRail from "./IconRail";
 import Sidebar from "./Sidebar";
 import StatusBar from "./StatusBar";
@@ -20,6 +20,7 @@ import WelcomeState from "../features/chat/components/WelcomeState";
 import useChatSessions from "../features/chat/hooks/useChatSessions";
 import {
   REDUCED_MOTION_TRANSITION,
+  SPRING_LAYOUT,
   SPRING_STANDARD,
 } from "../utils/motion";
 import styles from "./AppLayout.module.css";
@@ -43,25 +44,24 @@ function AppLayout() {
   const contentSpring = reduceMotion
     ? REDUCED_MOTION_TRANSITION
     : SPRING_STANDARD;
+  const panelSpring = reduceMotion
+    ? REDUCED_MOTION_TRANSITION
+    : SPRING_LAYOUT;
 
   return (
     <div className={styles.layout}>
       <div className={styles.body}>
-        {/* 图标栏 + 会话面板组成联合浮层,毛玻璃 + 阴影贴主区左缘 */}
+        {/* 图标栏 + 会话面板组成联合材料层,以毛玻璃和细边界贴主区左缘 */}
         <div
           className={styles.railShell}
           data-collapsed={panelCollapsed || undefined}
         >
           <IconRail />
-          <div
+          <motion.div
             className={styles.panel}
-            style={{
-              width: panelCollapsed ? 0 : panelWidth,
-              // 拖拽期间禁用过渡,避免宽度追赶鼠标的迟滞
-              transition: dragging
-                ? "none"
-                : "width 250ms cubic-bezier(0.32, 0.72, 0, 1)",
-            }}
+            initial={false}
+            animate={{ width: panelCollapsed ? 0 : panelWidth }}
+            transition={dragging ? { duration: 0 } : panelSpring}
             aria-hidden={panelCollapsed}
           >
             <Sidebar
@@ -70,7 +70,7 @@ function AppLayout() {
               onSelect={setActiveId}
               onNewSession={createSession}
             />
-          </div>
+          </motion.div>
           {/* 折叠开关吸附联合面板右缘,折叠后仍停在图标栏右侧 */}
           <button
             type="button"
@@ -78,11 +78,11 @@ function AppLayout() {
             aria-label={panelCollapsed ? "展开面板" : "收起面板"}
             onClick={() => setPanelCollapsed((collapsed) => !collapsed)}
           >
-            {panelCollapsed ? (
-              <ChevronsRight size={16} aria-hidden />
-            ) : (
-              <ChevronsLeft size={16} aria-hidden />
-            )}
+            <AppIcon
+              name="panel-arrow"
+              size={15}
+              transform={panelCollapsed ? "none" : "rotate-180"}
+            />
           </button>
           <div
             className={styles.resizeHandle}
@@ -96,8 +96,8 @@ function AppLayout() {
         <main className={styles.main}>
           <ChatHeader session={activeSession} />
 
-          {/* AnimatePresence 保证会话切换时旧内容先退场,苹果式交叉过渡 */}
-          <AnimatePresence mode="wait" initial={false}>
+          {/* 新旧会话同步进退,从当前画面连续交叉过渡 */}
+          <AnimatePresence mode="sync" initial={false}>
             <motion.div
               key={activeSession?.id ?? "welcome"}
               className={styles.content}

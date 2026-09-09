@@ -5,6 +5,10 @@
 
 .section {
   margin-bottom: var(--space-6);
+  padding: var(--space-4);
+  background: var(--material-highlight);
+  border: var(--border-subtle);
+  border-radius: 14px;
 }
 
 .sectionTitle {
@@ -28,7 +32,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-3) 0;
+  padding: var(--space-4) 0;
   border-bottom: var(--border-subtle);
 }
 
@@ -126,4 +130,42 @@
   margin: 0;
   font-size: var(--font-size-caption);
   color: var(--color-text-secondary);
+}
+
+.modalRoot :global(.ant-modal-mask) {
+  background: var(--material-scrim);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.modalRoot :global(.ant-modal-content) {
+  background: var(--material-modal);
+  backdrop-filter: saturate(180%) blur(var(--blur-modal));
+  -webkit-backdrop-filter: saturate(180%) blur(var(--blur-modal));
+  border: var(--border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-elevated);
+}
+
+.modalRoot :global(.ant-modal-title) {
+  font-size: var(--font-size-subtitle);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-title);
+}
+
+.modalRoot :global(.ant-btn) {
+  box-shadow: none;
+}
+
+@media (max-width: 720px) {
+  .providerMeta,
+  .keyForm,
+  .customAddForm {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .customAddForm > :first-child {
+    width: 100%;
+  }
 }

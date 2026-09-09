@@ -7,18 +7,9 @@
  */
 
 import { Modal } from "antd";
-import {
-  GraduationCap,
-  Monitor,
-  Moon,
-  Sprout,
-  Sun,
-  Terminal,
-  UserRound,
-  type LucideIcon,
-} from "lucide-react";
 import type { ReactNode } from "react";
 import { version } from "../../../../package.json";
+import AppIcon, { type AppIconName } from "../../../components/common/AppIcon";
 import { useSettings } from "../context";
 import type { ExperienceMode, ThemePreference } from "../types";
 import styles from "./SettingsModal.module.css";
@@ -60,7 +51,7 @@ type ThemeOption = {
   value: ThemePreference;
   label: string;
   description: string;
-  icon: LucideIcon;
+  icon: AppIconName;
 };
 
 const THEME_OPTIONS: readonly ThemeOption[] = [
@@ -68,19 +59,19 @@ const THEME_OPTIONS: readonly ThemeOption[] = [
     value: "light",
     label: "浅色",
     description: "米绿画布与白色卡片的默认外观。",
-    icon: Sun,
+    icon: "theme-light",
   },
   {
     value: "dark",
     label: "深色",
     description: "深绿墨色画布,适合暗光环境。",
-    icon: Moon,
+    icon: "theme-dark",
   },
   {
     value: "system",
     label: "跟随系统",
     description: "随操作系统外观自动切换。",
-    icon: Monitor,
+    icon: "theme-system",
   },
 ];
 
@@ -92,12 +83,12 @@ function ThemeSection() {
         外观
       </h3>
       <div className={styles.optionGrid} role="group" aria-label="主题">
-        {THEME_OPTIONS.map(({ value, label, description, icon: Icon }) => (
+        {THEME_OPTIONS.map(({ value, label, description, icon }) => (
           <OptionCard
             key={value}
             label={label}
             description={description}
-            icon={<Icon size={20} />}
+            icon={<AppIcon name={icon} size={21} />}
             selected={themePreference === value}
             onSelect={() => setThemePreference(value)}
           />
@@ -111,7 +102,7 @@ type ModeOption = {
   value: ExperienceMode;
   label: string;
   description: string;
-  icon: LucideIcon;
+  icon: AppIconName;
 };
 
 /* 体验模式决定功能可见度与解释密度;当前作为全局偏好持久化,供各功能读取裁剪 */
@@ -120,19 +111,19 @@ const MODE_OPTIONS: readonly ModeOption[] = [
     value: "novice",
     label: "新手",
     description: "提供引导与解释,隐藏高级参数,适合首次使用。",
-    icon: GraduationCap,
+    icon: "mode-novice",
   },
   {
     value: "expert",
     label: "专家",
     description: "开放完整功能与参数,精简引导,适合熟练用户。",
-    icon: UserRound,
+    icon: "mode-expert",
   },
   {
     value: "developer",
     label: "开发人员",
     description: "额外显示调试信息与原始数据,用于开发与排障。",
-    icon: Terminal,
+    icon: "mode-developer",
   },
 ];
 
@@ -144,12 +135,12 @@ function ModeSection() {
         模式
       </h3>
       <div className={styles.optionGrid} role="group" aria-label="模式">
-        {MODE_OPTIONS.map(({ value, label, description, icon: Icon }) => (
+        {MODE_OPTIONS.map(({ value, label, description, icon }) => (
           <OptionCard
             key={value}
             label={label}
             description={description}
-            icon={<Icon size={20} />}
+            icon={<AppIcon name={icon} size={21} />}
             selected={experienceMode === value}
             onSelect={() => setExperienceMode(value)}
           />
@@ -167,7 +158,7 @@ function AboutSection() {
       </h3>
       <div className={styles.aboutCard}>
         <span className={styles.aboutLogo} aria-hidden>
-          <Sprout size={28} />
+          <AppIcon name="brand-sprout" size={30} />
         </span>
         <div className={styles.aboutText}>
           <p className={styles.aboutName}>
@@ -208,6 +199,7 @@ function SettingsModal({ open, onClose }: SettingsModalProps) {
       footer={null}
       centered
       width={560}
+      rootClassName={styles.modalRoot}
     >
       <div className={styles.body}>
         <ThemeSection />

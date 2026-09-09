@@ -7,6 +7,8 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-padding-block: var(--space-8);
 }
 
 /* 阅读宽度容器:限制行宽并居中,内边距由 --layout-gutter 提供,
@@ -14,9 +16,16 @@
 .messageList {
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
+  gap: var(--space-10);
   width: 100%;
   max-width: var(--layout-reading-max);
   margin-inline: auto;
-  padding: var(--space-8) var(--layout-gutter) var(--space-10);
+  padding: var(--space-10) var(--layout-gutter) var(--space-12);
+}
+
+@media (max-width: 768px) {
+  .messageList {
+    gap: var(--space-8);
+    padding-block: var(--space-6) var(--space-8);
+  }
 }

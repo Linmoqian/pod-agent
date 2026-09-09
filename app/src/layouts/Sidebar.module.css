@@ -8,21 +8,41 @@
 .sidebarInner {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-3);
   width: 100%;
   min-width: var(--layout-sidebar);
   height: 100%;
-  padding: var(--space-5) var(--space-4);
-  padding-top: calc(var(--space-5) + var(--space-6));
+  padding: var(--space-4);
+  padding-top: calc(var(--space-4) + var(--space-8));
   background: transparent;
   border-right: 0;
+}
+
+.sidebarInner :global(.ant-btn-primary) {
+  height: 44px;
+  border-radius: 12px;
+  box-shadow: none;
+  font-weight: var(--font-weight-semibold);
+}
+
+.sidebarInner :global(.ant-input-affix-wrapper) {
+  height: 40px;
+  background: var(--material-highlight);
+  border-color: transparent;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px var(--color-border-subtle);
+}
+
+.sidebarInner :global(.ant-input-affix-wrapper-focused) {
+  border-color: var(--color-brand-500);
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
 }
 
 /* 单列布局:新建任务与搜索上下排布,顶部让位折叠按钮 */
 .sessionNav {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: var(--space-5);
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -40,6 +60,7 @@
   font-size: var(--font-size-caption);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-disabled);
+  letter-spacing: 0.02em;
 }
 
 .groupList {
@@ -54,18 +75,20 @@
   align-items: center;
   gap: var(--space-3);
   width: 100%;
-  min-height: var(--size-control-md);
+  min-height: 48px;
   padding: var(--space-2) var(--space-3);
   text-align: left;
   background: transparent;
   border: 0;
-  border-radius: var(--radius-md);
+  border-radius: 12px;
   cursor: pointer;
-  transition: background var(--duration-fast) var(--easing-standard);
+  transition:
+    background var(--duration-fast) var(--easing-standard),
+    transform var(--duration-press) ease-out;
 }
 
 .sessionItem:hover {
-  background: var(--color-surface-default);
+  background: var(--material-highlight);
 }
 
 /* 选中项:品牌绿淡底 + 左侧 2px 指示条;混合基准取表面色,明暗主题下均成立 */
@@ -81,9 +104,9 @@
 .sessionItem[data-active="true"]::before {
   content: "";
   position: absolute;
-  inset-block: var(--space-2);
-  left: 0;
-  width: 2px;
+  inset-block: var(--space-3);
+  left: 1px;
+  width: 3px;
   border-radius: var(--radius-full);
   background: var(--color-brand-500);
 }

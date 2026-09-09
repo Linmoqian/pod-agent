@@ -8,7 +8,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--space-8);
+  gap: var(--space-10);
   flex: 1;
   min-height: 0;
   width: 100%;
@@ -21,6 +21,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  max-width: 620px;
+  text-align: center;
 }
 
 /* 品牌绿仅作小面积点缀,满足"不超过单屏 20%"约束 */
@@ -28,11 +30,46 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 56px;
-  height: 56px;
-  border-radius: var(--radius-full);
-  background: var(--color-surface-subtle);
-  border: var(--border-subtle);
-  color: var(--color-brand-600);
+  width: 68px;
+  height: 68px;
+  color: var(--color-text-inverse);
+  background: var(--color-brand-600);
+  border-radius: var(--radius-xl);
 }
 
+.eyebrow {
+  margin-top: var(--space-5);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-brand-600);
+  letter-spacing: 0.14em;
+}
+
+.title {
+  margin-top: var(--space-2);
+  font-size: clamp(28px, 3.2vw, var(--font-size-display));
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.16;
+  color: var(--color-text-primary);
+  letter-spacing: var(--letter-spacing-display);
+}
+
+.description {
+  max-width: 36em;
+  margin-top: var(--space-3);
+  font-size: var(--font-size-reading);
+  line-height: 1.65;
+  color: var(--color-text-secondary);
+}
+
+@media (max-width: 768px) {
+  .welcome {
+    justify-content: flex-end;
+    gap: var(--space-8);
+    padding-top: var(--space-8);
+  }
+
+  .description {
+    font-size: var(--font-size-body);
+  }
+}

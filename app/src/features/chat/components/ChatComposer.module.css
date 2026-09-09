@@ -8,7 +8,7 @@
   width: 100%;
   max-width: var(--layout-reading-max);
   margin-inline: auto;
-  padding: 0 var(--layout-gutter) var(--space-5);
+  padding: 0 var(--layout-gutter) var(--space-4);
 }
 
 /* 白底卡片承载输入:边框为主,聚焦时才出现外环,不叠加阴影(Token 9.3) */
@@ -16,10 +16,13 @@
   display: flex;
   align-items: flex-end;
   gap: var(--space-2);
+  min-height: 56px;
   padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
-  background: var(--color-surface-default);
+  background: var(--material-toolbar);
+  backdrop-filter: saturate(180%) blur(var(--blur-chrome));
+  -webkit-backdrop-filter: saturate(180%) blur(var(--blur-chrome));
   border: var(--border-default);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   transition:
     border-color var(--duration-fast) var(--easing-standard),
     box-shadow var(--duration-fast) var(--easing-standard);
@@ -31,9 +34,16 @@
 }
 
 .inputCard :global(.ant-input) {
-  font-size: var(--font-size-body);
+  font-size: var(--font-size-reading);
   line-height: var(--line-height-body);
   color: var(--color-text-primary);
+}
+
+.inputCard :global(.ant-btn) {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  box-shadow: none;
 }
 
 .inputCard :global(.ant-input)::placeholder {
@@ -51,4 +61,14 @@
   font-size: var(--font-size-caption);
   line-height: var(--line-height-title);
   color: var(--color-text-disabled);
+}
+
+@media (max-width: 768px) {
+  .composer {
+    padding-bottom: var(--space-3);
+  }
+
+  .hint {
+    display: none;
+  }
 }

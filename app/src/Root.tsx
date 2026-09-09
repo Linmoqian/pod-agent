@@ -17,9 +17,12 @@ import { SettingsProvider, useSettings } from "./features/settings/context";
 import { store } from "./store";
 
 const SHARED_TOKENS = {
-  borderRadius: 10,
+  borderRadius: 12,
+  borderRadiusLG: 20,
+  controlHeight: 40,
+  fontSize: 16,
   fontFamily:
-    '"Source Han Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif',
+    'system-ui, -apple-system, BlinkMacSystemFont, "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif',
 } as const;
 
 /* antd 明暗两套色板对齐设计 Token(docs/design/2026-09-08-scau-inspired-design-tokens.md 第 10、13 节)。

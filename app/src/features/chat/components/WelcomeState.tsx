@@ -6,7 +6,7 @@
  */
 
 import { motion, useReducedMotion } from "motion/react";
-import { Sprout } from "lucide-react";
+import AppIcon from "../../../components/common/AppIcon";
 import ChatComposer from "./ChatComposer";
 import { REDUCED_MOTION_TRANSITION, SPRING_STANDARD } from "../../../utils/motion";
 import styles from "./WelcomeState.module.css";
@@ -28,8 +28,13 @@ function WelcomeState({ onSend }: WelcomeStateProps) {
         transition={transition}
       >
         <span className={styles.logo} aria-hidden>
-          <Sprout size={28} />
+          <AppIcon name="brand-sprout" size={34} />
         </span>
+        <p className={styles.eyebrow}>POD AGENT</p>
+        <h1 className={styles.title}>智慧育种，从一次对话开始</h1>
+        <p className={styles.description}>
+          比较品种性状、整理育种台账，并让田间数据成为清晰的下一步。
+        </p>
       </motion.div>
 
       <ChatComposer onSend={onSend} autoFocus />

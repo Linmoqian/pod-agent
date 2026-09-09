@@ -10,6 +10,7 @@
   height: 100%;
   overflow: hidden;
   background: var(--color-surface-canvas);
+  isolation: isolate;
 }
 
 .body {
@@ -19,25 +20,17 @@
   align-items: stretch;
 }
 
-/* 联合面板浮层:参考 X-line app-panel-shell,毛玻璃 + 阴影浮于主区之上 */
+/* 联合面板材料层:毛玻璃 + 细边界,不叠加多重阴影 */
 .railShell {
   position: relative;
   display: flex;
   align-self: stretch;
   flex-shrink: 0;
   min-height: 0;
-  background: color-mix(
-    in srgb,
-    var(--color-surface-default) 78%,
-    transparent
-  );
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  background: var(--material-rail);
+  backdrop-filter: saturate(180%) blur(var(--blur-chrome));
+  -webkit-backdrop-filter: saturate(180%) blur(var(--blur-chrome));
   border-right: var(--border-subtle);
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--color-text-primary) 3%, transparent),
-    0 2px 8px color-mix(in srgb, #000000 5%, transparent),
-    0 8px 24px color-mix(in srgb, #000000 7%, transparent);
 }
 
 /* 会话面板:宽度由 AppLayout 内联控制,收起时内容从右侧裁切 */
@@ -46,35 +39,37 @@
   align-self: stretch;
   flex-shrink: 0;
   overflow: hidden;
+  will-change: width;
 }
 
 /* 折叠开关:吸附联合面板右缘顶部,折叠后停靠图标栏右侧 */
 .collapseToggle {
   position: absolute;
-  top: var(--space-2);
-  right: 0;
+  top: var(--space-3);
+  right: -14px;
   z-index: 20;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 28px;
+  width: 28px;
+  height: 32px;
   padding: 0;
-  color: var(--color-text-disabled);
-  background: color-mix(
-    in srgb,
-    var(--color-surface-default) 88%,
-    transparent
-  );
+  color: var(--color-text-secondary);
+  background: var(--material-toolbar);
+  backdrop-filter: saturate(180%) blur(var(--blur-chrome));
+  -webkit-backdrop-filter: saturate(180%) blur(var(--blur-chrome));
   border: var(--border-subtle);
-  border-right: 0;
-  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  border-radius: var(--radius-full);
   cursor: pointer;
-  transition: color var(--duration-fast) var(--easing-standard);
+  transition:
+    color var(--duration-fast) var(--easing-standard),
+    background var(--duration-fast) var(--easing-standard),
+    transform var(--duration-press) ease-out;
 }
 
 .collapseToggle:hover {
-  color: var(--color-text-primary);
+  color: var(--color-brand-600);
+  background: var(--color-surface-default);
 }
 
 /* 拖拽把手:面板右缘 6px 全高热区 */
@@ -108,6 +103,7 @@
   flex-direction: column;
   flex: 1;
   min-width: 0;
+  background: var(--color-surface-canvas);
 }
 
 .content {
@@ -115,4 +111,10 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
+}
+
+@media (max-width: 768px) {
+  .collapseToggle {
+    top: var(--space-2);
+  }
 }

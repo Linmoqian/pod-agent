@@ -7,7 +7,7 @@
 .body {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: var(--space-8);
   max-height: calc(100vh - 200px);
   overflow-y: auto;
   padding-inline: var(--space-1);
@@ -23,6 +23,7 @@
   font-size: var(--font-size-label);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-secondary);
+  letter-spacing: 0.02em;
 }
 
 /* 三列等宽选项卡;窄窗自动换行,保证点击区域完整 */
@@ -43,20 +44,22 @@
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-2);
-  min-height: var(--size-control-lg);
+  min-height: 132px;
   padding: var(--space-4);
   text-align: left;
   background: var(--color-surface-default);
   border: var(--border-default);
-  border-radius: var(--radius-md);
+  border-radius: 14px;
   cursor: pointer;
   transition:
     border-color var(--duration-fast) var(--easing-standard),
-    background var(--duration-fast) var(--easing-standard);
+    background var(--duration-fast) var(--easing-standard),
+    transform var(--duration-press) ease-out;
 }
 
 .optionCard:hover {
   border-color: var(--color-brand-500);
+  background: var(--material-highlight);
 }
 
 /* 选中态:品牌绿描边 + 淡底(混合基准取表面色,明暗主题下均成立) */
@@ -72,6 +75,16 @@
 .optionIcon {
   display: inline-flex;
   color: var(--color-brand-600);
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(
+    in srgb,
+    var(--color-brand-500) 9%,
+    transparent
+  );
+  border-radius: var(--radius-md);
 }
 
 .optionLabel {
@@ -99,7 +112,7 @@
   padding: var(--space-5);
   background: var(--color-surface-subtle);
   border: var(--border-subtle);
-  border-radius: var(--radius-md);
+  border-radius: 14px;
 }
 
 .aboutLogo {
@@ -109,13 +122,9 @@
   justify-content: center;
   width: 48px;
   height: 48px;
-  color: var(--color-brand-600);
-  background: color-mix(
-    in srgb,
-    var(--color-brand-500) 12%,
-    var(--color-surface-default)
-  );
-  border-radius: var(--radius-md);
+  color: var(--color-text-inverse);
+  background: var(--color-brand-600);
+  border-radius: 13px;
 }
 
 .aboutText {
@@ -127,8 +136,29 @@
 
 .aboutName {
   font-size: var(--font-size-subtitle);
-  font-weight: var(--font-weight-bold);
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
+}
+
+.modalRoot :global(.ant-modal-mask) {
+  background: var(--material-scrim);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.modalRoot :global(.ant-modal-content) {
+  background: var(--material-modal);
+  backdrop-filter: saturate(180%) blur(var(--blur-modal));
+  -webkit-backdrop-filter: saturate(180%) blur(var(--blur-modal));
+  border: var(--border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-elevated);
+}
+
+.modalRoot :global(.ant-modal-title) {
+  font-size: var(--font-size-subtitle);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-title);
 }
 
 .aboutVersion {

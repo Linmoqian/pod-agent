@@ -6,6 +6,7 @@
  */
 
 import { motion, useReducedMotion } from "motion/react";
+import AppIcon from "../../../components/common/AppIcon";
 import MarkdownContent from "./MarkdownContent";
 import type { ChatMessage } from "../types";
 import { REDUCED_MOTION_TRANSITION, SPRING_STANDARD } from "../../../utils/motion";
@@ -37,7 +38,10 @@ function MessageItem({ message }: { message: ChatMessage }) {
       animate={{ opacity: 1, y: 0 }}
       transition={transition}
     >
-      <span className={styles.assistantName}>Pod Agent · {message.time}</span>
+      <span className={styles.assistantName}>
+        <AppIcon name="brand-sprout" size={15} />
+        Pod Agent · {message.time}
+      </span>
       <MarkdownContent content={message.content} />
     </motion.section>
   );

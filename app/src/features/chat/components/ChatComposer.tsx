@@ -7,7 +7,7 @@
 
 import { useState } from "react";
 import { Button, Input } from "antd";
-import { SendHorizontal } from "lucide-react";
+import AppIcon from "../../../components/common/AppIcon";
 import styles from "./ChatComposer.module.css";
 
 const { TextArea } = Input;
@@ -54,7 +54,7 @@ function ChatComposer({
           type="primary"
           shape="circle"
           aria-label="发送"
-          icon={<SendHorizontal size={16} />}
+          icon={<AppIcon name="send" size={17} />}
           disabled={!value.trim()}
           onClick={submit}
         />

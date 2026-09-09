@@ -7,7 +7,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { Button, Modal } from "antd";
-import { Camera, Loader2, RotateCcw, VideoOff } from "lucide-react";
+import AppIcon from "../../../components/common/AppIcon";
 import useCameraStream from "../hooks/useCameraStream";
 import { CAMERA_ERROR_TEXT, type CameraPhase } from "./cameraErrors";
 import styles from "./CameraModal.module.css";
@@ -59,6 +59,7 @@ function CameraModal({ open, onClose }: CameraModalProps) {
       footer={null}
       centered
       width={520}
+      rootClassName={styles.modalRoot}
     >
       <div className={styles.body}>
         <div className={styles.viewport}>
@@ -73,13 +74,13 @@ function CameraModal({ open, onClose }: CameraModalProps) {
           {photo && <img src={photo} alt="拍摄照片" className={styles.photo} />}
           {errorText && (
             <CameraStatePanel
-              icon={<VideoOff size={24} aria-hidden />}
+              icon={<AppIcon name="camera-off" size={28} />}
               text={errorText}
             />
           )}
           {phase === "loading" && !photo && (
             <CameraStatePanel
-              icon={<Loader2 size={24} className={styles.spin} aria-hidden />}
+              icon={<span className={styles.loader} aria-hidden />}
               text="正在打开相机…"
             />
           )}
@@ -90,7 +91,7 @@ function CameraModal({ open, onClose }: CameraModalProps) {
         <div className={styles.actions}>
           {photo ? (
             <Button
-              icon={<RotateCcw size={16} />}
+              icon={<AppIcon name="retry" size={16} />}
               onClick={() => setPhoto(null)}
             >
               重拍
@@ -101,7 +102,7 @@ function CameraModal({ open, onClose }: CameraModalProps) {
               shape="circle"
               size="large"
               aria-label="拍照"
-              icon={<Camera size={20} />}
+              icon={<AppIcon name="camera" size={20} />}
               disabled={phase !== "preview"}
               onClick={capture}
             />

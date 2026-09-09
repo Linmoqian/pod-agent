@@ -12,7 +12,7 @@
 - 路由使用 React Router。
 - UI 组件使用 Ant Design。
 - 样式使用 Ant Design Design Token 和 CSS Modules，不使用 Tailwind CSS。
-- 图标使用 Lucide React，不引入 Ant Design Icons。
+- 业务界面图标统一通过 `AppIcon` 使用项目内农业字形 alpha mask，并由 `currentColor` 适配主题与状态；不引入通用图标依赖。Ant Design 控件内部的关闭、密码可见性和下拉箭头保持框架默认实现。
 - 自定义标题栏等桌面专属组件自行封装。
 - 状态管理使用 Redux Toolkit。
 - 前端自动化测试使用 Vitest、React Testing Library、`@testing-library/user-event`、`@testing-library/jest-dom` 和 jsdom，不使用 Playwright。

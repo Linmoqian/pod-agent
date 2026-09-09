@@ -1,0 +1,30 @@
+/*
+ * Created on 2026-09-09
+ * @author: https://github.com/Linmoqian
+ */
+
+.icon {
+  display: inline-block;
+  flex: 0 0 auto;
+  color: inherit;
+  background: currentColor;
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  -webkit-mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  transform-origin: center;
+}
+
+.icon[data-transform="rotate-90"] {
+  transform: rotate(90deg);
+}
+
+.icon[data-transform="rotate-180"] {
+  transform: rotate(180deg);
+}
+
+.icon[data-transform="flip-x"] {
+  transform: scaleX(-1);
+}

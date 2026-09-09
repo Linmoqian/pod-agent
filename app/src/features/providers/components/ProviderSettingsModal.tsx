@@ -6,7 +6,7 @@
  */
 
 import { Modal, Select } from "antd";
-import { Boxes, ServerCog } from "lucide-react";
+import AppIcon from "../../../components/common/AppIcon";
 import useProviderSettings from "../hooks/useProviderSettings";
 import type { ModelSelection } from "../types";
 import CustomProviderList from "./CustomProviderList";
@@ -64,10 +64,11 @@ function ProviderSettingsModal({ open, onClose }: ProviderSettingsModalProps) {
       footer={null}
       width={680}
       destroyOnHidden
+      rootClassName={styles.modalRoot}
     >
       <section className={styles.section}>
         <h4 className={styles.sectionTitle}>
-          <Boxes size={16} aria-hidden />
+          <AppIcon name="provider-grid" size={16} />
           当前模型
           <span className={styles.sectionHint}>共 {totalModels} 个可选</span>
         </h4>
@@ -89,7 +90,7 @@ function ProviderSettingsModal({ open, onClose }: ProviderSettingsModalProps) {
 
       <section className={styles.section}>
         <h4 className={styles.sectionTitle}>
-          <ServerCog size={16} aria-hidden />
+          <AppIcon name="provider-server" size={16} />
           内置提供商密钥
         </h4>
         {builtinRows.map((row) => (
@@ -110,7 +111,7 @@ function ProviderSettingsModal({ open, onClose }: ProviderSettingsModalProps) {
 
       <section className={styles.section}>
         <h4 className={styles.sectionTitle}>
-          <ServerCog size={16} aria-hidden />
+          <AppIcon name="provider-server" size={16} />
           自定义 OpenAI 兼容端点
           <span className={styles.sectionHint}>
             适用于 Ollama、vLLM、LM Studio 等

@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 import { App, Button, Input } from "antd";
-import { Plus, RefreshCw, Trash2 } from "lucide-react";
+import AppIcon from "../../../components/common/AppIcon";
 import type { ProviderRow } from "../hooks/useProviderSettings";
 import styles from "./ProviderSettingsModal.module.css";
 
@@ -65,7 +65,7 @@ function CustomProviderList({
           <div className={styles.customActions}>
             <Button
               size="small"
-              icon={<RefreshCw size={14} aria-hidden />}
+              icon={<AppIcon name="refresh" size={14} />}
               loading={refreshingId === row.id}
               onClick={() => void refresh(row.id)}
             >
@@ -75,7 +75,7 @@ function CustomProviderList({
               size="small"
               danger
               aria-label={`删除 ${row.name}`}
-              icon={<Trash2 size={14} aria-hidden />}
+              icon={<AppIcon name="delete" size={14} />}
               onClick={() => onRemove(row.id)}
             />
           </div>
@@ -101,7 +101,7 @@ function CustomProviderList({
         <Button
           size="small"
           type="primary"
-          icon={<Plus size={14} aria-hidden />}
+          icon={<AppIcon name="add" size={14} />}
           disabled={!name.trim() || !baseUrl.trim()}
           onClick={submit}
         >
