@@ -15,7 +15,7 @@ import { tools } from './tools.ts';
 const SYSTEM_PROMPT = 'You are Pod Agent.';
 const EXIT_COMMAND = 'exit';
 
-// 配置只来自 .env（由 npm script 的 --env-file-if-exists 注入），API key 由 pi-ai 按 provider 自行读取
+// 配置只来自 .env
 const provider = process.env.MODEL_PROVIDER;
 const modelId = process.env.MODEL_ID;
 
