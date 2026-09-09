@@ -3,6 +3,7 @@
  * + 聊天主区 + 底部状态栏。面板宽度持久化到 localStorage,拖拽期间关闭过渡。
  * 会话状态见 features/chat/hooks/useChatSessions;本组件专注布局编排。
  * Created on 2026-09-08
+ * Updated on 2026-09-09
  * @author: https://github.com/Linmoqian
  */
 
@@ -19,33 +20,36 @@ import WelcomeState from "../features/chat/components/WelcomeState";
 import useChatSessions from "../features/chat/hooks/useChatSessions";
 import {
   REDUCED_MOTION_TRANSITION,
+  SESSION_ENTER_TRANSITION,
+  SESSION_EXIT_TRANSITION,
   SPRING_LAYOUT,
-  SPRING_STANDARD,
 } from "../utils/motion";
 import styles from "./AppLayout.module.css";
 
 function AppLayout() {
   const reduceMotion = useReducedMotion();
+  const { sessions, activeSession, setActiveId, sendMessage, createSession } =
+    useChatSessions();
   const {
-    sessions,
-    activeSession,
-    setActiveId,
-    sendMessage,
-    createSession,
-  } = useChatSessions();
-
-  const { panelWidth, dragging, handleResizeStart } = usePanelResize();
+    panelWidth,
+    panelMinWidth,
+    panelMaxWidth,
+    dragging,
+    handleResizeStart,
+    handleResizeMove,
+    handleResizeEnd,
+    handleResizeKeyDown,
+  } = usePanelResize();
   const [panelCollapsed, setPanelCollapsed] = useState(
-    // 平板断点(Token:1000px)以下默认收起面板,桌面端保持展开
     () => window.innerWidth < 1000,
   );
-
-  const contentSpring = reduceMotion
+  const contentEnterTransition = reduceMotion
     ? REDUCED_MOTION_TRANSITION
-    : SPRING_STANDARD;
-  const panelSpring = reduceMotion
+    : SESSION_ENTER_TRANSITION;
+  const contentExitTransition = reduceMotion
     ? REDUCED_MOTION_TRANSITION
-    : SPRING_LAYOUT;
+    : SESSION_EXIT_TRANSITION;
+  const panelSpring = reduceMotion ? REDUCED_MOTION_TRANSITION : SPRING_LAYOUT;
 
   return (
     <div className={styles.layout}>
@@ -78,22 +82,36 @@ function AppLayout() {
             role="separator"
             aria-orientation="vertical"
             aria-label="调整面板宽度"
-            onMouseDown={handleResizeStart}
+            aria-valuemin={panelMinWidth}
+            aria-valuemax={panelMaxWidth}
+            aria-valuenow={Math.round(panelWidth)}
+            tabIndex={0}
+            onPointerDown={handleResizeStart}
+            onPointerMove={handleResizeMove}
+            onPointerUp={handleResizeEnd}
+            onPointerCancel={handleResizeEnd}
+            onKeyDown={handleResizeKeyDown}
           />
         </div>
 
         <main className={styles.main}>
           <ChatHeader session={activeSession} />
 
-          {/* 新旧会话同步进退,沿水平轴从左向右连续交叉过渡 */}
           <AnimatePresence mode="sync" initial={false}>
             <motion.div
               key={activeSession?.id ?? "welcome"}
               className={styles.content}
-              initial={{ opacity: 0, x: -18 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 18 }}
-              transition={contentSpring}
+              initial={{ opacity: 0, transform: "translateX(-8px)" }}
+              animate={{
+                opacity: 1,
+                transform: "translateX(0)",
+                transition: contentEnterTransition,
+              }}
+              exit={{
+                opacity: 0,
+                transform: "translateX(6px)",
+                transition: contentExitTransition,
+              }}
             >
               {activeSession && activeSession.messages.length > 0 ? (
                 <>

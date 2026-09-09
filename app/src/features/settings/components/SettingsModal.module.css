@@ -1,5 +1,6 @@
 /*
  * Created on 2026-09-08
+ * Updated on 2026-09-09
  * @author: https://github.com/Linmoqian
  */
 
@@ -54,12 +55,14 @@
   transition:
     border-color var(--duration-fast) var(--easing-standard),
     background var(--duration-fast) var(--easing-standard),
-    transform var(--duration-press) ease-out;
+    transform var(--duration-press) var(--easing-standard);
 }
 
-.optionCard:hover {
-  border-color: var(--color-brand-500);
-  background: var(--material-highlight);
+@media (hover: hover) and (pointer: fine) {
+  .optionCard:hover {
+    border-color: var(--color-brand-500);
+    background: var(--material-highlight);
+  }
 }
 
 /* 选中态:品牌绿描边 + 淡底(混合基准取表面色,明暗主题下均成立) */
@@ -79,11 +82,7 @@
   height: 32px;
   align-items: center;
   justify-content: center;
-  background: color-mix(
-    in srgb,
-    var(--color-brand-500) 9%,
-    transparent
-  );
+  background: color-mix(in srgb, var(--color-brand-500) 9%, transparent);
   border-radius: var(--radius-md);
 }
 
@@ -183,6 +182,8 @@
   color: var(--color-brand-500);
 }
 
-.aboutLink:hover {
-  color: var(--color-brand-600);
+@media (hover: hover) and (pointer: fine) {
+  .aboutLink:hover {
+    color: var(--color-brand-600);
+  }
 }

@@ -1,5 +1,6 @@
 /*
  * Created on 2026-09-08
+ * Updated on 2026-09-09
  * @author: https://github.com/Linmoqian
  */
 
@@ -48,30 +49,24 @@
   transition:
     background var(--duration-normal) var(--easing-standard),
     color var(--duration-normal) var(--easing-standard),
-    transform var(--duration-press) ease-out;
-}
-
-.navItem:hover {
-  color: var(--color-text-primary);
-  background: color-mix(
-    in srgb,
-    var(--color-text-primary) 6%,
-    transparent
-  );
+    transform var(--duration-press) var(--easing-standard);
 }
 
 .navItem:active {
   transform: scale(0.96);
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .navItem:hover {
+    color: var(--color-text-primary);
+    background: color-mix(in srgb, var(--color-text-primary) 6%, transparent);
+  }
+}
+
 /* 激活导航位:淡底 + 品牌绿 */
 .navItem[data-active="true"] {
   color: var(--color-brand-600);
-  background: color-mix(
-    in srgb,
-    var(--color-brand-500) 12%,
-    transparent
-  );
+  background: color-mix(in srgb, var(--color-brand-500) 12%, transparent);
 }
 
 .navItem[data-active="true"]::before {

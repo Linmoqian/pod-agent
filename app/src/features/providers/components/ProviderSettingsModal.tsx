@@ -2,6 +2,7 @@
  * 模型提供商设置面板:当前模型选择、内置提供商密钥、自定义 OpenAI 兼容端点。
  * 数据流见 hooks/useProviderSettings;密钥经 CredentialStore 持久化。
  * Created on 2026-09-09
+ * Updated on 2026-09-09
  * @author: https://github.com/Linmoqian
  */
 
@@ -18,10 +19,10 @@ type ProviderSettingsModalProps = {
   onClose: () => void;
 };
 
-function toSelectionValue(selection: ModelSelection | null): string | undefined {
-  return selection
-    ? `${selection.providerId}/${selection.modelId}`
-    : undefined;
+function toSelectionValue(
+  selection: ModelSelection | null,
+): string | undefined {
+  return selection ? `${selection.providerId}/${selection.modelId}` : undefined;
 }
 
 function ProviderSettingsModal({ open, onClose }: ProviderSettingsModalProps) {
@@ -65,6 +66,8 @@ function ProviderSettingsModal({ open, onClose }: ProviderSettingsModalProps) {
       width={680}
       destroyOnHidden
       rootClassName={styles.modalRoot}
+      transitionName="pod-modal"
+      maskTransitionName="pod-fade"
     >
       <section className={styles.section}>
         <h4 className={styles.sectionTitle}>

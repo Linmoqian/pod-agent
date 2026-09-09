@@ -37,8 +37,7 @@
   --font-family-sans:
     system-ui, -apple-system, BlinkMacSystemFont, "Source Han Sans SC",
     "PingFang SC", "Microsoft YaHei", sans-serif;
-  --font-family-serif-number:
-    "Merriweather", Georgia, "Times New Roman", serif;
+  --font-family-serif-number: "Merriweather", Georgia, "Times New Roman", serif;
   --font-size-display: 40px;
   --font-size-section: 30px;
   --font-size-title: 22px;
@@ -123,12 +122,12 @@
   --blur-modal: 32px;
 
   /* 动效 */
-  --duration-fast: 160ms;
-  --duration-press: 100ms;
-  --duration-normal: 240ms;
-  --duration-expressive: 400ms;
-  --easing-standard: cubic-bezier(0.2, 0, 0, 1);
-  --easing-emphasized: ease-in-out;
+  --duration-fast: 140ms;
+  --duration-press: 120ms;
+  --duration-normal: 200ms;
+  --duration-expressive: 280ms;
+  --easing-standard: cubic-bezier(0.23, 1, 0.32, 1);
+  --easing-emphasized: cubic-bezier(0.77, 0, 0.175, 1);
   --press-scale: 0.97;
 
   /* 代码语法色(GitHub 式低饱和):供 Markdown 代码块高亮,

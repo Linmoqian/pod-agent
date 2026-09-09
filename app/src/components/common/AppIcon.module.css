@@ -1,5 +1,6 @@
 /*
  * Created on 2026-09-09
+ * Updated on 2026-09-09
  * @author: https://github.com/Linmoqian
  */
 
@@ -15,6 +16,7 @@
   -webkit-mask-repeat: no-repeat;
   -webkit-mask-size: contain;
   transform-origin: center;
+  transition: transform var(--duration-fast) var(--easing-emphasized);
 }
 
 .icon[data-transform="rotate-90"] {

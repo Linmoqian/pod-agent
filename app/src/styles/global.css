@@ -1,6 +1,7 @@
 /*
  * 全局样式只承载重置、字体和应用级规则;组件样式使用就近同名 CSS Module。
  * Created on 2026-09-08
+ * Updated on 2026-09-09
  * @author: https://github.com/Linmoqian
  */
 
@@ -47,17 +48,70 @@ button:not(:disabled):active {
 
 ::selection {
   color: var(--color-text-primary);
-  background: color-mix(
-    in srgb,
-    var(--color-brand-500) 24%,
-    transparent
-  );
+  background: color-mix(in srgb, var(--color-brand-500) 24%, transparent);
 }
 
 /* 键盘可达性:焦点环统一走 Token,鼠标点击不出现 */
 :focus-visible {
   outline: 3px solid var(--color-focus-ring);
   outline-offset: 2px;
+}
+
+/* 低频模态使用可中断的淡入缩放，避免 antd 默认从极小比例出现。 */
+.pod-modal-enter,
+.pod-modal-appear {
+  opacity: 0;
+  filter: blur(2px);
+  transform: scale(0.96);
+  transform-origin: center;
+}
+
+.pod-modal-enter-active,
+.pod-modal-appear-active {
+  opacity: 1;
+  filter: blur(0);
+  transform: scale(1);
+  transition:
+    transform var(--duration-normal) var(--easing-standard),
+    opacity var(--duration-normal) var(--easing-standard),
+    filter var(--duration-normal) var(--easing-standard);
+}
+
+.pod-modal-leave {
+  opacity: 1;
+  filter: blur(0);
+  transform: scale(1);
+  transform-origin: center;
+}
+
+.pod-modal-leave-active {
+  opacity: 0;
+  filter: blur(1px);
+  transform: scale(0.98);
+  transition:
+    transform var(--duration-press) var(--easing-standard),
+    opacity var(--duration-press) var(--easing-standard),
+    filter var(--duration-press) var(--easing-standard);
+}
+
+.pod-fade-enter,
+.pod-fade-appear {
+  opacity: 0;
+}
+
+.pod-fade-enter-active,
+.pod-fade-appear-active {
+  opacity: 1;
+  transition: opacity var(--duration-fast) var(--easing-standard);
+}
+
+.pod-fade-leave {
+  opacity: 1;
+}
+
+.pod-fade-leave-active {
+  opacity: 0;
+  transition: opacity var(--duration-press) var(--easing-standard);
 }
 
 /* 桌面端隐藏视觉滚动条,但保留滚轮、触控板与键盘滚动能力 */
@@ -78,6 +132,13 @@ button:not(:disabled):active {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .pod-modal-enter,
+  .pod-modal-appear,
+  .pod-modal-leave-active {
+    filter: none;
+    transform: none;
   }
 }
 

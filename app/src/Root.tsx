@@ -4,6 +4,7 @@
  * 上下文;ThemeAwareConfigProvider 读取解析后主题,让 antd 组件与 CSS Token
  * 同步切换明暗;MemoryRouter 服务窗口内导航。
  * Created on 2026-09-08
+ * Updated on 2026-09-09
  * @author: https://github.com/Linmoqian
  */
 
@@ -21,6 +22,15 @@ const SHARED_TOKENS = {
   borderRadiusLG: 20,
   controlHeight: 40,
   fontSize: 16,
+  motionDurationFast: "0.12s",
+  motionDurationMid: "0.18s",
+  motionDurationSlow: "0.24s",
+  motionEaseOut: "cubic-bezier(0.23, 1, 0.32, 1)",
+  motionEaseOutCirc: "cubic-bezier(0.23, 1, 0.32, 1)",
+  motionEaseInOut: "cubic-bezier(0.77, 0, 0.175, 1)",
+  motionEaseInOutCirc: "cubic-bezier(0.77, 0, 0.175, 1)",
+  motionEaseOutBack: "cubic-bezier(0.23, 1, 0.32, 1)",
+  motionEaseInBack: "cubic-bezier(0.23, 1, 0.32, 1)",
   fontFamily:
     'system-ui, -apple-system, BlinkMacSystemFont, "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif',
 } as const;
@@ -61,7 +71,9 @@ function ThemeAwareConfigProvider({ children }: { children: ReactNode }) {
     <ConfigProvider
       locale={zhCN}
       theme={{
-        algorithm: isDark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+        algorithm: isDark
+          ? antdTheme.darkAlgorithm
+          : antdTheme.defaultAlgorithm,
         token: { ...SHARED_TOKENS, ...ANTD_TOKENS[resolvedTheme] },
       }}
     >

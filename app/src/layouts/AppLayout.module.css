@@ -1,5 +1,6 @@
 /*
  * Created on 2026-09-08
+ * Updated on 2026-09-09
  * @author: https://github.com/Linmoqian
  */
 
@@ -51,16 +52,18 @@
   width: 6px;
   height: 100%;
   cursor: col-resize;
+  touch-action: none;
   transition: background var(--duration-fast) var(--easing-standard);
 }
 
-.resizeHandle:hover,
 .resizeHandle:active {
-  background: color-mix(
-    in srgb,
-    var(--color-brand-500) 20%,
-    transparent
-  );
+  background: color-mix(in srgb, var(--color-brand-500) 20%, transparent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .resizeHandle:hover {
+    background: color-mix(in srgb, var(--color-brand-500) 20%, transparent);
+  }
 }
 
 /* 折叠后面板归零,隐藏拖拽把手避免误触 */

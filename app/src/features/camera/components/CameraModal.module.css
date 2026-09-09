@@ -1,5 +1,6 @@
 /*
  * Created on 2026-09-08
+ * Updated on 2026-09-09
  * @author: https://github.com/Linmoqian
  */
 
@@ -49,14 +50,10 @@
 .loader {
   width: 26px;
   height: 26px;
-  border: 2px solid color-mix(
-    in srgb,
-    var(--color-brand-500) 22%,
-    transparent
-  );
+  border: 2px solid color-mix(in srgb, var(--color-brand-500) 22%, transparent);
   border-top-color: var(--color-brand-600);
   border-radius: var(--radius-full);
-  animation: rotate 1s linear infinite;
+  animation: rotate 720ms linear infinite;
 }
 
 @keyframes rotate {

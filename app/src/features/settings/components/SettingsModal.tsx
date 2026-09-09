@@ -3,6 +3,7 @@
  * 选项卡片为同组互斥单选,以 aria-pressed 表达选中态;
  * 主题/模式状态读写走 SettingsContext,由其负责持久化与 <html data-theme>。
  * Created on 2026-09-08
+ * Updated on 2026-09-09
  * @author: https://github.com/Linmoqian
  */
 
@@ -200,6 +201,8 @@ function SettingsModal({ open, onClose }: SettingsModalProps) {
       centered
       width={560}
       rootClassName={styles.modalRoot}
+      transitionName="pod-modal"
+      maskTransitionName="pod-fade"
     >
       <div className={styles.body}>
         <ThemeSection />

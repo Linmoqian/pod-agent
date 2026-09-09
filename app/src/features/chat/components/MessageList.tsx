@@ -1,27 +1,26 @@
 /*
- * 消息流:滚动容器 + 阅读宽度容器,新消息与流式增量时平滑滚动到底部。
+ * 消息流:滚动容器 + 阅读宽度容器,新消息与流式增量时即时跟随到底部。
  * Created on 2026-09-08
+ * Updated on 2026-09-09
  * @author: https://github.com/Linmoqian
  */
 
 import { useEffect, useRef } from "react";
-import { useReducedMotion } from "motion/react";
 import MessageItem from "./MessageItem";
 import type { ChatSession } from "../types";
 import styles from "./MessageList.module.css";
 
 function MessageList({ session }: { session: ChatSession }) {
   const endRef = useRef<HTMLDivElement>(null);
-  const reduceMotion = useReducedMotion();
   const lastMessage = session.messages[session.messages.length - 1];
 
   useEffect(() => {
     endRef.current?.scrollIntoView({
-      behavior: reduceMotion ? "auto" : "smooth",
+      behavior: "auto",
       block: "end",
     });
     // 依赖最后一条消息长度:流式增量到达时跟随滚动
-  }, [session.messages.length, lastMessage?.content.length, reduceMotion]);
+  }, [session.messages.length, lastMessage?.content.length]);
 
   return (
     <div className={styles.scrollArea}>

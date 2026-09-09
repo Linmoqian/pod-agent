@@ -2,6 +2,7 @@
  * 相机模态:getUserMedia 实时预览 + 本地拍照,不依赖原生层与网络上传。
  * 权限拒绝、设备缺失、环境不支持均映射为可读错误文案;关闭即释放摄像头。
  * Created on 2026-09-08
+ * Updated on 2026-09-09
  * @author: https://github.com/Linmoqian
  */
 
@@ -60,6 +61,8 @@ function CameraModal({ open, onClose }: CameraModalProps) {
       centered
       width={520}
       rootClassName={styles.modalRoot}
+      transitionName="pod-modal"
+      maskTransitionName="pod-fade"
     >
       <div className={styles.body}>
         <div className={styles.viewport}>

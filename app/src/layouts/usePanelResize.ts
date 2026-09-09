@@ -2,6 +2,7 @@
  * 会话面板拖拽调宽 hook:宽度边界钳制 + localStorage 持久化。
  * 拖拽期间以 state 关闭过渡,避免宽度追赶鼠标的迟滞;松手时写回存储。
  * Created on 2026-09-08
+ * Updated on 2026-09-09
  * @author: https://github.com/Linmoqian
  */
 
@@ -33,45 +34,81 @@ export default function usePanelResize() {
   const [panelWidth, setPanelWidth] = useState(loadPanelWidth);
   const [dragging, setDragging] = useState(false);
   const draggingRef = useRef(false);
+  const panelWidthRef = useRef(panelWidth);
 
-  /* move/up 挂 document,保证鼠标移出把手后仍能持续追踪 */
+  /* 指针捕获保证拖出热区后仍持续跟随；卸载时恢复全局指针状态。 */
   useEffect(() => {
-    const handleMove = (event: MouseEvent) => {
-      if (!draggingRef.current) return;
-      const next = Math.min(
-        PANEL_MAX_WIDTH,
-        Math.max(PANEL_MIN_WIDTH, event.clientX - RAIL_WIDTH),
-      );
-      setPanelWidth(next);
-    };
-    const handleUp = () => {
-      if (!draggingRef.current) return;
-      draggingRef.current = false;
-      setDragging(false);
+    return () => {
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
-      try {
-        window.localStorage.setItem(PANEL_WIDTH_STORAGE_KEY, String(panelWidth));
-      } catch {
-        // 持久化失败不影响当次使用
-      }
     };
+  }, []);
 
-    document.addEventListener("mousemove", handleMove);
-    document.addEventListener("mouseup", handleUp);
-    return () => {
-      document.removeEventListener("mousemove", handleMove);
-      document.removeEventListener("mouseup", handleUp);
-    };
-  }, [panelWidth]);
-
-  const handleResizeStart = useCallback((event: React.MouseEvent) => {
+  const handleResizeStart = useCallback((event: React.PointerEvent) => {
+    if (!event.isPrimary || draggingRef.current) return;
     event.preventDefault();
     draggingRef.current = true;
+    event.currentTarget.setPointerCapture(event.pointerId);
     setDragging(true);
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
   }, []);
 
-  return { panelWidth, dragging, handleResizeStart };
+  const handleResizeMove = useCallback((event: React.PointerEvent) => {
+    if (!event.isPrimary || !draggingRef.current) return;
+    const next = Math.min(
+      PANEL_MAX_WIDTH,
+      Math.max(PANEL_MIN_WIDTH, event.clientX - RAIL_WIDTH),
+    );
+    panelWidthRef.current = next;
+    setPanelWidth(next);
+  }, []);
+
+  const handleResizeEnd = useCallback((event: React.PointerEvent) => {
+    if (!event.isPrimary || !draggingRef.current) return;
+    draggingRef.current = false;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    setDragging(false);
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+    try {
+      window.localStorage.setItem(
+        PANEL_WIDTH_STORAGE_KEY,
+        String(panelWidthRef.current),
+      );
+    } catch {
+      // 持久化失败不影响当次使用
+    }
+  }, []);
+
+  const handleResizeKeyDown = useCallback((event: React.KeyboardEvent) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const step = event.shiftKey ? 32 : 8;
+    const direction = event.key === "ArrowLeft" ? -1 : 1;
+    const next = Math.min(
+      PANEL_MAX_WIDTH,
+      Math.max(PANEL_MIN_WIDTH, panelWidthRef.current + direction * step),
+    );
+    panelWidthRef.current = next;
+    setPanelWidth(next);
+    try {
+      window.localStorage.setItem(PANEL_WIDTH_STORAGE_KEY, String(next));
+    } catch {
+      // 持久化失败不影响当次使用
+    }
+  }, []);
+
+  return {
+    panelWidth,
+    panelMinWidth: PANEL_MIN_WIDTH,
+    panelMaxWidth: PANEL_MAX_WIDTH,
+    dragging,
+    handleResizeStart,
+    handleResizeMove,
+    handleResizeEnd,
+    handleResizeKeyDown,
+  };
 }

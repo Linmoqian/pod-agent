@@ -34,7 +34,7 @@ Pod Agent 应采用“学术可信、农业生命力、克制现代”的视觉�
 | `50px` 衬线数据数字 | 仅用于仪表盘关键指标和统计摘要 |
 | 多处标题由图片表现 | 改为真实文本和字体 Token，保证搜索、缩放与辅助技术可用 |
 | 大图、新闻卡片与轮播 | 转译为欢迎页焦点、数据卡片和可选媒体区，不复制新闻门户布局 |
-| `0.4s` 过渡 | 保留为强调型动效；常规应用交互缩短到 `160–240ms` |
+| `0.4s` 过渡 | 应用内不沿用；常规交互控制在 `120–200ms`，少量强调型动效不超过 `280ms` |
 
 ## 3. 颜色 Token
 
@@ -160,14 +160,14 @@ Pod Agent 应采用“学术可信、农业生命力、克制现代”的视觉�
 
 | Token | 值 | 用途 |
 | --- | --- | --- |
-| `--duration-press` | `100ms` | 按下时的即时缩放反馈 |
-| `--duration-fast` | `160ms` | 悬停、颜色、图标反馈 |
-| `--duration-normal` | `240ms` | 折叠、面板切换 |
-| `--duration-expressive` | `400ms` | 官网式导航展开、图片过渡 |
-| `--easing-standard` | `cubic-bezier(0.2, 0, 0, 1)` | 常规进入与状态变化 |
-| `--easing-emphasized` | `ease-in-out` | 强调型过渡 |
+| `--duration-press` | `120ms` | 按下时的即时缩放反馈 |
+| `--duration-fast` | `140ms` | 悬停、颜色、图标反馈 |
+| `--duration-normal` | `200ms` | 折叠、面板切换 |
+| `--duration-expressive` | `280ms` | 低频模态与强调型过渡 |
+| `--easing-standard` | `cubic-bezier(0.23, 1, 0.32, 1)` | 进入、退出与即时状态反馈 |
+| `--easing-emphasized` | `cubic-bezier(0.77, 0, 0.175, 1)` | 屏内位移与形态变化 |
 
-按钮按下使用 `scale(0.97)`，不等待涟漪或颜色动画；面板与会话切换采用可中断弹簧和连续交叉过渡。动画优先使用 `transform`、`opacity` 等合成属性。媒体卡悬停可使用 `transform: scale(1.03)`；官网的 `1.05` 仅保留给大幅欢迎页媒体。遵循 `prefers-reduced-motion: reduce`，关闭非必要缩放和自动轮播。
+按钮按下使用 `scale(0.97)`，不等待涟漪或颜色动画；面板折叠采用可中断弹簧，会话切换采用短促的水平交叉过渡。动画优先使用 `transform`、`opacity` 等合成属性。媒体卡悬停可使用 `transform: scale(1.03)`；官网的 `1.05` 仅保留给大幅欢迎页媒体。遵循 `prefers-reduced-motion: reduce`，关闭非必要缩放和自动轮播。
 
 ### 7.1 材料与辅助功能
 
@@ -329,12 +329,12 @@ Pod Agent 应采用“学术可信、农业生命力、克制现代”的视觉�
   --blur-chrome: 20px;
   --blur-modal: 32px;
 
-  --duration-fast: 160ms;
-  --duration-press: 100ms;
-  --duration-normal: 240ms;
-  --duration-expressive: 400ms;
-  --easing-standard: cubic-bezier(0.2, 0, 0, 1);
-  --easing-emphasized: ease-in-out;
+  --duration-fast: 140ms;
+  --duration-press: 120ms;
+  --duration-normal: 200ms;
+  --duration-expressive: 280ms;
+  --easing-standard: cubic-bezier(0.23, 1, 0.32, 1);
+  --easing-emphasized: cubic-bezier(0.77, 0, 0.175, 1);
   --press-scale: 0.97;
 
   --code-comment: #8a917f;

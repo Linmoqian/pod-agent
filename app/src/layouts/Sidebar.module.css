@@ -1,5 +1,6 @@
 /*
  * Created on 2026-09-08
+ * Updated on 2026-09-09
  * @author: https://github.com/Linmoqian
  */
 
@@ -114,11 +115,13 @@
   cursor: pointer;
   transition:
     background var(--duration-fast) var(--easing-standard),
-    transform var(--duration-press) ease-out;
+    transform var(--duration-press) var(--easing-standard);
 }
 
-.sessionItem:hover {
-  background: var(--material-highlight);
+@media (hover: hover) and (pointer: fine) {
+  .sessionItem:hover {
+    background: var(--material-highlight);
+  }
 }
 
 /* 选中项:品牌绿淡底 + 左侧 2px 指示条;混合基准取表面色,明暗主题下均成立 */
