@@ -10,7 +10,7 @@ import { stdin, stdout } from 'node:process';
 import { Agent } from '@earendil-works/pi-agent-core';
 import { builtinModels } from '@earendil-works/pi-ai/providers/all';
 
-import { yoloDetectTool } from './tools.ts';
+import { yoloDetectTool } from './tools/yolo.ts';
 
 const SYSTEM_PROMPT = 'You are Pod Agent.';
 const EXIT_COMMAND = 'exit';

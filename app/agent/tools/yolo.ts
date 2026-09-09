@@ -13,7 +13,12 @@ import type { AgentTool } from '@earendil-works/pi-agent-core';
 import { Type } from 'typebox';
 
 // 仓库根目录：工具与脚本均以此定位
-const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const REPO_ROOT = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  '..',
+);
 const YOLO_SCRIPT = join(REPO_ROOT, 'tests', 'YOLO', 'yolo_infer.py');
 
 // 运行推理脚本的解释器：默认 conda base（装有 ultralytics），可用 YOLO_PYTHON 覆盖
