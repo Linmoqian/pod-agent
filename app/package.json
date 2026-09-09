@@ -6,7 +6,7 @@
   "packageManager": "pnpm@10.34.5",
   "scripts": {
     "dev": "vite",
-    "dev:agent": "node --env-file-if-exists=.env agent/agent.ts",
+    "dev:agent": "node --env-file-if-exists=agent/.env agent/agent.ts",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
