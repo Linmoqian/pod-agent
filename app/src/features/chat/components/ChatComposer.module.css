@@ -11,7 +11,7 @@
   padding: 0 var(--layout-gutter) var(--space-4);
 }
 
-/* 白底卡片承载输入:聚焦时保持静态边界,避免自动聚焦造成视觉抢占 */
+/* 白底卡片承载输入:焦点反馈仅保留在外层容器,不与内层文本域重复高亮 */
 .inputCard {
   display: flex;
   align-items: flex-end;
@@ -29,8 +29,8 @@
 }
 
 .inputCard:focus-within {
-  border-color: var(--color-border-default);
-  box-shadow: none;
+  border-color: var(--color-brand-500);
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
 }
 
 .inputCard :global(.ant-input) {
