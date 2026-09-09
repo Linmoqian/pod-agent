@@ -11,7 +11,7 @@
   padding: 0 var(--layout-gutter) var(--space-4);
 }
 
-/* 白底卡片承载输入:边框为主,聚焦时才出现外环,不叠加阴影(Token 9.3) */
+/* 白底卡片承载输入:聚焦时保持静态边界,避免自动聚焦造成视觉抢占 */
 .inputCard {
   display: flex;
   align-items: flex-end;
@@ -29,14 +29,18 @@
 }
 
 .inputCard:focus-within {
-  border-color: var(--color-brand-500);
-  box-shadow: 0 0 0 3px var(--color-focus-ring);
+  border-color: var(--color-border-default);
+  box-shadow: none;
 }
 
 .inputCard :global(.ant-input) {
   font-size: var(--font-size-reading);
   line-height: var(--line-height-body);
   color: var(--color-text-primary);
+}
+
+.inputCard :global(.ant-input:focus-visible) {
+  outline: none;
 }
 
 .inputCard :global(.ant-btn) {
