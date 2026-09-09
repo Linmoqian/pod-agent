@@ -7,5 +7,11 @@
 import { readFileTool } from './tools/read-file.ts';
 import { runCommandTool } from './tools/run-command.ts';
 import { writeFileTool } from './tools/write-file.ts';
+import { yoloDetectTool } from './tools/yolo.ts';
 
-export const tools = [readFileTool, writeFileTool, runCommandTool];
+export const tools = [
+  readFileTool,
+  writeFileTool,
+  runCommandTool,
+  yoloDetectTool,
+];
