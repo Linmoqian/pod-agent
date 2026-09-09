@@ -10,6 +10,8 @@ import { stdin, stdout } from 'node:process';
 import { Agent } from '@earendil-works/pi-agent-core';
 import { builtinModels } from '@earendil-works/pi-ai/providers/all';
 
+import { yoloDetectTool } from './tools.ts';
+
 const SYSTEM_PROMPT = 'You are Pod Agent.';
 const EXIT_COMMAND = 'exit';
 
@@ -33,17 +35,28 @@ const agent = new Agent({
   initialState: {
     systemPrompt: SYSTEM_PROMPT,
     model,
+    tools: [yoloDetectTool],
   },
   streamFn: models.streamSimple.bind(models),
 });
 
-// 订阅 text_delta 事件，逐段写出实现流式输出
+// 订阅转文本流与工具状态：工具执行期间没有文本流，用状态行告知进度
 agent.subscribe((event) => {
   if (
     event.type === 'message_update' &&
     event.assistantMessageEvent.type === 'text_delta'
   ) {
     stdout.write(event.assistantMessageEvent.delta);
+    return;
+  }
+  if (event.type === 'tool_execution_start') {
+    stdout.write(`\n[tool] ${event.toolName} 执行中…\n`);
+    return;
+  }
+  if (event.type === 'tool_execution_end') {
+    stdout.write(
+      `[tool] ${event.toolName} ${event.isError ? '失败' : '完成'}\n`,
+    );
   }
 });
 
