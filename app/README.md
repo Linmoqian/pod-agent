@@ -57,6 +57,7 @@ app/
 | --- | --- |
 | `pnpm install` | 安装前端依赖 |
 | `pnpm tauri:dev` | 桌面应用开发模式（热加载前后端） |
+| `pnpm dev:agent` | 单独启动本地 Agent 进程（终端流式对话） |
 | `pnpm tauri:build` | 构建发布版安装包 |
 | `pnpm dev` | 仅启动前端 Vite 开发服务器 |
 | `pnpm build` | 前端类型检查 + 产物构建 |
