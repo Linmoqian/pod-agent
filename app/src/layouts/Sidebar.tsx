@@ -74,6 +74,14 @@ function Sidebar({
 
   return (
     <div className={styles.sidebarInner}>
+      <header className={styles.sidebarHeader}>
+        <p className={styles.eyebrow}>会话工作台</p>
+        <h2 className={styles.sidebarTitle}>育种任务</h2>
+        <p className={styles.sidebarDescription}>
+          将品种性状、田间观察和育种决策整理为连续会话。
+        </p>
+      </header>
+
       <Button
         type="primary"
         block

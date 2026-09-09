@@ -8,7 +8,6 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import AppIcon from "../components/common/AppIcon";
 import IconRail from "./IconRail";
 import Sidebar from "./Sidebar";
 import StatusBar from "./StatusBar";
@@ -56,7 +55,10 @@ function AppLayout() {
           className={styles.railShell}
           data-collapsed={panelCollapsed || undefined}
         >
-          <IconRail />
+          <IconRail
+            panelCollapsed={panelCollapsed}
+            onTogglePanel={() => setPanelCollapsed((collapsed) => !collapsed)}
+          />
           <motion.div
             className={styles.panel}
             initial={false}
@@ -71,19 +73,6 @@ function AppLayout() {
               onNewSession={createSession}
             />
           </motion.div>
-          {/* 折叠开关吸附联合面板右缘,折叠后仍停在图标栏右侧 */}
-          <button
-            type="button"
-            className={styles.collapseToggle}
-            aria-label={panelCollapsed ? "展开面板" : "收起面板"}
-            onClick={() => setPanelCollapsed((collapsed) => !collapsed)}
-          >
-            <AppIcon
-              name="panel-arrow"
-              size={15}
-              transform={panelCollapsed ? "none" : "rotate-180"}
-            />
-          </button>
           <div
             className={styles.resizeHandle}
             role="separator"
@@ -96,14 +85,14 @@ function AppLayout() {
         <main className={styles.main}>
           <ChatHeader session={activeSession} />
 
-          {/* 新旧会话同步进退,从当前画面连续交叉过渡 */}
+          {/* 新旧会话同步进退,沿水平轴从左向右连续交叉过渡 */}
           <AnimatePresence mode="sync" initial={false}>
             <motion.div
               key={activeSession?.id ?? "welcome"}
               className={styles.content}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
+              initial={{ opacity: 0, x: -18 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 18 }}
               transition={contentSpring}
             >
               {activeSession && activeSession.messages.length > 0 ? (

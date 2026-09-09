@@ -33,43 +33,13 @@
   border-right: var(--border-subtle);
 }
 
-/* 会话面板:宽度由 AppLayout 内联控制,收起时内容从右侧裁切 */
+/* 会话面板:宽度由 AppLayout 内联控制,收起时仅保留图标栏内的固定开关 */
 .panel {
   position: relative;
   align-self: stretch;
   flex-shrink: 0;
   overflow: hidden;
   will-change: width;
-}
-
-/* 折叠开关:吸附联合面板右缘顶部,折叠后停靠图标栏右侧 */
-.collapseToggle {
-  position: absolute;
-  top: var(--space-3);
-  right: -14px;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 32px;
-  padding: 0;
-  color: var(--color-text-secondary);
-  background: var(--material-toolbar);
-  backdrop-filter: saturate(180%) blur(var(--blur-chrome));
-  -webkit-backdrop-filter: saturate(180%) blur(var(--blur-chrome));
-  border: var(--border-subtle);
-  border-radius: var(--radius-full);
-  cursor: pointer;
-  transition:
-    color var(--duration-fast) var(--easing-standard),
-    background var(--duration-fast) var(--easing-standard),
-    transform var(--duration-press) ease-out;
-}
-
-.collapseToggle:hover {
-  color: var(--color-brand-600);
-  background: var(--color-surface-default);
 }
 
 /* 拖拽把手:面板右缘 6px 全高热区 */
@@ -93,7 +63,7 @@
   );
 }
 
-/* 折叠后面板归零,右缘只剩折叠按钮,隐藏拖拽把手避免误触 */
+/* 折叠后面板归零,隐藏拖拽把手避免误触 */
 .railShell[data-collapsed] .resizeHandle {
   display: none;
 }
@@ -111,10 +81,4 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
-}
-
-@media (max-width: 768px) {
-  .collapseToggle {
-    top: var(--space-2);
-  }
 }

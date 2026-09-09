@@ -39,7 +39,12 @@ function RailButton({
   );
 }
 
-function IconRail() {
+type IconRailProps = {
+  panelCollapsed: boolean;
+  onTogglePanel: () => void;
+};
+
+function IconRail({ panelCollapsed, onTogglePanel }: IconRailProps) {
   const [cameraOpen, setCameraOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [providerOpen, setProviderOpen] = useState(false);
@@ -54,6 +59,22 @@ function IconRail() {
       <RailButton label="智能助手" active>
         <AppIcon name="chat" size={22} />
       </RailButton>
+
+      <Tooltip
+        title={panelCollapsed ? "展开会话面板" : "收起会话面板"}
+        placement="right"
+      >
+        <RailButton
+          label={panelCollapsed ? "展开会话面板" : "收起会话面板"}
+          onClick={onTogglePanel}
+        >
+          <AppIcon
+            name="panel-arrow"
+            size={19}
+            transform={panelCollapsed ? "none" : "rotate-180"}
+          />
+        </RailButton>
+      </Tooltip>
 
       <div className={styles.spacer} />
 

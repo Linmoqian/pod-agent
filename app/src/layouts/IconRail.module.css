@@ -3,7 +3,7 @@
  * @author: https://github.com/Linmoqian
  */
 
-/* 68px 窄图标栏:参考 X-line app-sidebar,纵向排列不折叠 */
+/* 68px 窄图标栏:主导航与会话开关均位于固定网格,不与品牌位叠压 */
 .rail {
   display: flex;
   flex-direction: column;
