@@ -128,6 +128,8 @@ def inspect_source(path):
     traits = []
     ambiguities = []
     mappings = {}
+    material_values = []
+    environment_values = []
     rows = 0
     for sheet, frame in tables.items():
         mapping, sheet_traits, sheet_ambiguities = infer_mapping(
@@ -135,6 +137,28 @@ def inspect_source(path):
             len(tables)
         )
         mappings[sheet] = mapping
+        if mapping["material"]:
+            material_values.extend(
+                frame[mapping["material"]]
+                .dropna()
+                .astype("string")
+                .str.strip()
+                .loc[lambda value: value.ne("")]
+                .unique()
+                .tolist()
+            )
+        if mapping["environment"]:
+            environment_values.extend(
+                frame[mapping["environment"]]
+                .dropna()
+                .astype("string")
+                .str.strip()
+                .loc[lambda value: value.ne("")]
+                .unique()
+                .tolist()
+            )
+        elif len(tables) > 1:
+            environment_values.append(sheet)
         columns.extend(str(column) for column in frame.columns)
         traits.extend(sheet_traits)
         ambiguities.extend(f"{sheet}: {item}" for item in sheet_ambiguities)
@@ -146,6 +170,8 @@ def inspect_source(path):
         "inferredMapping": mappings,
         "traits": list(dict.fromkeys(traits)),
         "ambiguities": ambiguities,
+        "materialValues": list(dict.fromkeys(material_values)),
+        "environmentValues": list(dict.fromkeys(environment_values)),
     }
 
 
@@ -252,8 +278,9 @@ def normalize_source(config):
         for trait, count in units_per_trait.items()
         if count > 1
     ]
+    unknown_units = int(result["unit"].fillna("").astype(str).str.strip().eq("").sum())
     quality_status = "fail" if empty_identifier.any() or duplicates or unit_conflicts else (
-        "warn" if missing_values or outliers else "pass"
+        "warn" if missing_values or outliers or unknown_units else "pass"
     )
     canonical_path = output_dir / "data.csv"
     result.to_csv(canonical_path, index=False)
@@ -285,6 +312,7 @@ def normalize_source(config):
         "emptyIdentifiers": int(empty_identifier.sum()),
         "possibleOutliers": outliers,
         "unitConflicts": unit_conflicts,
+        "unknownUnits": unknown_units,
         "rules": {"outlier": "1.5 IQR，仅标记、不删除"},
     }
     (output_dir / "schema.json").write_text(

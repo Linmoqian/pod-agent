@@ -76,7 +76,9 @@ def test_pipeline():
             "outputDir": str(dataset_dir),
             "mapping": {},
         })
-        assert code == 0 and normalized["result"]["quality"]["status"] == "pass"
+        quality = normalized["result"]["quality"]
+        assert code == 0 and quality["status"] == "warn"
+        assert quality["unknownUnits"] > 0
         code, analyzed = run_worker("analyze", {
             "datasetPath": str(dataset_dir / "data.csv"),
             "outputDir": str(artifact_dir),
