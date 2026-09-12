@@ -1,21 +1,18 @@
 /*
  * 根组件:编排全局 Provider。
- * Redux Provider 承载模型提供商等跨组件状态;SettingsProvider 持有主题/模式
- * 上下文;ThemeAwareConfigProvider 读取解析后主题,让 antd 组件与 CSS Token
+ * SettingsProvider 持有主题/模式上下文;ThemeAwareConfigProvider 读取解析后主题,让 antd 组件与 CSS Token
  * 同步切换明暗;MemoryRouter 服务窗口内导航。
  * Created on 2026-09-08
- * Updated on 2026-09-09
+ * Updated on 2026-09-12
  * @author: https://github.com/Linmoqian
  */
 
 import { App as AntApp, ConfigProvider, theme as antdTheme } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import type { ReactNode } from "react";
-import { Provider as ReduxProvider } from "react-redux";
 import { MemoryRouter } from "react-router";
 import App from "./App";
 import { SettingsProvider, useSettings } from "./features/settings/context";
-import { store } from "./store";
 
 const SHARED_TOKENS = {
   borderRadius: 12,
@@ -86,14 +83,12 @@ function ThemeAwareConfigProvider({ children }: { children: ReactNode }) {
 
 export default function Root() {
   return (
-    <ReduxProvider store={store}>
-      <SettingsProvider>
-        <ThemeAwareConfigProvider>
-          <MemoryRouter>
-            <App />
-          </MemoryRouter>
-        </ThemeAwareConfigProvider>
-      </SettingsProvider>
-    </ReduxProvider>
+    <SettingsProvider>
+      <ThemeAwareConfigProvider>
+        <MemoryRouter>
+          <App />
+        </MemoryRouter>
+      </ThemeAwareConfigProvider>
+    </SettingsProvider>
   );
 }

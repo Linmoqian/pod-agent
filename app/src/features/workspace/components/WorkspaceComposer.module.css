@@ -1,0 +1,36 @@
+.composer {
+  width: min(820px, calc(100% - 48px));
+  align-self: center;
+  margin: 0 0 26px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-default);
+  border-radius: 22px;
+  background: var(--color-surface-default);
+  box-shadow: 0 16px 44px rgb(24 61 34 / 9%);
+  transition: border-color var(--duration-fast);
+}
+
+.composer:focus-within {
+  border-color: var(--color-brand-500);
+}
+
+.composer textarea {
+  padding: 18px 18px 4px !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  resize: none;
+  background: transparent !important;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px 10px;
+}
+
+@media (max-width: 640px) {
+  .composer {
+    width: calc(100% - 28px);
+  }
+}

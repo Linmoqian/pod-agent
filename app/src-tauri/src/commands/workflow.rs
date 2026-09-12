@@ -188,7 +188,7 @@ fn artifact_files(directory: &Path, names: &[String]) -> AppResult<Vec<ArtifactF
     names
         .iter()
         .map(|name| {
-            let path = directory.join(name);
+            let path = storage::managed_child_path(directory, name)?;
             let content_type = match path.extension().and_then(|value| value.to_str()) {
                 Some("json") => "application/json",
                 Some("csv") => "text/csv",
@@ -222,7 +222,7 @@ fn run_python(config_path: &Path, cancelled: Arc<AtomicBool>) -> AppResult<Value
         .join("..")
         .join("python")
         .join("worker.py");
-    let mut child = Command::new(worker::python_executable())
+    let mut child = Command::new(worker::python_executable()?)
         .arg(script)
         .arg("analyze")
         .arg(config_path)
@@ -335,7 +335,9 @@ fn execute_workflow(
         std::fs::create_dir_all(&artifact_dir)
             .map_err(|error| AppError::new("STORAGE_CREATE_FAILED", error.to_string()))?;
         for name in &names {
-            std::fs::copy(output_dir.join(name), artifact_dir.join(name))
+            let source_path = storage::managed_child_path(&output_dir, name)?;
+            let destination_path = storage::managed_child_path(&artifact_dir, name)?;
+            std::fs::copy(source_path, destination_path)
                 .map_err(|error| AppError::new("STORAGE_WRITE_FAILED", error.to_string()))?;
         }
         let files = artifact_files(&artifact_dir, &names)?;
@@ -412,6 +414,13 @@ pub async fn confirm_task_plan(
             .lock()
             .map_err(|_| AppError::retryable("DB_BUSY", "数据库暂时不可用"))?;
         let plan = db::plan(&connection, &plan_id)?;
+        let (dataset, _) = db::dataset(&connection, &plan.dataset_id)?;
+        if dataset.quality_status == "fail" {
+            return Err(AppError::new(
+                "DATA_QUALITY_BLOCKED",
+                "数据质量检查未通过；请先处理主键、标识或单位冲突",
+            ));
+        }
         if ![
             "awaiting_confirmation",
             "failed",

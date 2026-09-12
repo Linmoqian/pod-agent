@@ -8,7 +8,7 @@ use crate::domain::{
     Artifact, ArtifactFile, Dataset, ImportInspection, LifecycleEvent, SourceCandidate,
 };
 use crate::error::{AppError, AppResult};
-use crate::services::{db, storage, worker};
+use crate::services::{db, storage, tools, worker};
 use crate::state::AppState;
 
 const MAX_IMPORT_FILES: usize = 100;
@@ -228,6 +228,7 @@ pub async fn register_datasets(
             let config = write_config(&dataset_dir, &json!({"sourcePath":&source.managed_path,"outputDir":&dataset_dir,"mapping":registration.mapping}))?;
             let normalized = worker::run("normalize", &config)?;
             let quality = normalized["quality"].clone();
+            let quality_tool = tools::get("data.quality_check")?;
             let dataset = Dataset { id: dataset_id.clone(), project_id: project_id_for_task.clone(), name: Path::new(&source.original_name).file_stem().and_then(|value| value.to_str()).unwrap_or("表型数据").into(), dataset_type: "phenotype".into(), version: 1, schema: normalized["schema"].clone(), source: db::source_json(&source), metadata: normalized["metadata"].clone(), quality_status: quality["status"].as_str().unwrap_or("warn").into(), supersedes_id: None, created_at: db::now() };
             db::insert_dataset(&connection, &dataset, normalized["canonicalPath"].as_str().ok_or_else(|| AppError::new("WORKER_PROTOCOL_ERROR", "缺少规范化数据路径"))?)?;
             let artifact_id = uuid::Uuid::new_v4().to_string();
@@ -235,7 +236,7 @@ pub async fn register_datasets(
             std::fs::create_dir_all(&artifact_dir).map_err(|error| AppError::new("STORAGE_CREATE_FAILED", error.to_string()))?;
             std::fs::copy(dataset_dir.join("quality.json"), artifact_dir.join("quality.json")).map_err(|error| AppError::new("STORAGE_WRITE_FAILED", error.to_string()))?;
             let files = artifact_files(&artifact_dir, &["quality.json"])?;
-            let artifact = Artifact { id: artifact_id, project_id: project_id_for_task.clone(), artifact_type: "quality.report".into(), name: format!("{} 数据质量报告", dataset.name), status: dataset.quality_status.clone(), checksum: files[0].checksum.clone(), files, upstream_ids: vec![dataset.id.clone()], produced_by_run_id: None, metadata: quality, created_at: db::now() };
+            let artifact = Artifact { id: artifact_id, project_id: project_id_for_task.clone(), artifact_type: "quality.report".into(), name: format!("{} 数据质量报告", dataset.name), status: dataset.quality_status.clone(), checksum: files[0].checksum.clone(), files, upstream_ids: vec![dataset.id.clone()], produced_by_run_id: None, metadata: json!({"summary":quality,"tool":quality_tool}), created_at: db::now() };
             db::insert_artifact(&connection, &artifact, Some(&dataset.id), &artifact_dir.to_string_lossy())?;
             created.push(dataset);
         }

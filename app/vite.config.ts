@@ -18,9 +18,6 @@ export default defineConfig(() => ({
     port: 1420,
     strictPort: true,
     host: host || false,
-    proxy: {
-      "/api/agent": "http://127.0.0.1:1430",
-    },
     hmr: host
       ? {
           protocol: "ws",

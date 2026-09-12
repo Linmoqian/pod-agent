@@ -11,24 +11,49 @@ fn worker_script() -> PathBuf {
         .join("worker.py")
 }
 
-pub fn python_executable() -> PathBuf {
+fn environment_python(root: &Path) -> PathBuf {
+    let base = root.join("envs").join("lian-breeding-v1");
+    if cfg!(windows) {
+        base.join("python.exe")
+    } else {
+        base.join("bin").join("python")
+    }
+}
+
+pub fn python_executable() -> AppResult<PathBuf> {
     if let Some(configured) = std::env::var_os("LIAN_PYTHON_BIN") {
-        return PathBuf::from(configured);
+        let path = PathBuf::from(configured);
+        return path.is_file().then_some(path).ok_or_else(|| {
+            AppError::new(
+                "PYTHON_RUNTIME_UNAVAILABLE",
+                "LIAN_PYTHON_BIN 指向的解释器不存在",
+            )
+        });
     }
     if let Some(conda_executable) = std::env::var_os("CONDA_EXE") {
         if let Some(root) = Path::new(&conda_executable).parent().and_then(Path::parent) {
-            return root
-                .join("envs")
-                .join("lian-breeding-v1")
-                .join("bin")
-                .join("python");
+            let path = environment_python(root);
+            if path.is_file() {
+                return Ok(path);
+            }
         }
     }
-    PathBuf::from("python")
+    if let Some(home) = std::env::var_os("HOME") {
+        for distribution in ["miniforge3", "miniconda3", "anaconda3"] {
+            let path = environment_python(&PathBuf::from(&home).join(distribution));
+            if path.is_file() {
+                return Ok(path);
+            }
+        }
+    }
+    Err(AppError::new(
+        "PYTHON_RUNTIME_UNAVAILABLE",
+        "未找到 lian-breeding-v1 的 Python 解释器",
+    ))
 }
 
 pub fn run(operation: &str, config_path: &Path) -> AppResult<Value> {
-    let output = Command::new(python_executable())
+    let output = Command::new(python_executable()?)
         .arg(worker_script())
         .arg(operation)
         .arg(config_path)

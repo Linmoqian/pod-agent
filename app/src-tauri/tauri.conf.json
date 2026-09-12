@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Pod Agent",
+  "productName": "lian@育种台",
   "version": "0.1.0",
   "identifier": "com.linmoqian.podagent",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Pod Agent",
+        "title": "lian@育种台",
         "width": 1200,
         "height": 800
       }

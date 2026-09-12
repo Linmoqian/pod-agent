@@ -79,6 +79,20 @@ pub fn safe_file_name(path: &Path) -> String {
         .replace(['/', '\\', '\0'], "_")
 }
 
+pub fn managed_child_path(directory: &Path, name: &str) -> AppResult<PathBuf> {
+    let path = Path::new(name);
+    let mut components = path.components();
+    let is_single_normal = matches!(components.next(), Some(std::path::Component::Normal(_)))
+        && components.next().is_none();
+    if !is_single_normal {
+        return Err(AppError::new(
+            "ARTIFACT_PATH_INVALID",
+            "统计工具返回了非法输出路径",
+        ));
+    }
+    Ok(directory.join(path))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -87,5 +101,37 @@ mod tests {
     fn rejects_path_like_project_id() {
         let root = std::env::temp_dir();
         assert!(ensure_project_dirs(&root, "../escape").is_err());
+    }
+
+    #[test]
+    fn immutable_copy_keeps_the_first_source_bytes() {
+        let root = std::env::temp_dir().join(format!("lian-storage-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        let source = root.join("source.csv");
+        let destination = root.join("managed").join("checksum.csv");
+        std::fs::write(&source, b"material,value\nA,1\n").unwrap();
+        let checksum = sha256_file(&source).unwrap();
+
+        copy_immutable(&source, &destination).unwrap();
+        std::fs::write(&source, b"material,value\nA,9\n").unwrap();
+        copy_immutable(&source, &destination).unwrap();
+
+        assert_eq!(sha256_file(&destination).unwrap(), checksum);
+        assert!(std::fs::metadata(&destination)
+            .unwrap()
+            .permissions()
+            .readonly());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn managed_child_rejects_parent_and_nested_paths() {
+        let root = std::env::temp_dir();
+        assert!(managed_child_path(&root, "../outside.csv").is_err());
+        assert!(managed_child_path(&root, "nested/output.csv").is_err());
+        assert_eq!(
+            managed_child_path(&root, "output.csv").unwrap(),
+            root.join("output.csv")
+        );
     }
 }

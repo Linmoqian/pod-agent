@@ -1,134 +1,97 @@
 /*
- * 应用主布局(参考 X-line AppShell):窄图标栏 + 毛玻璃会话面板(可拖宽/可折叠)
- * + 聊天主区 + 底部状态栏。面板宽度持久化到 localStorage,拖拽期间关闭过渡。
- * 会话状态见 features/chat/hooks/useChatSessions;本组件专注布局编排。
- * Created on 2026-09-08
- * Updated on 2026-09-09
+ * lian@育种台数据优先工作区：统一问题/数据入口、任务时间线与可追溯结果。
+ * Created on 2026-09-12
  * @author: https://github.com/Linmoqian
  */
 
-import { useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import IconRail from "./IconRail";
-import Sidebar from "./Sidebar";
-import StatusBar from "./StatusBar";
-import usePanelResize from "./usePanelResize";
-import ChatHeader from "../features/chat/components/ChatHeader";
-import ChatComposer from "../features/chat/components/ChatComposer";
-import MessageList from "../features/chat/components/MessageList";
-import WelcomeState from "../features/chat/components/WelcomeState";
-import useChatSessions from "../features/chat/hooks/useChatSessions";
-import {
-  REDUCED_MOTION_TRANSITION,
-  SESSION_ENTER_TRANSITION,
-  SESSION_EXIT_TRANSITION,
-  SPRING_LAYOUT,
-} from "../utils/motion";
-import styles from "./AppLayout.module.css";
+import { Spin, Tag } from 'antd';
 
-function AppLayout() {
-  const reduceMotion = useReducedMotion();
-  const { sessions, activeSession, setActiveId, sendMessage, createSession } =
-    useChatSessions();
-  const {
-    panelWidth,
-    panelMinWidth,
-    panelMaxWidth,
-    dragging,
-    handleResizeStart,
-    handleResizeMove,
-    handleResizeEnd,
-    handleResizeKeyDown,
-  } = usePanelResize();
-  const [panelCollapsed, setPanelCollapsed] = useState(
-    () => window.innerWidth < 1000,
-  );
-  const contentEnterTransition = reduceMotion
-    ? REDUCED_MOTION_TRANSITION
-    : SESSION_ENTER_TRANSITION;
-  const contentExitTransition = reduceMotion
-    ? REDUCED_MOTION_TRANSITION
-    : SESSION_EXIT_TRANSITION;
-  const panelSpring = reduceMotion ? REDUCED_MOTION_TRANSITION : SPRING_LAYOUT;
+import ArtifactDrawer from '../features/workspace/components/ArtifactDrawer';
+import WorkbenchPanel from '../features/workspace/components/WorkbenchPanel';
+import WorkspaceComposer from '../features/workspace/components/WorkspaceComposer';
+import WorkspaceTimeline from '../features/workspace/components/WorkspaceTimeline';
+import useWorkspaceController from '../features/workspace/hooks/useWorkspaceController';
+import IconRail from './IconRail';
+import styles from './AppLayout.module.css';
+
+export default function AppLayout() {
+  const controller = useWorkspaceController();
+  const { snapshot } = controller;
+
+  if (!snapshot) {
+    return (
+      <div className={styles.loading}>
+        <Spin description="正在恢复科研工作区" />
+      </div>
+    );
+  }
+
+  const latestPlan = snapshot.taskPlans[0];
+  const latestRun = latestPlan
+    ? snapshot.workflowRuns.find((run) => run.taskPlanId === latestPlan.id)
+    : undefined;
 
   return (
     <div className={styles.layout}>
-      <div className={styles.body}>
-        {/* 图标栏 + 会话面板组成联合材料层,以毛玻璃和细边界贴主区左缘 */}
-        <div
-          className={styles.railShell}
-          data-collapsed={panelCollapsed || undefined}
-        >
-          <IconRail
-            panelCollapsed={panelCollapsed}
-            onTogglePanel={() => setPanelCollapsed((collapsed) => !collapsed)}
+      <IconRail
+        workbenchOpen={controller.workbenchOpen}
+        onToggleWorkbench={() => controller.setWorkbenchOpen((value) => !value)}
+      />
+      <main className={styles.main}>
+        <header className={styles.header}>
+          <div>
+            <b>lian@育种台</b>
+            <span>{snapshot.project.name}</span>
+          </div>
+          <Tag variant="filled">
+            lian · {latestPlan?.planner.model ?? '规则计划器'}
+          </Tag>
+        </header>
+        <section className={styles.workspace}>
+          <WorkspaceTimeline
+            messages={snapshot.messages}
+            inspection={controller.inspection}
+            mappingEdits={controller.mappingEdits}
+            onMappingChange={(sourceId, value) =>
+              controller.setMappingEdits((current) => ({
+                ...current,
+                [sourceId]: value,
+              }))
+            }
+            onRegister={(candidates, projectId) =>
+              void controller.registerCandidates(candidates, projectId)
+            }
           />
-          <motion.div
-            className={styles.panel}
-            initial={false}
-            animate={{ width: panelCollapsed ? 0 : panelWidth }}
-            transition={dragging ? { duration: 0 } : panelSpring}
-            aria-hidden={panelCollapsed}
-          >
-            <Sidebar
-              sessions={sessions}
-              activeId={activeSession?.id ?? null}
-              onSelect={setActiveId}
-              onNewSession={createSession}
-            />
-          </motion.div>
-          <div
-            className={styles.resizeHandle}
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="调整面板宽度"
-            aria-valuemin={panelMinWidth}
-            aria-valuemax={panelMaxWidth}
-            aria-valuenow={Math.round(panelWidth)}
-            tabIndex={0}
-            onPointerDown={handleResizeStart}
-            onPointerMove={handleResizeMove}
-            onPointerUp={handleResizeEnd}
-            onPointerCancel={handleResizeEnd}
-            onKeyDown={handleResizeKeyDown}
+          <WorkspaceComposer
+            intent={controller.intent}
+            busy={controller.busy}
+            onIntentChange={controller.setIntent}
+            onChooseData={(directory) => void controller.chooseData(directory)}
+            onSubmit={() => void controller.submitQuestion()}
           />
+        </section>
+      </main>
+      {controller.workbenchOpen && (
+        <WorkbenchPanel
+          snapshot={snapshot}
+          latestPlan={latestPlan}
+          latestRun={latestRun}
+          activeRunId={controller.activeRunId}
+          busy={controller.busy}
+          onConfirm={(planId) => void controller.confirmPlan(planId)}
+          onCancel={(runId) => void controller.cancelWorkflow(runId)}
+          onOpenArtifact={controller.setSelectedArtifact}
+        />
+      )}
+      <ArtifactDrawer
+        artifact={controller.selectedArtifact}
+        onClose={() => controller.setSelectedArtifact(null)}
+      />
+      {controller.busy && (
+        <div className={styles.busy}>
+          <Spin />
         </div>
-
-        <main className={styles.main}>
-          <ChatHeader session={activeSession} />
-
-          <AnimatePresence mode="sync" initial={false}>
-            <motion.div
-              key={activeSession?.id ?? "welcome"}
-              className={styles.content}
-              initial={{ opacity: 0, transform: "translateX(-8px)" }}
-              animate={{
-                opacity: 1,
-                transform: "translateX(0)",
-                transition: contentEnterTransition,
-              }}
-              exit={{
-                opacity: 0,
-                transform: "translateX(6px)",
-                transition: contentExitTransition,
-              }}
-            >
-              {activeSession && activeSession.messages.length > 0 ? (
-                <>
-                  <MessageList session={activeSession} />
-                  <ChatComposer onSend={sendMessage} />
-                </>
-              ) : (
-                <WelcomeState onSend={sendMessage} />
-              )}
-            </motion.div>
-          </AnimatePresence>
-        </main>
-      </div>
-
-      <StatusBar session={activeSession} sessionCount={sessions.length} />
+      )}
     </div>
   );
 }
-
-export default AppLayout;

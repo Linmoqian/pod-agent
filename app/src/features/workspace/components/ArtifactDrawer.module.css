@@ -1,0 +1,54 @@
+.provenance {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.provenance section {
+  padding-top: 14px;
+  border-top: var(--border-subtle);
+}
+
+.provenance pre {
+  max-height: 260px;
+  overflow: auto;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--color-surface-muted);
+  font-size: 11px;
+  white-space: pre-wrap;
+}
+
+.provenance code {
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+
+.runLog {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+}
+
+.runLog pre,
+.runLog code {
+  width: 100%;
+}
+
+.sourceGrid {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  gap: 8px;
+  margin: 0;
+}
+
+.sourceGrid dt {
+  color: var(--color-text-secondary);
+}
+
+.sourceGrid dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

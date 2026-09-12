@@ -5,6 +5,26 @@ import { afterEach } from "vitest";
 // 未启用 vitest globals,需手动注册用例间 DOM 清理
 afterEach(cleanup);
 
+// Node 26 在未指定持久化文件时暴露空 localStorage；测试使用内存实现。
+if (!window.localStorage) {
+  const values = new Map<string, string>();
+  Object.defineProperty(window, "localStorage", {
+    configurable: true,
+    value: {
+      get length() { return values.size; },
+      clear: () => values.clear(),
+      getItem: (key: string) => values.get(key) ?? null,
+      key: (index: number) => [...values.keys()][index] ?? null,
+      removeItem: (key: string) => values.delete(key),
+      setItem: (key: string, value: string) => values.set(key, String(value)),
+    },
+  });
+}
+
+// jsdom 的伪元素样式查询未实现，antd 仅需要元素本身的滚动条样式。
+const getComputedStyle = window.getComputedStyle.bind(window);
+window.getComputedStyle = (element: Element) => getComputedStyle(element);
+
 // jsdom 未实现 matchMedia:motion 的 useReducedMotion 与动画分支依赖它
 if (typeof window.matchMedia !== "function") {
   Object.defineProperty(window, "matchMedia", {

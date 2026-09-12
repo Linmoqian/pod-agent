@@ -1,87 +1,77 @@
-/*
- * Created on 2026-09-08
- * Updated on 2026-09-09
- * @author: https://github.com/Linmoqian
- */
-
-/* 纵向骨架:上部为图标栏+面板+主区,底部为状态栏 */
+/* lian 数据优先工作区 */
 .layout {
   display: flex;
-  flex-direction: column;
   height: 100%;
   overflow: hidden;
   background: var(--color-surface-canvas);
-  isolation: isolate;
 }
 
-.body {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  align-items: stretch;
-}
-
-/* 联合面板材料层:毛玻璃 + 细边界,不叠加多重阴影 */
-.railShell {
-  position: relative;
-  display: flex;
-  align-self: stretch;
-  flex-shrink: 0;
-  min-height: 0;
-  background: var(--material-rail);
-  backdrop-filter: saturate(180%) blur(var(--blur-chrome));
-  -webkit-backdrop-filter: saturate(180%) blur(var(--blur-chrome));
-  border-right: var(--border-subtle);
-}
-
-/* 会话面板:宽度由 AppLayout 内联控制,收起时仅保留图标栏内的固定开关 */
-.panel {
-  position: relative;
-  align-self: stretch;
-  flex-shrink: 0;
-  overflow: hidden;
-  will-change: width;
-}
-
-/* 拖拽把手:面板右缘 6px 全高热区 */
-.resizeHandle {
-  position: absolute;
-  top: 0;
-  right: 0;
-  z-index: 10;
-  width: 6px;
+.loading {
+  display: grid;
   height: 100%;
-  cursor: col-resize;
-  touch-action: none;
-  transition: background var(--duration-fast) var(--easing-standard);
-}
-
-.resizeHandle:active {
-  background: color-mix(in srgb, var(--color-brand-500) 20%, transparent);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .resizeHandle:hover {
-    background: color-mix(in srgb, var(--color-brand-500) 20%, transparent);
-  }
-}
-
-/* 折叠后面板归零,隐藏拖拽把手避免误触 */
-.railShell[data-collapsed] .resizeHandle {
-  display: none;
+  place-items: center;
 }
 
 .main {
   display: flex;
-  flex-direction: column;
-  flex: 1;
   min-width: 0;
-  background: var(--color-surface-canvas);
+  flex: 1;
+  flex-direction: column;
 }
 
-.content {
+.header {
   display: flex;
-  flex-direction: column;
-  flex: 1;
+  min-height: 62px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  border-bottom: var(--border-subtle);
+  background: var(--material-toolbar);
+}
+
+.header div {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.header b {
+  font-size: 17px;
+}
+
+.header span {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.workspace {
+  display: flex;
   min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.busy {
+  position: fixed;
+  z-index: 1000;
+  right: 24px;
+  bottom: 24px;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: var(--border-subtle);
+  border-radius: 50%;
+  background: var(--color-surface-default);
+  box-shadow: var(--shadow-medium);
+}
+
+@media (max-width: 640px) {
+  .header {
+    padding: 0 16px;
+  }
+
+  .header span {
+    display: none;
+  }
 }

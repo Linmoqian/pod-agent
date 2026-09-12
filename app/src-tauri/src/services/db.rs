@@ -7,6 +7,8 @@ use crate::domain::{
 };
 use crate::error::{AppError, AppResult};
 
+const SCHEMA_VERSION: i64 = 1;
+
 pub fn now() -> String {
     chrono::Utc::now().to_rfc3339()
 }
@@ -18,6 +20,15 @@ pub fn open(path: &Path) -> AppResult<Connection> {
     }
     let connection = Connection::open(path)
         .map_err(|error| AppError::new("DB_OPEN_FAILED", error.to_string()))?;
+    let current_version: i64 = connection
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .map_err(|error| AppError::new("DB_MIGRATION_FAILED", error.to_string()))?;
+    if current_version > SCHEMA_VERSION {
+        return Err(AppError::new(
+            "DB_VERSION_UNSUPPORTED",
+            "数据库版本高于当前应用支持范围",
+        ));
+    }
     connection
         .execute_batch(
             "PRAGMA foreign_keys=ON;
@@ -76,6 +87,9 @@ pub fn open(path: &Path) -> AppResult<Connection> {
              CREATE INDEX IF NOT EXISTS idx_runs_project ON workflow_runs(project_id, started_at);",
         )
         .map_err(|error| AppError::new("DB_MIGRATION_FAILED", error.to_string()))?;
+    connection
+        .pragma_update(None, "user_version", SCHEMA_VERSION)
+        .map_err(|error| AppError::new("DB_MIGRATION_FAILED", error.to_string()))?;
     Ok(connection)
 }
 
@@ -99,7 +113,7 @@ pub fn ensure_draft_project(
     connection: &Connection,
     name_hint: Option<&str>,
 ) -> AppResult<Project> {
-    if let Some(project) = connection
+    if let Some(mut project) = connection
         .query_row(
             "SELECT id,name,status,created_at,updated_at FROM projects WHERE status='draft' ORDER BY created_at DESC LIMIT 1",
             [],
@@ -108,6 +122,16 @@ pub fn ensure_draft_project(
         .optional()
         .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?
     {
+        if project.name == "未命名育种项目" {
+            if let Some(name) = name_hint.filter(|value| !value.trim().is_empty()) {
+                project.name = name.trim().to_string();
+                project.updated_at = now();
+                connection.execute(
+                    "UPDATE projects SET name=?1,updated_at=?2 WHERE id=?3",
+                    params![project.name, project.updated_at, project.id],
+                ).map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+            }
+        }
         return Ok(project);
     }
     let timestamp = now();
@@ -504,25 +528,39 @@ pub fn source_json(source: &SourceRecord) -> Value {
 mod tests {
     use super::*;
 
+    fn test_root() -> std::path::PathBuf {
+        std::env::temp_dir().join(format!("lian-db-{}", uuid::Uuid::new_v4()))
+    }
+
     #[test]
     fn project_and_dataset_survive_reopen() {
-        let path = std::env::temp_dir().join(format!("lian-{}.db", uuid::Uuid::new_v4()));
+        let root = test_root();
+        let path = root.join("lian.db");
         {
             let connection = open(&path).unwrap();
             let project = ensure_draft_project(&connection, Some("测试项目")).unwrap();
             assert_eq!(project.name, "测试项目");
+            assert_eq!(
+                connection
+                    .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                    .unwrap(),
+                SCHEMA_VERSION
+            );
         }
-        let connection = open(&path).unwrap();
-        assert_eq!(
-            ensure_draft_project(&connection, None).unwrap().name,
-            "测试项目"
-        );
-        let _ = std::fs::remove_file(path);
+        {
+            let connection = open(&path).unwrap();
+            assert_eq!(
+                ensure_draft_project(&connection, None).unwrap().name,
+                "测试项目"
+            );
+        }
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
     fn running_workflow_is_marked_interrupted_on_startup_recovery() {
-        let path = std::env::temp_dir().join(format!("lian-{}.db", uuid::Uuid::new_v4()));
+        let root = test_root();
+        let path = root.join("lian.db");
         let connection = open(&path).unwrap();
         let project = ensure_draft_project(&connection, Some("恢复测试")).unwrap();
         connection.execute(
@@ -538,6 +576,74 @@ mod tests {
             )
             .unwrap();
         assert_eq!(status, "interrupted");
-        let _ = std::fs::remove_file(path);
+        drop(connection);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn dataset_version_and_artifact_dag_survive_reopen() {
+        let root = test_root();
+        let path = root.join("lian.db");
+        let project_id;
+        let dataset_id = "dataset-v2".to_string();
+        let quality_id = "quality-report".to_string();
+        {
+            let connection = open(&path).unwrap();
+            let project = ensure_draft_project(&connection, Some("血缘测试")).unwrap();
+            project_id = project.id.clone();
+            let dataset = Dataset {
+                id: dataset_id.clone(),
+                project_id: project.id.clone(),
+                name: "株高".into(),
+                dataset_type: "phenotype".into(),
+                version: 2,
+                schema: json!({"traits": [{"id": "height"}]}),
+                source: json!({"checksum": "source-sha256"}),
+                metadata: json!({}),
+                quality_status: "pass".into(),
+                supersedes_id: Some("dataset-v1".into()),
+                created_at: now(),
+            };
+            insert_dataset(&connection, &dataset, "/managed/data.csv").unwrap();
+            let quality = Artifact {
+                id: quality_id.clone(),
+                project_id: project.id.clone(),
+                artifact_type: "quality.report".into(),
+                name: "质量报告".into(),
+                status: "pass".into(),
+                files: vec![],
+                checksum: "quality-sha256".into(),
+                upstream_ids: vec![dataset.id.clone()],
+                produced_by_run_id: None,
+                metadata: json!({}),
+                created_at: now(),
+            };
+            insert_artifact(&connection, &quality, Some(&dataset.id), "/managed/quality").unwrap();
+            let report = Artifact {
+                id: "analysis-report".into(),
+                project_id: project.id,
+                artifact_type: "report.analysis".into(),
+                name: "分析报告".into(),
+                status: "succeeded".into(),
+                files: vec![],
+                checksum: "report-sha256".into(),
+                upstream_ids: vec![quality.id],
+                produced_by_run_id: Some("run-1".into()),
+                metadata: json!({}),
+                created_at: now(),
+            };
+            insert_artifact(&connection, &report, Some(&dataset.id), "/managed/report").unwrap();
+        }
+        {
+            let connection = open(&path).unwrap();
+            let (dataset, _) = dataset(&connection, &dataset_id).unwrap();
+            assert_eq!(dataset.version, 2);
+            assert_eq!(dataset.supersedes_id.as_deref(), Some("dataset-v1"));
+            let (report, source_dataset_id) = artifact(&connection, "analysis-report").unwrap();
+            assert_eq!(report.upstream_ids, vec![quality_id]);
+            assert_eq!(source_dataset_id.as_deref(), Some(dataset_id.as_str()));
+            assert_eq!(project(&connection, &project_id).unwrap().name, "血缘测试");
+        }
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

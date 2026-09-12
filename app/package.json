@@ -22,6 +22,7 @@
     "@earendil-works/pi-ai": "^0.85.1",
     "@reduxjs/toolkit": "^2.12.0",
     "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2",
     "antd": "^6.6.3",
     "highlight.js": "^11.12.0",
     "motion": "^13.2.0",
