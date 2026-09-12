@@ -56,14 +56,15 @@ export default function useImportActions(options: ImportActionsOptions) {
     setMappingEdits,
   } = options;
   const registerCandidates = useCallback(
-    async (candidates: SourceCandidate[], projectId: string) => {
+    async (candidates: SourceCandidate[], projectId: string, importSessionId: string, materialResolutions: Record<string, string> = {}) => {
       setBusy(true);
       try {
         const registrations = candidates.map((candidate) => ({
           sourceId: candidate.sourceId,
           mapping: mappingEdits[candidate.sourceId] ?? candidate.inferredMapping,
+          materialResolutions,
         }));
-        const datasets = await workspaceApi.registerDatasets(projectId, registrations);
+        const datasets = await workspaceApi.confirmDataImport(projectId, importSessionId, registrations);
         if (datasets[0]) {
           await buildPlan(
             datasets[0].id,
@@ -105,7 +106,7 @@ export default function useImportActions(options: ImportActionsOptions) {
           analyzable.length &&
           analyzable.every((candidate) => !candidate.ambiguities.length)
         ) {
-          await registerCandidates(analyzable, project.id);
+          await registerCandidates(analyzable, project.id, result.importSessionId);
         }
       } catch (error) {
         reportError(error);

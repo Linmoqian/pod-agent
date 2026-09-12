@@ -85,11 +85,12 @@ it('歧义确认后一次登记全部可分析文件', async () => {
   mocks.open.mockResolvedValue(['/tmp/source-a.csv', '/tmp/source-b.csv']);
   mocks.invoke.mockImplementation(async (command: string) => {
     if (command === 'ensure_draft_project') return project;
+    if (command === 'list_projects') return [project];
     if (command === 'get_workspace_snapshot') return emptySnapshot;
     if (command === 'inspect_data_sources') {
-      return { projectId: project.id, candidates };
+      return { projectId: project.id, importSessionId: 'import-1', candidates };
     }
-    if (command === 'register_datasets') return [dataset];
+    if (command === 'confirm_data_import') return [dataset];
     if (command === 'submit_agent_intent') return {};
     throw new Error(`unexpected command: ${command}`);
   });
@@ -104,12 +105,15 @@ it('歧义确认后一次登记全部可分析文件', async () => {
   );
   await waitFor(() =>
     expect(mocks.invoke).toHaveBeenCalledWith(
-      'register_datasets',
+      'confirm_data_import',
       expect.objectContaining({
-        registrations: expect.arrayContaining([
-          expect.objectContaining({ sourceId: 'source-a' }),
-          expect.objectContaining({ sourceId: 'source-b' }),
-        ]),
+        request: expect.objectContaining({
+          importSessionId: 'import-1',
+          registrations: expect.arrayContaining([
+            expect.objectContaining({ sourceId: 'source-a' }),
+            expect.objectContaining({ sourceId: 'source-b' }),
+          ]),
+        }),
       }),
     ),
   );
@@ -142,6 +146,7 @@ it('运行中的任务可发出取消请求', async () => {
   };
   mocks.invoke.mockImplementation(async (command: string) => {
     if (command === 'ensure_draft_project') return project;
+    if (command === 'list_projects') return [project];
     if (command === 'get_workspace_snapshot') {
       return { ...emptySnapshot, taskPlans: [plan], workflowRuns: [run] };
     }

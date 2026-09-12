@@ -96,6 +96,23 @@ function ResultCards({
   );
 }
 
+function MaterialCards({ snapshot }: Pick<WorkbenchPanelProps, 'snapshot'>) {
+  const materials = snapshot.materials ?? [];
+  if (!materials.length) {
+    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="导入数据后建立材料身份" />;
+  }
+  return (
+    <div className={styles.stack}>
+      {materials.map((material) => (
+        <div key={material.id} className={styles.card}>
+          <span>{material.displayName}</span>
+          <small>{material.canonicalCode}</small>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function WorkbenchPanel(props: WorkbenchPanelProps) {
   const { snapshot, latestPlan, latestRun, activeRunId, onOpenArtifact } =
     props;
@@ -120,7 +137,11 @@ export default function WorkbenchPanel(props: WorkbenchPanelProps) {
     <aside className={styles.panel}>
       <div className={styles.title}>
         <b>育种台</b>
-        <span>当前上下文</span>
+        <span>
+          {snapshot.overview
+            ? `${snapshot.overview.materialCount} 材料 · ${snapshot.overview.executionCount} 次执行`
+            : '当前上下文'}
+        </span>
       </div>
       <Tabs
         items={[
@@ -141,6 +162,11 @@ export default function WorkbenchPanel(props: WorkbenchPanelProps) {
                 onOpenArtifact={onOpenArtifact}
               />
             ),
+          },
+          {
+            key: 'material',
+            label: `材料 ${snapshot.materials?.length ?? 0}`,
+            children: <MaterialCards snapshot={snapshot} />,
           },
         ]}
       />

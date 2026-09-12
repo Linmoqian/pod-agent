@@ -4,7 +4,8 @@
  * @author: https://github.com/Linmoqian
  */
 
-import { Button } from 'antd';
+import { Button, Select } from 'antd';
+import { useEffect, useState } from 'react';
 
 import AppIcon from '../../../components/common/AppIcon';
 import type {
@@ -21,7 +22,7 @@ type WorkspaceTimelineProps = {
   inspection: ImportInspection | null;
   mappingEdits: Record<string, FieldMapping>;
   onMappingChange: (sourceId: string, value: FieldMapping) => void;
-  onRegister: (candidates: SourceCandidate[], projectId: string) => void;
+  onRegister: (candidates: SourceCandidate[], projectId: string, importSessionId: string, materialResolutions: Record<string, string>) => void;
 };
 
 export default function WorkspaceTimeline({
@@ -33,6 +34,9 @@ export default function WorkspaceTimeline({
 }: WorkspaceTimelineProps) {
   const supported =
     inspection?.candidates.filter((candidate) => candidate.supported) ?? [];
+  const suggestions = supported.flatMap((candidate) => candidate.identitySuggestions ?? []);
+  const [resolutions, setResolutions] = useState<Record<string, string>>({});
+  useEffect(() => setResolutions({}), [inspection?.importSessionId]);
 
   return (
     <div className={styles.timeline}>
@@ -55,10 +59,26 @@ export default function WorkspaceTimeline({
               onChange={(value) => onMappingChange(candidate.sourceId, value)}
             />
           ))}
+          {suggestions.map((suggestion) => (
+            <div key={`${suggestion.sourceValue}-${suggestion.targetMaterialId}`}>
+              <span>{suggestion.sourceValue} 可能对应 {suggestion.targetCode}</span>
+              <Select
+                aria-label={`材料 ${suggestion.sourceValue} 的身份决策`}
+                placeholder="请选择"
+                value={resolutions[suggestion.sourceValue]}
+                options={[
+                  { value: suggestion.targetMaterialId, label: `链接 ${suggestion.targetCode}` },
+                  { value: 'new', label: '创建新材料' },
+                ]}
+                onChange={(value) => setResolutions((current) => ({ ...current, [suggestion.sourceValue]: value }))}
+              />
+            </div>
+          ))}
           {supported.length > 0 && (
             <Button
               type="primary"
-              onClick={() => onRegister(supported, inspection.projectId)}
+              disabled={suggestions.some((item) => !resolutions[item.sourceValue])}
+              onClick={() => onRegister(supported, inspection.projectId, inspection.importSessionId, resolutions)}
             >
               确认识别并登记全部可分析数据
             </Button>

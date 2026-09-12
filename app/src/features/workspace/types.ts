@@ -60,6 +60,9 @@ export type PlanStep = {
   title: string;
   status: string;
   riskLevel: string;
+  dependsOn?: string[];
+  parameters?: Record<string, unknown>;
+  expectedArtifacts?: string[];
 };
 
 export type TaskPlan = {
@@ -68,6 +71,9 @@ export type TaskPlan = {
   datasetId: string;
   title: string;
   intent: string;
+  goal?: string;
+  inputs?: Array<{ kind: string; id: string }>;
+  risks?: string[];
   traitId: string;
   planner: { mode?: string; model?: string | null; summary?: string };
   modelSpec: Record<string, unknown>;
@@ -99,9 +105,16 @@ export type TimelineMessage = {
 
 export type WorkspaceSnapshot = {
   project: Project;
+  overview?: ProjectOverview;
   datasets: Dataset[];
+  schemas?: ResearchSchema[];
+  materials?: Material[];
+  traits?: TraitDefinition[];
+  environments?: Environment[];
   artifacts: Artifact[];
   taskPlans: TaskPlan[];
+  taskPlanRuns?: TaskPlanRun[];
+  executions?: Execution[];
   workflowRuns: WorkflowRun[];
   messages: TimelineMessage[];
 };
@@ -119,12 +132,34 @@ export type SourceCandidate = {
   traits: string[];
   ambiguities: string[];
   supported: boolean;
+  materialValues?: string[];
+  environmentValues?: string[];
+  identitySuggestions?: IdentitySuggestion[];
 };
 
 export type ImportInspection = {
   projectId: string;
+  importSessionId: string;
   candidates: SourceCandidate[];
 };
+
+export type ProjectOverview = {
+  project: Project;
+  materialCount: number;
+  datasetCount: number;
+  executionCount: number;
+  artifactCount: number;
+  pendingResolutionCount: number;
+  facts: string[];
+};
+
+export type ResearchSchema = { id: string; projectId: string; datasetType: string; version: number; layout: string; fields: unknown; roles: unknown; checksum: string; createdAt: string };
+export type Material = { id: string; projectId: string; canonicalCode: string; displayName: string; origin: string | null; generation: string | null; metadata: Record<string, unknown>; createdAt: string };
+export type TraitDefinition = { id: string; projectId: string; canonicalCode: string; name: string; valueType: string; unit: string | null; method: string | null; scale: string | null; ontologyRef: string | null; createdAt: string };
+export type Environment = { id: string; projectId: string; canonicalCode: string; name: string; location: string | null; year: number | null; season: string | null; treatment: unknown; metadata: unknown; createdAt: string };
+export type TaskPlanRun = WorkflowRun;
+export type Execution = { id: string; taskPlanRunId: string; projectId: string; stepId: string; toolId: string; toolVersion: string; inputs: unknown; parameters: unknown; runtime: unknown; status: string; reproducibilityFingerprint: string; exitCode: number | null; errorCode: string | null; errorMessage: string | null; logsTruncated: boolean; startedAt: string; finishedAt: string | null };
+export type IdentitySuggestion = { sourceValue: string; targetMaterialId: string; targetCode: string; reasonCode: string };
 
 export type ToolRun = {
   id: string;

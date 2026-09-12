@@ -9,7 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { workspaceApi } from '../../../services/workspace';
 import type { FieldMapping } from '../components/SourceReview';
-import type { Artifact, ImportInspection, WorkspaceSnapshot } from '../types';
+import type { Artifact, ImportInspection, Project, WorkspaceSnapshot } from '../types';
 import useImportActions from './useImportActions';
 import useWorkspaceLifecycle from './useWorkspaceLifecycle';
 
@@ -39,6 +39,7 @@ function useWorkspaceBootstrap(
 export default function useWorkspaceController() {
   const { message } = App.useApp();
   const [snapshot, setSnapshot] = useState<WorkspaceSnapshot | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [inspection, setInspection] = useState<ImportInspection | null>(null);
   const [intent, setIntent] = useState('');
   const [busy, setBusy] = useState(false);
@@ -59,6 +60,7 @@ export default function useWorkspaceController() {
     setSnapshot(await workspaceApi.snapshot(projectId));
   }, []);
   useWorkspaceBootstrap(reportError, setSnapshot);
+  useEffect(() => { workspaceApi.listProjects().then(setProjects).catch(reportError); }, [reportError]);
 
   const projectId = snapshot?.project.id;
   useWorkspaceLifecycle(projectId, refresh, setActiveRunId);
@@ -123,8 +125,29 @@ export default function useWorkspaceController() {
     }
   };
 
+  const switchProject = async (projectId: string) => {
+    setInspection(null);
+    await refresh(projectId);
+  };
+
+  const createProject = async (name: string) => {
+    const project = await workspaceApi.createProject(name);
+    setProjects(await workspaceApi.listProjects());
+    await refresh(project.id);
+  };
+
+  const archiveProject = async () => {
+    if (!snapshot) return;
+    await workspaceApi.archiveProject(snapshot.project.id);
+    const next = (await workspaceApi.listProjects()).filter((item) => item.status === 'active');
+    setProjects(next);
+    const project = next[0] ?? await workspaceApi.ensureDraftProject();
+    await refresh(project.id);
+  };
+
   return {
     snapshot,
+    projects,
     inspection,
     intent,
     busy,
@@ -141,5 +164,8 @@ export default function useWorkspaceController() {
     submitQuestion,
     confirmPlan,
     cancelWorkflow,
+    switchProject,
+    createProject,
+    archiveProject,
   };
 }

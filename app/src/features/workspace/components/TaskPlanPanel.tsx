@@ -31,12 +31,7 @@ export default function TaskPlanPanel({
   onConfirm,
   onCancel,
 }: TaskPlanPanelProps) {
-  const canStart = [
-    'awaiting_confirmation',
-    'failed',
-    'cancelled',
-    'interrupted',
-  ].includes(plan.status);
+  const canStart = ['awaiting_confirmation', 'confirmed'].includes(plan.status) && !runningId;
   return (
     <div className={styles.taskPanel}>
       <div className={styles.taskHeading}>
@@ -92,7 +87,7 @@ export default function TaskPlanPanel({
           onClick={() => onConfirm(plan.id)}
           disabled={busy}
         >
-          开始
+          {plan.status === 'confirmed' ? '按相同设置重新运行' : '开始'}
         </Button>
       )}
       {runningId && (

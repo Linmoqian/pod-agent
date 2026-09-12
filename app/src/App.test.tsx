@@ -42,6 +42,7 @@ const emptySnapshot = {
 function mockSnapshot(value = emptySnapshot) {
   mocks.invoke.mockImplementation(async (command: string) => {
     if (command === 'ensure_draft_project') return project;
+    if (command === 'list_projects') return [project];
     if (command === 'get_workspace_snapshot') return value;
     throw new Error(`unexpected command: ${command}`);
   });
@@ -116,6 +117,7 @@ describe('lian 工作区', () => {
     let snapshotCalls = 0;
     mocks.invoke.mockImplementation(async (command: string) => {
       if (command === 'ensure_draft_project') return project;
+    if (command === 'list_projects') return [project];
       if (command === 'get_workspace_snapshot')
         return snapshotCalls++
           ? planned
@@ -155,6 +157,7 @@ describe('lian Artifact', () => {
     };
     mocks.invoke.mockImplementation(async (command: string) => {
       if (command === 'ensure_draft_project') return project;
+    if (command === 'list_projects') return [project];
       if (command === 'get_workspace_snapshot')
         return { ...emptySnapshot, artifacts: [artifact] };
       if (command === 'get_artifact_detail')

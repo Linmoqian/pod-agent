@@ -4,7 +4,7 @@
  * @author: https://github.com/Linmoqian
  */
 
-import { Spin, Tag } from 'antd';
+import { Button, Popconfirm, Select, Spin, Tag } from 'antd';
 
 import ArtifactDrawer from '../features/workspace/components/ArtifactDrawer';
 import WorkbenchPanel from '../features/workspace/components/WorkbenchPanel';
@@ -41,7 +41,19 @@ export default function AppLayout() {
         <header className={styles.header}>
           <div>
             <b>lian@育种台</b>
-            <span>{snapshot.project.name}</span>
+            <Select
+              size="small"
+              value={snapshot.project.id}
+              options={controller.projects.filter((item) => item.status === 'active').map((item) => ({ value: item.id, label: item.name }))}
+              onChange={(value) => void controller.switchProject(value)}
+            />
+            <Button size="small" onClick={() => {
+              const name = window.prompt('新项目名称');
+              if (name?.trim()) void controller.createProject(name.trim());
+            }}>新建</Button>
+            <Popconfirm title="归档当前项目？" onConfirm={() => void controller.archiveProject()}>
+              <Button size="small" type="text">归档</Button>
+            </Popconfirm>
           </div>
           <Tag variant="filled">
             lian · {latestPlan?.planner.model ?? '规则计划器'}
@@ -58,8 +70,8 @@ export default function AppLayout() {
                 [sourceId]: value,
               }))
             }
-            onRegister={(candidates, projectId) =>
-              void controller.registerCandidates(candidates, projectId)
+            onRegister={(candidates, projectId, importSessionId, resolutions) =>
+              void controller.registerCandidates(candidates, projectId, importSessionId, resolutions)
             }
           />
           <WorkspaceComposer
