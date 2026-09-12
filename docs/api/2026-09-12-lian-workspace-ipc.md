@@ -1,6 +1,6 @@
 # lian 工作区 IPC
 
-本文是 `lian@育种台` V1 工作区 command 与事件契约的 Markdown 权威说明，读者是前端、Rust 与验收测试维护者。实现依据为 `app/src-tauri/src/commands/`、`app/src-tauri/src/domain/mod.rs` 与 `app/src/services/workspace.ts`。
+本文是 `lian@育种台` M2 工作区 command 与事件契约的 Markdown 权威说明，读者是前端、Rust 与验收测试维护者。实现依据为 `app/src-tauri/src/commands/`、`app/src-tauri/src/domain/mod.rs` 与 `app/src/services/workspace.ts`。
 
 ## 接口元信息
 
@@ -18,7 +18,19 @@
 | 权限或认证 | 仅主窗口 `main`；文件选择另需 `dialog:allow-open` |
 | Content-Type | 不适用 |
 
-三个科研对象固定为 `Project`、`Dataset` 与 `Artifact`。`TaskPlan`、`WorkflowRun`、`ToolRun`、`Message` 仅表示计划、执行和审计状态。
+科研事实链固定为 `Project → Dataset → DatasetVersion → ResearchSchema → Material/Trait/Environment → TaskPlanRun → Execution → Artifact → Lineage`。SQLite 中的 Rust 服务是唯一事实权威。
+
+## M2 稳定命令
+
+| 分组 | command | 关键请求与响应 |
+| --- | --- | --- |
+| Project | `list_projects`、`create_project`、`update_project`、`archive_project`、`get_project_overview` | 项目列表、状态与 Rust 计算的事实摘要 |
+| 语义导入 | `inspect_data_sources`、`confirm_data_import` | 检查返回 `importSessionId` 与身份建议；确认接收 `request.importSessionId/registrations[]` |
+| 语义查询 | `list_materials`、`get_material_context`、`list_traits`、`list_environments` | 只返回当前 Project 内实体；材料上下文包含关联 DatasetVersion |
+| 科研计划 | `submit_research_intent`、`start_task_plan_run` | 输入为 `EntityRef[]`；每次启动创建新的 TaskPlanRun 与 Execution |
+| 执行与血缘 | `get_execution_detail`、`get_lineage_subgraph` | 血缘方向为 `upstream/downstream/both`，深度自动限制为 1–5，默认 2 |
+
+`ensure_draft_project`、`register_datasets`、`submit_agent_intent`、`confirm_task_plan` 与 `get_artifact_detail` 在 M2 保留为兼容入口，内部仍落入同一 SQLite 权威层；M3 前不得删除。
 
 ## 请求
 
@@ -42,12 +54,12 @@
 | command | 响应 | 必定返回 | 说明 |
 | --- | --- | --- | --- |
 | `ensure_draft_project` | `Project` | 是 | `id/name/status/createdAt/updatedAt` |
-| `inspect_data_sources` | `ImportInspection` | 是 | `projectId/candidates[]`；不支持格式以 `supported=false` 返回，不伪装 Dataset |
+| `inspect_data_sources` | `ImportInspection` | 是 | `projectId/importSessionId/candidates[]`；不支持格式以 `supported=false` 返回，不伪装 Dataset |
 | `register_datasets` | `Dataset[]` | 是 | 每个 Dataset 包含 Schema、来源校验和、质量状态与版本 |
 | `submit_agent_intent` | `TaskPlan` | 是 | 状态初始为 `awaiting_confirmation`；包含 Trait、模型规格、步骤、风险与预期 Artifact |
 | `confirm_task_plan` | `WorkflowRun` | 是 | command 在工作流终态后返回；成功为 `succeeded`，失败通过结构化错误返回 |
 | `cancel_workflow` | `null` | 是 | 只表示取消标记已设置，不表示子进程已经退出 |
-| `get_workspace_snapshot` | `WorkspaceSnapshot` | 是 | `project/datasets/artifacts/taskPlans/workflowRuns/messages` |
+| `get_workspace_snapshot` | `WorkspaceSnapshot` | 是 | 兼容字段外增加 `overview/schemas/materials/traits/environments/taskPlanRuns/executions` |
 | `get_artifact_detail` | `ArtifactDetail` | 是 | `artifact/upstream/dataset/toolRuns` |
 
 `Dataset.source` 对前端仅暴露 `sourceId/name/format/checksum/size`，不暴露受管目录绝对路径。`Artifact.files[]` 包含 `name/contentType/size/checksum`；文件内容 V1 不通过 IPC 直接返回。
@@ -93,7 +105,8 @@
 - 幂等性：原始源文件按项目与 SHA-256 去重；重复确认已运行中的计划会被状态门拒绝。失败、取消或中断后的重试创建新的 WorkflowRun 并保留旧记录。
 - 超时与取消：Pi 计划器超时为 45 秒并退回确定性计划；Python 分析轮询取消标记，取消时终止子进程。V1 尚未为 Python 设置独立墙钟超时。
 - 并发、限流与重试：单次检查最多 100 个文件；SQLite 连接以互斥锁串行访问；调用方不得无限重试。
-- 重启：应用启动时把仍为 `running` 的 WorkflowRun 与 TaskPlan 标记为 `interrupted`；前端重新调用 `get_workspace_snapshot` 恢复状态，不依赖内存事件重放。
+- 重启：应用启动时把仍为 `running` 的 WorkflowRun、TaskPlanRun、Execution 与 TaskPlan 标记为 `interrupted`；前端重新调用 `get_workspace_snapshot` 恢复状态，不依赖内存事件重放。
+- 日志：stdout/stderr 在子进程运行期间持续排空，各最多保留 10 MiB；Execution 只保存文件描述、校验和与截断标记。
 - 输出验证：Rust 仅接受统计输出清单中的单层文件名，计算每个文件及组合 SHA-256 后登记 Artifact。
 
 三个事件均由 Rust 发送、主窗口订阅；事件用于提示刷新，不是持久化真相源。
@@ -159,3 +172,4 @@ const plan = await invoke("submit_agent_intent", {
 | 日期 | 版本 | 变更类型 | 内容 | 迁移说明 |
 | --- | --- | --- | --- | --- |
 | 2026-09-12 | 0.1.0 | 兼容 | 建立 V1 八个 command 与三个生命周期事件契约 | 无 |
+| 2026-09-12 | 0.2.0 | 兼容扩展 | 增加 M2 科研语义、导入确认、Execution、Lineage 与 Project API | V1 command 保留至 M3 |
