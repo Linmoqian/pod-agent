@@ -1,5 +1,6 @@
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, DatabaseName, OptionalExtension};
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::path::Path;
 
 use crate::domain::{
@@ -7,7 +8,7 @@ use crate::domain::{
 };
 use crate::error::{AppError, AppResult};
 
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 2;
 
 pub fn now() -> String {
     chrono::Utc::now().to_rfc3339()
@@ -28,6 +29,15 @@ pub fn open(path: &Path) -> AppResult<Connection> {
             "DB_VERSION_UNSUPPORTED",
             "数据库版本高于当前应用支持范围",
         ));
+    }
+    if current_version == 1 {
+        let backup_path = path.with_extension(format!(
+            "pre-v2-{}.db",
+            chrono::Utc::now().format("%Y%m%d%H%M%S")
+        ));
+        connection
+            .backup(DatabaseName::Main, &backup_path, None)
+            .map_err(|error| AppError::new("DB_BACKUP_FAILED", error.to_string()))?;
     }
     connection
         .execute_batch(
@@ -81,21 +91,271 @@ pub fn open(path: &Path) -> AppResult<Connection> {
                id TEXT PRIMARY KEY, project_id TEXT NOT NULL, task_plan_id TEXT,
                role TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL
              );
+             CREATE TABLE IF NOT EXISTS research_datasets (
+               id TEXT PRIMARY KEY, project_id TEXT NOT NULL, name TEXT NOT NULL,
+               dataset_type TEXT NOT NULL, current_version_id TEXT,
+               created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+               UNIQUE(project_id, name, dataset_type),
+               FOREIGN KEY(project_id) REFERENCES projects(id)
+             );
+             CREATE TABLE IF NOT EXISTS research_schemas (
+               id TEXT PRIMARY KEY, project_id TEXT NOT NULL, dataset_type TEXT NOT NULL,
+               version INTEGER NOT NULL, layout TEXT NOT NULL, fields_json TEXT NOT NULL,
+               roles_json TEXT NOT NULL, checksum TEXT NOT NULL, created_at TEXT NOT NULL,
+               UNIQUE(project_id, checksum), FOREIGN KEY(project_id) REFERENCES projects(id)
+             );
+             CREATE TABLE IF NOT EXISTS dataset_versions (
+               id TEXT PRIMARY KEY, dataset_id TEXT NOT NULL, project_id TEXT NOT NULL,
+               version INTEGER NOT NULL, source_file_id TEXT NOT NULL, schema_id TEXT NOT NULL,
+               canonical_path TEXT NOT NULL, canonical_checksum TEXT NOT NULL,
+               quality_status TEXT NOT NULL, supersedes_version_id TEXT,
+               metadata_json TEXT NOT NULL, created_at TEXT NOT NULL,
+               UNIQUE(dataset_id, version), FOREIGN KEY(dataset_id) REFERENCES research_datasets(id),
+               FOREIGN KEY(project_id) REFERENCES projects(id),
+               FOREIGN KEY(source_file_id) REFERENCES source_files(id),
+               FOREIGN KEY(schema_id) REFERENCES research_schemas(id)
+             );
+             CREATE TABLE IF NOT EXISTS materials (
+               id TEXT PRIMARY KEY, project_id TEXT NOT NULL, canonical_code TEXT NOT NULL,
+               exact_key TEXT NOT NULL, display_name TEXT NOT NULL, origin TEXT, generation TEXT,
+               metadata_json TEXT NOT NULL, created_at TEXT NOT NULL,
+               UNIQUE(project_id, exact_key), FOREIGN KEY(project_id) REFERENCES projects(id)
+             );
+             CREATE TABLE IF NOT EXISTS material_aliases (
+               id TEXT PRIMARY KEY, project_id TEXT NOT NULL, material_id TEXT NOT NULL,
+               alias TEXT NOT NULL, exact_key TEXT NOT NULL, decision_id TEXT,
+               created_at TEXT NOT NULL, UNIQUE(project_id, exact_key),
+               FOREIGN KEY(material_id) REFERENCES materials(id)
+             );
+             CREATE TABLE IF NOT EXISTS traits (
+               id TEXT PRIMARY KEY, project_id TEXT NOT NULL, canonical_code TEXT NOT NULL,
+               name TEXT NOT NULL, value_type TEXT NOT NULL, unit TEXT, method TEXT, scale TEXT,
+               ontology_ref TEXT, created_at TEXT NOT NULL,
+               UNIQUE(project_id, canonical_code, unit, method, scale),
+               FOREIGN KEY(project_id) REFERENCES projects(id)
+             );
+             CREATE TABLE IF NOT EXISTS environments (
+               id TEXT PRIMARY KEY, project_id TEXT NOT NULL, canonical_code TEXT NOT NULL,
+               name TEXT NOT NULL, location TEXT, year INTEGER, season TEXT,
+               treatment_json TEXT NOT NULL, metadata_json TEXT NOT NULL, created_at TEXT NOT NULL,
+               UNIQUE(project_id, canonical_code), FOREIGN KEY(project_id) REFERENCES projects(id)
+             );
+             CREATE TABLE IF NOT EXISTS dataset_materials (
+               dataset_version_id TEXT NOT NULL, material_id TEXT NOT NULL, source_label TEXT NOT NULL,
+               resolution TEXT NOT NULL, decision_id TEXT, PRIMARY KEY(dataset_version_id, material_id, source_label)
+             );
+             CREATE TABLE IF NOT EXISTS dataset_traits (
+               dataset_version_id TEXT NOT NULL, trait_id TEXT NOT NULL, source_label TEXT NOT NULL,
+               PRIMARY KEY(dataset_version_id, trait_id, source_label)
+             );
+             CREATE TABLE IF NOT EXISTS dataset_environments (
+               dataset_version_id TEXT NOT NULL, environment_id TEXT NOT NULL, source_label TEXT NOT NULL,
+               PRIMARY KEY(dataset_version_id, environment_id, source_label)
+             );
+             CREATE TABLE IF NOT EXISTS identity_decisions (
+               id TEXT PRIMARY KEY, project_id TEXT NOT NULL, entity_kind TEXT NOT NULL,
+               source_value TEXT NOT NULL, decision TEXT NOT NULL, target_id TEXT,
+               reason TEXT NOT NULL, actor TEXT NOT NULL, created_at TEXT NOT NULL
+             );
+             CREATE TABLE IF NOT EXISTS import_sessions (
+               id TEXT PRIMARY KEY, project_id TEXT NOT NULL, inspection_json TEXT NOT NULL,
+               status TEXT NOT NULL, created_at TEXT NOT NULL, completed_at TEXT
+             );
+             CREATE TABLE IF NOT EXISTS task_plan_runs (
+               id TEXT PRIMARY KEY, task_plan_id TEXT NOT NULL, project_id TEXT NOT NULL,
+               status TEXT NOT NULL, error_code TEXT, error_message TEXT,
+               started_at TEXT NOT NULL, finished_at TEXT
+             );
+             CREATE TABLE IF NOT EXISTS executions (
+               id TEXT PRIMARY KEY, task_plan_run_id TEXT NOT NULL, project_id TEXT NOT NULL,
+               step_id TEXT NOT NULL, tool_id TEXT NOT NULL, tool_version TEXT NOT NULL,
+               inputs_json TEXT NOT NULL, parameters_json TEXT NOT NULL, runtime_json TEXT NOT NULL,
+               status TEXT NOT NULL, fingerprint TEXT NOT NULL, exit_code INTEGER,
+               error_code TEXT, error_message TEXT, stdout_json TEXT, stderr_json TEXT,
+               logs_truncated INTEGER NOT NULL DEFAULT 0, started_at TEXT NOT NULL, finished_at TEXT
+             );
+             CREATE TABLE IF NOT EXISTS research_nodes (
+               id TEXT PRIMARY KEY, project_id TEXT NOT NULL, kind TEXT NOT NULL,
+               entity_id TEXT NOT NULL, label TEXT NOT NULL, metadata_json TEXT NOT NULL,
+               created_at TEXT NOT NULL, UNIQUE(project_id, kind, entity_id)
+             );
+             CREATE TABLE IF NOT EXISTS lineage_edges (
+               id TEXT PRIMARY KEY, project_id TEXT NOT NULL, upstream_node_id TEXT NOT NULL,
+               downstream_node_id TEXT NOT NULL, relation TEXT NOT NULL, created_at TEXT NOT NULL,
+               UNIQUE(project_id, upstream_node_id, downstream_node_id, relation),
+               FOREIGN KEY(upstream_node_id) REFERENCES research_nodes(id),
+               FOREIGN KEY(downstream_node_id) REFERENCES research_nodes(id)
+             );
              CREATE INDEX IF NOT EXISTS idx_datasets_project ON datasets(project_id, created_at);
              CREATE INDEX IF NOT EXISTS idx_artifacts_project ON artifacts(project_id, created_at);
              CREATE INDEX IF NOT EXISTS idx_plans_project ON task_plans(project_id, created_at);
-             CREATE INDEX IF NOT EXISTS idx_runs_project ON workflow_runs(project_id, started_at);",
+             CREATE INDEX IF NOT EXISTS idx_runs_project ON workflow_runs(project_id, started_at);
+             CREATE INDEX IF NOT EXISTS idx_materials_project ON materials(project_id, canonical_code);
+             CREATE INDEX IF NOT EXISTS idx_versions_project ON dataset_versions(project_id, created_at);
+             CREATE INDEX IF NOT EXISTS idx_executions_project ON executions(project_id, started_at);
+             CREATE INDEX IF NOT EXISTS idx_lineage_upstream ON lineage_edges(upstream_node_id);
+             CREATE INDEX IF NOT EXISTS idx_lineage_downstream ON lineage_edges(downstream_node_id);",
         )
         .map_err(|error| AppError::new("DB_MIGRATION_FAILED", error.to_string()))?;
+    if current_version < 2 {
+        migrate_v1(&connection)?;
+    }
     connection
         .pragma_update(None, "user_version", SCHEMA_VERSION)
         .map_err(|error| AppError::new("DB_MIGRATION_FAILED", error.to_string()))?;
     Ok(connection)
 }
 
+fn migrate_v1(connection: &Connection) -> AppResult<()> {
+    let transaction = connection
+        .unchecked_transaction()
+        .map_err(|error| AppError::new("DB_MIGRATION_FAILED", error.to_string()))?;
+    transaction.execute_batch(
+        "UPDATE projects SET status='active' WHERE status='draft';
+         INSERT OR IGNORE INTO task_plan_runs(id,task_plan_id,project_id,status,error_code,error_message,started_at,finished_at)
+           SELECT id,task_plan_id,project_id,CASE status WHEN 'succeeded' THEN 'completed' ELSE status END,error_code,error_message,started_at,finished_at FROM workflow_runs;
+         INSERT OR IGNORE INTO executions(id,task_plan_run_id,project_id,step_id,tool_id,tool_version,inputs_json,parameters_json,runtime_json,status,fingerprint,exit_code,error_code,error_message,started_at,finished_at)
+           SELECT tr.id,tr.workflow_run_id,wr.project_id,tr.tool_id,tr.tool_id,tr.tool_version,tr.input_json,'{}','{\"provenanceStatus\":\"legacy\"}',
+             CASE tr.status WHEN 'succeeded' THEN 'completed' ELSE tr.status END,lower(hex(tr.input_json || tr.tool_id || tr.tool_version)),NULL,NULL,NULL,tr.started_at,tr.finished_at
+           FROM tool_runs tr JOIN workflow_runs wr ON wr.id=tr.workflow_run_id;"
+    ).map_err(|error| AppError::new("DB_MIGRATION_FAILED", error.to_string()))?;
+    migrate_datasets_v1(&transaction)?;
+    migrate_lineage_v1(&transaction)?;
+    transaction
+        .commit()
+        .map_err(|error| AppError::new("DB_MIGRATION_FAILED", error.to_string()))?;
+    Ok(())
+}
+
+fn migrate_lineage_v1(connection: &Connection) -> AppResult<()> {
+    connection.execute_batch(
+        "INSERT OR IGNORE INTO research_nodes(id,project_id,kind,entity_id,label,metadata_json,created_at)
+           SELECT 'sourceFile:'||id,project_id,'sourceFile',id,original_name,json_object('checksum',sha256),created_at FROM source_files;
+         INSERT OR IGNORE INTO research_nodes(id,project_id,kind,entity_id,label,metadata_json,created_at)
+           SELECT 'datasetVersion:'||v.id,v.project_id,'datasetVersion',v.id,d.name||' v'||v.version,json_object('checksum',v.canonical_checksum),v.created_at FROM dataset_versions v JOIN research_datasets d ON d.id=v.dataset_id;
+         INSERT OR IGNORE INTO research_nodes(id,project_id,kind,entity_id,label,metadata_json,created_at)
+           SELECT 'execution:'||id,project_id,'execution',id,tool_id,json_object('toolVersion',tool_version,'partialProvenance',1),started_at FROM executions;
+         INSERT OR IGNORE INTO research_nodes(id,project_id,kind,entity_id,label,metadata_json,created_at)
+           SELECT 'artifact:'||id,project_id,'artifact',id,name,json_object('checksum',checksum),created_at FROM artifacts;
+         INSERT OR IGNORE INTO lineage_edges(id,project_id,upstream_node_id,downstream_node_id,relation,created_at)
+           SELECT lower(hex(randomblob(16))),v.project_id,'sourceFile:'||v.source_file_id,'datasetVersion:'||v.id,'input_to',v.created_at FROM dataset_versions v;
+         INSERT OR IGNORE INTO lineage_edges(id,project_id,upstream_node_id,downstream_node_id,relation,created_at)
+           SELECT lower(hex(randomblob(16))),a.project_id,'datasetVersion:'||a.dataset_id,'artifact:'||a.id,'legacy_input_to',a.created_at FROM artifacts a JOIN dataset_versions v ON v.id=a.dataset_id;
+         INSERT OR IGNORE INTO lineage_edges(id,project_id,upstream_node_id,downstream_node_id,relation,created_at)
+           SELECT lower(hex(randomblob(16))),a.project_id,'artifact:'||e.upstream_id,'artifact:'||e.artifact_id,'derived_to',a.created_at FROM artifact_edges e JOIN artifacts a ON a.id=e.artifact_id JOIN artifacts u ON u.id=e.upstream_id AND u.project_id=a.project_id;
+         INSERT OR IGNORE INTO lineage_edges(id,project_id,upstream_node_id,downstream_node_id,relation,created_at)
+           SELECT lower(hex(randomblob(16))),a.project_id,'execution:'||x.id,'artifact:'||a.id,'produced',a.created_at FROM artifacts a JOIN executions x ON x.task_plan_run_id=a.produced_by_run_id WHERE (SELECT count(*) FROM executions e WHERE e.task_plan_run_id=a.produced_by_run_id)=1;
+         UPDATE artifacts SET metadata_json=json_set(metadata_json,'$.partialProvenance',1)
+           WHERE produced_by_run_id IS NULL OR (SELECT count(*) FROM executions e WHERE e.task_plan_run_id=artifacts.produced_by_run_id)<>1;"
+    ).map_err(|error| AppError::new("DB_MIGRATION_FAILED", error.to_string()))?;
+    Ok(())
+}
+
+#[derive(Clone)]
+struct LegacyDataset {
+    id: String,
+    project_id: String,
+    name: String,
+    dataset_type: String,
+    version: i64,
+    schema: String,
+    source: Value,
+    metadata: String,
+    quality: String,
+    supersedes: Option<String>,
+    canonical_path: String,
+    created_at: String,
+}
+
+fn migrate_datasets_v1(connection: &Connection) -> AppResult<()> {
+    let mut statement = connection.prepare("SELECT id,project_id,name,dataset_type,version,schema_json,source_json,metadata_json,quality_status,supersedes_id,canonical_path,created_at FROM datasets ORDER BY created_at,id")
+        .map_err(|error| AppError::new("DB_MIGRATION_FAILED", error.to_string()))?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok(LegacyDataset {
+                id: row.get(0)?,
+                project_id: row.get(1)?,
+                name: row.get(2)?,
+                dataset_type: row.get(3)?,
+                version: row.get(4)?,
+                schema: row.get(5)?,
+                source: parse_json(row.get(6)?),
+                metadata: row.get(7)?,
+                quality: row.get(8)?,
+                supersedes: row.get(9)?,
+                canonical_path: row.get(10)?,
+                created_at: row.get(11)?,
+            })
+        })
+        .map_err(|error| AppError::new("DB_MIGRATION_FAILED", error.to_string()))?;
+    let datasets = rows
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| AppError::new("DB_MIGRATION_FAILED", error.to_string()))?;
+    let index = datasets
+        .iter()
+        .map(|item| (item.id.clone(), item.clone()))
+        .collect::<HashMap<_, _>>();
+    for item in &datasets {
+        let mut root = item;
+        while let Some(parent) = root.supersedes.as_ref().and_then(|id| index.get(id)) {
+            root = parent;
+        }
+        connection.execute("INSERT OR IGNORE INTO research_datasets(id,project_id,name,dataset_type,current_version_id,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?6)", params![root.id,item.project_id,item.name,item.dataset_type,item.id,item.created_at])
+            .map_err(|error| AppError::new("DB_MIGRATION_FAILED", error.to_string()))?;
+        connection.execute("UPDATE research_datasets SET current_version_id=?1,updated_at=?2 WHERE id=?3 AND COALESCE((SELECT version FROM dataset_versions WHERE id=current_version_id),-1)<?4", params![item.id,item.created_at,root.id,item.version])
+            .map_err(|error| AppError::new("DB_MIGRATION_FAILED", error.to_string()))?;
+        let mut hasher = sha2::Sha256::new();
+        use sha2::Digest;
+        hasher.update(item.schema.as_bytes());
+        let schema_checksum = hex::encode(hasher.finalize());
+        let schema_id = connection
+            .query_row(
+                "SELECT id FROM research_schemas WHERE project_id=?1 AND checksum=?2",
+                params![item.project_id, schema_checksum],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(|error| AppError::new("DB_MIGRATION_FAILED", error.to_string()))?
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        let schema_value = parse_json(item.schema.clone());
+        connection.execute("INSERT OR IGNORE INTO research_schemas(id,project_id,dataset_type,version,layout,fields_json,roles_json,checksum,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)", params![schema_id,item.project_id,item.dataset_type,item.version,schema_value["layout"].as_str().unwrap_or("long"),item.schema,schema_value["roles"].to_string(),schema_checksum,item.created_at])
+            .map_err(|error| AppError::new("DB_MIGRATION_FAILED", error.to_string()))?;
+        let source_id = item.source["sourceId"]
+            .as_str()
+            .map(str::to_owned)
+            .or_else(|| {
+                connection
+                    .query_row(
+                        "SELECT id FROM source_files WHERE project_id=?1 AND sha256=?2",
+                        params![
+                            item.project_id,
+                            item.source["checksum"].as_str().unwrap_or_default()
+                        ],
+                        |row| row.get(0),
+                    )
+                    .optional()
+                    .ok()
+                    .flatten()
+            });
+        if let Some(source_id) = source_id {
+            connection.execute("INSERT OR IGNORE INTO dataset_versions(id,dataset_id,project_id,version,source_file_id,schema_id,canonical_path,canonical_checksum,quality_status,supersedes_version_id,metadata_json,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)", params![item.id,root.id,item.project_id,item.version,source_id,schema_id,item.canonical_path,item.source["checksum"].as_str().unwrap_or("legacy-unknown"),item.quality,item.supersedes,item.metadata,item.created_at])
+                .map_err(|error| AppError::new("DB_MIGRATION_FAILED", error.to_string()))?;
+        }
+    }
+    Ok(())
+}
+
 pub fn recover_interrupted_runs(connection: &Connection) -> AppResult<()> {
     connection.execute(
         "UPDATE workflow_runs SET status='interrupted',error_code='PROCESS_INTERRUPTED',error_message='应用退出时任务仍在运行',finished_at=?1 WHERE status='running'",
+        [now()],
+    ).map_err(|error| AppError::new("DB_RECOVERY_FAILED", error.to_string()))?;
+    connection.execute(
+        "UPDATE task_plan_runs SET status='interrupted',error_code='PROCESS_INTERRUPTED',error_message='应用退出时任务仍在运行',finished_at=?1 WHERE status='running'",
+        [now()],
+    ).map_err(|error| AppError::new("DB_RECOVERY_FAILED", error.to_string()))?;
+    connection.execute(
+        "UPDATE executions SET status='interrupted',error_code='PROCESS_INTERRUPTED',error_message='应用退出时工具仍在运行',finished_at=?1 WHERE status='running'",
         [now()],
     ).map_err(|error| AppError::new("DB_RECOVERY_FAILED", error.to_string()))?;
     connection.execute(
@@ -115,7 +375,7 @@ pub fn ensure_draft_project(
 ) -> AppResult<Project> {
     if let Some(mut project) = connection
         .query_row(
-            "SELECT id,name,status,created_at,updated_at FROM projects WHERE status='draft' ORDER BY created_at DESC LIMIT 1",
+            "SELECT id,name,status,created_at,updated_at FROM projects WHERE status IN ('active','draft') ORDER BY updated_at DESC LIMIT 1",
             [],
             |row| Ok(Project { id: row.get(0)?, name: row.get(1)?, status: row.get(2)?, created_at: row.get(3)?, updated_at: row.get(4)? }),
         )
@@ -142,7 +402,7 @@ pub fn ensure_draft_project(
             .unwrap_or("未命名育种项目")
             .trim()
             .to_string(),
-        status: "draft".into(),
+        status: "active".into(),
         created_at: timestamp.clone(),
         updated_at: timestamp,
     };
@@ -295,6 +555,41 @@ pub fn insert_artifact(
             )
             .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
     }
+    let artifact_node = crate::services::research::add_node(
+        connection,
+        &artifact.project_id,
+        "artifact",
+        &artifact.id,
+        &artifact.name,
+        json!({"artifactType":artifact.artifact_type,"checksum":artifact.checksum}),
+    )?;
+    if let Some(run_id) = &artifact.produced_by_run_id {
+        let execution_id: Option<String> = connection
+            .query_row(
+                "SELECT id FROM executions WHERE task_plan_run_id=?1 ORDER BY started_at LIMIT 1",
+                [run_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        if let Some(execution_id) = execution_id {
+            let execution_node = crate::services::research::add_node(
+                connection,
+                &artifact.project_id,
+                "execution",
+                &execution_id,
+                "工具执行",
+                json!({}),
+            )?;
+            crate::services::research::add_edge(
+                connection,
+                &artifact.project_id,
+                &execution_node,
+                &artifact_node,
+                "produced",
+            )?;
+        }
+    }
     Ok(())
 }
 
@@ -396,6 +691,8 @@ pub fn update_plan_status(connection: &Connection, plan_id: &str, status: &str) 
 pub fn insert_run(connection: &Connection, run: &WorkflowRun) -> AppResult<()> {
     connection.execute("INSERT INTO workflow_runs(id,task_plan_id,project_id,status,error_code,error_message,started_at,finished_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)", params![run.id,run.task_plan_id,run.project_id,run.status,run.error_code,run.error_message,run.started_at,run.finished_at])
         .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    connection.execute("INSERT INTO task_plan_runs(id,task_plan_id,project_id,status,started_at,finished_at) VALUES(?1,?2,?3,?4,?5,?6)", params![run.id,run.task_plan_id,run.project_id,run.status,run.started_at,run.finished_at])
+        .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
     Ok(())
 }
 
@@ -406,6 +703,13 @@ pub fn update_run(
     error: Option<&AppError>,
 ) -> AppResult<()> {
     connection.execute("UPDATE workflow_runs SET status=?1,error_code=?2,error_message=?3,finished_at=?4 WHERE id=?5", params![status,error.map(|item| item.code.as_str()),error.map(|item| item.message.as_str()),now(),run_id])
+        .map_err(|item| AppError::new("DB_WRITE_FAILED", item.to_string()))?;
+    let m2_status = if status == "succeeded" {
+        "completed"
+    } else {
+        status
+    };
+    connection.execute("UPDATE task_plan_runs SET status=?1,error_code=?2,error_message=?3,finished_at=?4 WHERE id=?5", params![m2_status,error.map(|item| item.code.as_str()),error.map(|item| item.message.as_str()),now(),run_id])
         .map_err(|item| AppError::new("DB_WRITE_FAILED", item.to_string()))?;
     Ok(())
 }
@@ -440,6 +744,59 @@ pub fn start_tool_run(
     let id = uuid::Uuid::new_v4().to_string();
     connection.execute("INSERT INTO tool_runs(id,workflow_run_id,tool_id,tool_version,input_json,status,log_text,started_at) VALUES(?1,?2,?3,?4,?5,'running','',?6)", params![id,run_id,tool_id,tool_version,input.to_string(),now()])
         .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    let project_id: String = connection
+        .query_row(
+            "SELECT project_id FROM task_plan_runs WHERE id=?1",
+            [run_id],
+            |row| row.get(0),
+        )
+        .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+    let fingerprint = {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(tool_id.as_bytes());
+        hasher.update(tool_version.as_bytes());
+        hasher.update(input.to_string().as_bytes());
+        if let Some(dataset_id) = input["datasetId"].as_str() {
+            if let Ok((checksum, schema_id)) = connection.query_row(
+                "SELECT canonical_checksum,schema_id FROM dataset_versions WHERE id=?1",
+                [dataset_id],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            ) {
+                hasher.update(checksum.as_bytes());
+                hasher.update(schema_id.as_bytes());
+            }
+        }
+        hex::encode(hasher.finalize())
+    };
+    let parameters = input.get("modelSpec").cloned().unwrap_or_else(|| json!({}));
+    connection.execute("INSERT INTO executions(id,task_plan_run_id,project_id,step_id,tool_id,tool_version,inputs_json,parameters_json,runtime_json,status,fingerprint,started_at) VALUES(?1,?2,?3,?4,?4,?5,?6,?7,?8,'running',?9,?10)", params![id,run_id,project_id,tool_id,tool_version,input.to_string(),parameters.to_string(),json!({"runtime":"python","status":"captured_by_m2"}).to_string(),fingerprint,now()])
+        .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    let execution_node = crate::services::research::add_node(
+        connection,
+        &project_id,
+        "execution",
+        &id,
+        tool_id,
+        json!({"toolVersion":tool_version,"fingerprint":fingerprint}),
+    )?;
+    if let Some(dataset_id) = input["datasetId"].as_str() {
+        let dataset_node = crate::services::research::add_node(
+            connection,
+            &project_id,
+            "datasetVersion",
+            dataset_id,
+            "Dataset 输入",
+            json!({}),
+        )?;
+        crate::services::research::add_edge(
+            connection,
+            &project_id,
+            &dataset_node,
+            &execution_node,
+            "input_to",
+        )?;
+    }
     Ok(id)
 }
 
@@ -481,6 +838,34 @@ pub fn finish_tool_run(
         .execute(
             "UPDATE tool_runs SET status=?1,output_json=?2,log_text=?3,finished_at=?4 WHERE id=?5",
             params![status, output.to_string(), log, now(), id],
+        )
+        .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    let m2_status = if status == "succeeded" {
+        "completed"
+    } else {
+        status
+    };
+    connection.execute("UPDATE executions SET status=?1,runtime_json=json_set(runtime_json,'$.output',json(?2)),error_code=?3,error_message=?4,exit_code=?5,finished_at=?6 WHERE id=?7", params![m2_status,output.to_string(),if status=="failed"{output["errorCode"].as_str()}else{None},if status=="failed"{Some(log)}else{None},if status=="succeeded"{Some(0)}else{Some(1)},now(),id])
+        .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    Ok(())
+}
+
+pub fn attach_execution_logs(
+    connection: &Connection,
+    execution_id: &str,
+    stdout: &ArtifactFile,
+    stderr: &ArtifactFile,
+    truncated: bool,
+) -> AppResult<()> {
+    connection
+        .execute(
+            "UPDATE executions SET stdout_json=?1,stderr_json=?2,logs_truncated=?3 WHERE id=?4",
+            params![
+                serde_json::to_string(stdout).unwrap_or_default(),
+                serde_json::to_string(stderr).unwrap_or_default(),
+                truncated as i64,
+                execution_id
+            ],
         )
         .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
     Ok(())
@@ -644,6 +1029,48 @@ mod tests {
             assert_eq!(source_dataset_id.as_deref(), Some(dataset_id.as_str()));
             assert_eq!(project(&connection, &project_id).unwrap().name, "血缘测试");
         }
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn v1_ids_status_and_backup_survive_v2_migration() {
+        let root = test_root();
+        let path = root.join("lian.db");
+        {
+            let connection = open(&path).unwrap();
+            let project = ensure_draft_project(&connection, Some("迁移测试")).unwrap();
+            connection.execute("INSERT INTO source_files(id,project_id,original_name,managed_path,format,sha256,size,created_at) VALUES('source-v1',?1,'old.csv','/old.csv','csv','source-checksum',1,?2)", params![project.id,now()]).unwrap();
+            connection.execute("INSERT INTO datasets(id,project_id,name,dataset_type,version,schema_json,source_json,metadata_json,quality_status,canonical_path,created_at) VALUES('dataset-v1',?1,'旧表型','phenotype',1,'{\"layout\":\"long\",\"roles\":{}}','{\"sourceId\":\"source-v1\",\"checksum\":\"source-checksum\"}','{}','pass','/old.csv',?2)", params![project.id,now()]).unwrap();
+            connection.execute("INSERT INTO workflow_runs(id,task_plan_id,project_id,status,started_at) VALUES('run-v1','plan-v1',?1,'succeeded',?2)", params![project.id,now()]).unwrap();
+            connection.execute("INSERT INTO tool_runs(id,workflow_run_id,tool_id,tool_version,input_json,status,log_text,started_at) VALUES('tool-v1','run-v1','legacy.tool','1','{}','succeeded','ok',?1)", [now()]).unwrap();
+            connection.pragma_update(None, "user_version", 1).unwrap();
+        }
+        let connection = open(&path).unwrap();
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT status FROM executions WHERE id='tool-v1'",
+                    [],
+                    |row| row.get::<_, String>(0)
+                )
+                .unwrap(),
+            "completed"
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT dataset_id FROM dataset_versions WHERE id='dataset-v1'",
+                    [],
+                    |row| row.get::<_, String>(0)
+                )
+                .unwrap(),
+            "dataset-v1"
+        );
+        assert!(std::fs::read_dir(&root)
+            .unwrap()
+            .filter_map(Result::ok)
+            .any(|entry| entry.file_name().to_string_lossy().contains("pre-v2")));
+        drop(connection);
         std::fs::remove_dir_all(root).unwrap();
     }
 }

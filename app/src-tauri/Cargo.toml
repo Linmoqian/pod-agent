@@ -25,9 +25,10 @@ serde_json = "1"
 chrono = { version = "0.4", features = ["serde"] }
 csv = "1"
 hex = "0.4"
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.32", features = ["backup", "bundled"] }
 sha2 = "0.10"
 uuid = { version = "1", features = ["v4", "serde"] }
+unicode-normalization = "0.1"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

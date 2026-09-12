@@ -1,5 +1,6 @@
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::io::Read;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -7,7 +8,9 @@ use std::sync::Arc;
 use std::time::Duration;
 use tauri::{Emitter, State};
 
-use crate::domain::{Artifact, ArtifactFile, LifecycleEvent, PlanStep, TaskPlan, WorkflowRun};
+use crate::domain::{
+    Artifact, ArtifactFile, EntityRef, LifecycleEvent, PlanStep, TaskPlan, WorkflowRun,
+};
 use crate::error::{AppError, AppResult};
 use crate::services::{db, planner, storage, tools, worker};
 use crate::state::AppState;
@@ -112,10 +115,16 @@ pub async fn submit_agent_intent(
     let plan = TaskPlan {
         id: uuid::Uuid::new_v4().to_string(),
         project_id,
-        dataset_id: dataset.id,
+        dataset_id: dataset.id.clone(),
         title,
+        goal: intent.clone(),
         intent,
-        trait_id,
+        inputs: vec![EntityRef {
+            kind: "datasetVersion".into(),
+            id: dataset.id.clone(),
+        }],
+        risks: vec!["模型设定属于科研判断；M2 不自动剔除异常值".into()],
+        trait_id: trait_id.clone(),
         planner: planner_info,
         model_spec: json!({
             "method":"REML",
@@ -137,6 +146,9 @@ pub async fn submit_agent_intent(
                 title: "核对数据质量".into(),
                 status: "ready".into(),
                 risk_level: "read_only".into(),
+                depends_on: vec![],
+                parameters: json!({}),
+                expected_artifacts: vec!["quality.report".into()],
             },
             PlanStep {
                 id: "model".into(),
@@ -144,6 +156,13 @@ pub async fn submit_agent_intent(
                 title: "拟合混合模型与 BLUP".into(),
                 status: "waiting".into(),
                 risk_level: "scientific_judgment".into(),
+                depends_on: vec!["quality".into()],
+                parameters: json!({"traitId": trait_id}),
+                expected_artifacts: vec![
+                    "model.fit".into(),
+                    "breeding.blup".into(),
+                    "breeding.gxe".into(),
+                ],
             },
             PlanStep {
                 id: "report".into(),
@@ -151,6 +170,9 @@ pub async fn submit_agent_intent(
                 title: "生成可追溯报告".into(),
                 status: "waiting".into(),
                 risk_level: "read_only".into(),
+                depends_on: vec!["model".into()],
+                parameters: json!({}),
+                expected_artifacts: vec!["report.analysis".into()],
             },
         ],
         created_at: db::now(),
@@ -182,6 +204,45 @@ pub async fn submit_agent_intent(
         json!({"status":plan.status}),
     );
     Ok(plan)
+}
+
+#[tauri::command]
+pub async fn submit_research_intent(
+    project_id: String,
+    intent: Option<String>,
+    inputs: Vec<EntityRef>,
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> AppResult<TaskPlan> {
+    let dataset_ids = {
+        let connection = state
+            .connection
+            .lock()
+            .map_err(|_| AppError::retryable("DB_BUSY", "数据库暂时不可用"))?;
+        let mut values = Vec::new();
+        for input in inputs {
+            match input.kind.as_str() {
+                "dataset" => values.push(input.id),
+                "datasetVersion" => values.push(
+                    connection
+                        .query_row(
+                            "SELECT dataset_id FROM dataset_versions WHERE id=?1 AND project_id=?2",
+                            rusqlite::params![input.id, project_id],
+                            |row| row.get(0),
+                        )
+                        .map_err(|_| {
+                            AppError::new(
+                                "DATASET_VERSION_NOT_FOUND",
+                                "DatasetVersion 不存在或不属于当前项目",
+                            )
+                        })?,
+                ),
+                _ => {}
+            }
+        }
+        values
+    };
+    submit_agent_intent(project_id, intent, dataset_ids, app, state).await
 }
 
 fn artifact_files(directory: &Path, names: &[String]) -> AppResult<Vec<ArtifactFile>> {
@@ -217,7 +278,31 @@ fn combined_checksum(files: &[ArtifactFile]) -> String {
     hex::encode(hasher.finalize())
 }
 
-fn run_python(config_path: &Path, cancelled: Arc<AtomicBool>) -> AppResult<Value> {
+const MAX_LOG_BYTES: usize = 10 * 1024 * 1024;
+
+struct WorkerCapture {
+    result: AppResult<Value>,
+    stdout: Vec<u8>,
+    stderr: Vec<u8>,
+    truncated: bool,
+}
+
+fn drain_stream(mut stream: impl Read) -> (Vec<u8>, bool) {
+    let mut kept = Vec::new();
+    let mut buffer = [0_u8; 8192];
+    let mut truncated = false;
+    while let Ok(count) = stream.read(&mut buffer) {
+        if count == 0 {
+            break;
+        }
+        let remaining = MAX_LOG_BYTES.saturating_sub(kept.len());
+        kept.extend_from_slice(&buffer[..count.min(remaining)]);
+        truncated |= count > remaining;
+    }
+    (kept, truncated)
+}
+
+fn run_python(config_path: &Path, cancelled: Arc<AtomicBool>) -> AppResult<WorkerCapture> {
     let script = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("..")
         .join("python")
@@ -231,11 +316,16 @@ fn run_python(config_path: &Path, cancelled: Arc<AtomicBool>) -> AppResult<Value
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|error| AppError::new("PYTHON_RUNTIME_UNAVAILABLE", error.to_string()))?;
+    let stdout_pipe = child.stdout.take().expect("stdout pipe");
+    let stderr_pipe = child.stderr.take().expect("stderr pipe");
+    let stdout_handle = std::thread::spawn(move || drain_stream(stdout_pipe));
+    let stderr_handle = std::thread::spawn(move || drain_stream(stderr_pipe));
+    let mut cancelled_by_user = false;
     loop {
         if cancelled.load(Ordering::Relaxed) {
             let _ = child.kill();
-            let _ = child.wait();
-            return Err(AppError::new("WORKFLOW_CANCELLED", "任务已取消"));
+            cancelled_by_user = true;
+            break;
         }
         if child
             .try_wait()
@@ -246,22 +336,38 @@ fn run_python(config_path: &Path, cancelled: Arc<AtomicBool>) -> AppResult<Value
         }
         std::thread::sleep(Duration::from_millis(100));
     }
-    let output = child
-        .wait_with_output()
+    let status = child
+        .wait()
         .map_err(|error| AppError::new("WORKER_FAILED", error.to_string()))?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let (stdout_bytes, stdout_truncated) = stdout_handle.join().unwrap_or_default();
+    let (stderr_bytes, stderr_truncated) = stderr_handle.join().unwrap_or_default();
+    let stdout = String::from_utf8_lossy(&stdout_bytes);
     let payload: Value = stdout
         .lines()
         .rev()
         .find_map(|line| serde_json::from_str(line).ok())
-        .ok_or_else(|| AppError::new("WORKER_PROTOCOL_ERROR", "统计进程未返回有效 JSON"))?;
-    if !output.status.success() || payload["ok"] != Value::Bool(true) {
-        return Err(AppError::new(
+        .unwrap_or(Value::Null);
+    let result = if cancelled_by_user {
+        Err(AppError::new("WORKFLOW_CANCELLED", "任务已取消"))
+    } else if payload.is_null() {
+        Err(AppError::new(
+            "WORKER_PROTOCOL_ERROR",
+            "统计进程未返回有效 JSON",
+        ))
+    } else if !status.success() || payload["ok"] != Value::Bool(true) {
+        Err(AppError::new(
             "ANALYSIS_NOT_IDENTIFIABLE",
             payload["error"].as_str().unwrap_or("统计分析失败"),
-        ));
-    }
-    Ok(payload["result"].clone())
+        ))
+    } else {
+        Ok(payload["result"].clone())
+    };
+    Ok(WorkerCapture {
+        result,
+        stdout: stdout_bytes,
+        stderr: stderr_bytes,
+        truncated: stdout_truncated || stderr_truncated,
+    })
 }
 
 fn execute_workflow(
@@ -294,7 +400,18 @@ fn execute_workflow(
         tool.version,
         json!({"datasetId":plan.dataset_id,"traitId":plan.trait_id,"modelSpec":plan.model_spec}),
     )?;
-    let result = match run_python(&config_path, cancelled) {
+    let capture = run_python(&config_path, cancelled)?;
+    let run_dir = project_dir.join("runs").join(&run.id);
+    let stdout_file = storage::write_managed_log(&run_dir, "stdout.log", &capture.stdout)?;
+    let stderr_file = storage::write_managed_log(&run_dir, "stderr.log", &capture.stderr)?;
+    db::attach_execution_logs(
+        &connection,
+        &tool_run,
+        &stdout_file,
+        &stderr_file,
+        capture.truncated,
+    )?;
+    let result = match capture.result {
         Ok(value) => {
             db::finish_tool_run(
                 &connection,
@@ -421,17 +538,21 @@ pub async fn confirm_task_plan(
                 "数据质量检查未通过；请先处理主键、标识或单位冲突",
             ));
         }
-        if ![
-            "awaiting_confirmation",
-            "failed",
-            "cancelled",
-            "interrupted",
-        ]
-        .contains(&plan.status.as_str())
-        {
+        if !["awaiting_confirmation", "confirmed"].contains(&plan.status.as_str()) {
             return Err(AppError::new(
                 "TASK_PLAN_STATE_INVALID",
                 "任务计划当前不可启动",
+            ));
+        }
+        let already_running: bool = connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM task_plan_runs WHERE task_plan_id=?1 AND status='running')",
+            [&plan.id],
+            |row| row.get(0),
+        ).map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        if already_running {
+            return Err(AppError::new(
+                "TASK_PLAN_ALREADY_RUNNING",
+                "该科研计划已有运行中的实例",
             ));
         }
         let run = WorkflowRun {
@@ -445,7 +566,9 @@ pub async fn confirm_task_plan(
             finished_at: None,
         };
         db::insert_run(&connection, &run)?;
-        db::update_plan_status(&connection, &plan.id, "running")?;
+        if plan.status == "awaiting_confirmation" {
+            db::update_plan_status(&connection, &plan.id, "confirmed")?;
+        }
         let cancelled = Arc::new(AtomicBool::new(false));
         state
             .cancellations
@@ -482,7 +605,6 @@ pub async fn confirm_task_plan(
     match result {
         Ok(artifacts) => {
             db::update_run(&connection, &final_run.id, "succeeded", None)?;
-            db::update_plan_status(&connection, &plan.id, "succeeded")?;
             final_run.status = "succeeded".into();
             final_run.finished_at = Some(db::now());
             emit(
@@ -501,7 +623,6 @@ pub async fn confirm_task_plan(
                 "failed"
             };
             db::update_run(&connection, &final_run.id, status, Some(&error))?;
-            db::update_plan_status(&connection, &plan.id, status)?;
             emit(
                 &app,
                 &plan,
@@ -515,6 +636,15 @@ pub async fn confirm_task_plan(
 }
 
 #[tauri::command]
+pub async fn start_task_plan_run(
+    plan_id: String,
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> AppResult<WorkflowRun> {
+    confirm_task_plan(plan_id, app, state).await
+}
+
+#[tauri::command]
 pub fn cancel_workflow(run_id: String, state: State<'_, AppState>) -> AppResult<()> {
     let values = state
         .cancellations
@@ -524,5 +654,16 @@ pub fn cancel_workflow(run_id: String, state: State<'_, AppState>) -> AppResult<
         .get(&run_id)
         .ok_or_else(|| AppError::new("WORKFLOW_NOT_RUNNING", "任务未运行或已经结束"))?;
     flag.store(true, Ordering::Relaxed);
+    drop(values);
+    let connection = state
+        .connection
+        .lock()
+        .map_err(|_| AppError::retryable("DB_BUSY", "数据库暂时不可用"))?;
+    connection
+        .execute(
+            "UPDATE executions SET runtime_json=json_set(runtime_json,'$.cancelRequestedAt',?1) WHERE task_plan_run_id=?2 AND status='running'",
+            rusqlite::params![db::now(), run_id],
+        )
+        .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
     Ok(())
 }

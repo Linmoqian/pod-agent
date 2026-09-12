@@ -27,13 +27,27 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::project::ensure_draft_project,
+            commands::project::list_projects,
+            commands::project::create_project,
+            commands::project::update_project,
+            commands::project::archive_project,
+            commands::project::get_project_overview,
             commands::import::inspect_data_sources,
             commands::import::register_datasets,
+            commands::import::confirm_data_import,
             commands::workflow::submit_agent_intent,
+            commands::workflow::submit_research_intent,
             commands::workflow::confirm_task_plan,
+            commands::workflow::start_task_plan_run,
             commands::workflow::cancel_workflow,
             commands::project::get_workspace_snapshot,
-            commands::artifacts::get_artifact_detail
+            commands::artifacts::get_artifact_detail,
+            commands::research::list_materials,
+            commands::research::get_material_context,
+            commands::research::list_traits,
+            commands::research::list_environments,
+            commands::research::get_execution_detail,
+            commands::research::get_lineage_subgraph
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

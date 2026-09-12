@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
+use crate::domain::ArtifactFile;
 use crate::error::{AppError, AppResult};
 
 pub fn ensure_project_dirs(root: &Path, project_id: &str) -> AppResult<PathBuf> {
@@ -40,6 +41,20 @@ pub fn sha256_file(path: &Path) -> AppResult<String> {
         hasher.update(&buffer[..count]);
     }
     Ok(hex::encode(hasher.finalize()))
+}
+
+pub fn write_managed_log(directory: &Path, name: &str, bytes: &[u8]) -> AppResult<ArtifactFile> {
+    let path = managed_child_path(directory, name)?;
+    std::fs::create_dir_all(directory)
+        .map_err(|error| AppError::new("STORAGE_CREATE_FAILED", error.to_string()))?;
+    std::fs::write(&path, bytes)
+        .map_err(|error| AppError::new("STORAGE_WRITE_FAILED", error.to_string()))?;
+    Ok(ArtifactFile {
+        name: name.into(),
+        content_type: "text/plain".into(),
+        size: bytes.len() as u64,
+        checksum: sha256_file(&path)?,
+    })
 }
 
 pub fn copy_immutable(source: &Path, destination: &Path) -> AppResult<()> {
