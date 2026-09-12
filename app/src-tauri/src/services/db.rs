@@ -2,7 +2,9 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
 use std::path::Path;
 
-use crate::domain::{Artifact, ArtifactFile, Dataset, Project, TaskPlan, ToolRun, WorkflowRun};
+use crate::domain::{
+    Artifact, ArtifactFile, Dataset, Message, Project, TaskPlan, ToolRun, WorkflowRun,
+};
 use crate::error::{AppError, AppResult};
 
 pub fn now() -> String {
@@ -75,6 +77,18 @@ pub fn open(path: &Path) -> AppResult<Connection> {
         )
         .map_err(|error| AppError::new("DB_MIGRATION_FAILED", error.to_string()))?;
     Ok(connection)
+}
+
+pub fn recover_interrupted_runs(connection: &Connection) -> AppResult<()> {
+    connection.execute(
+        "UPDATE workflow_runs SET status='interrupted',error_code='PROCESS_INTERRUPTED',error_message='应用退出时任务仍在运行',finished_at=?1 WHERE status='running'",
+        [now()],
+    ).map_err(|error| AppError::new("DB_RECOVERY_FAILED", error.to_string()))?;
+    connection.execute(
+        "UPDATE task_plans SET status='interrupted',plan_json=json_set(plan_json,'$.status','interrupted') WHERE status='running'",
+        [],
+    ).map_err(|error| AppError::new("DB_RECOVERY_FAILED", error.to_string()))?;
+    Ok(())
 }
 
 fn parse_json(value: String) -> Value {
@@ -448,6 +462,40 @@ pub fn finish_tool_run(
     Ok(())
 }
 
+pub fn insert_message(
+    connection: &Connection,
+    project_id: &str,
+    task_plan_id: Option<&str>,
+    role: &str,
+    content: &str,
+) -> AppResult<()> {
+    connection.execute(
+        "INSERT INTO messages(id,project_id,task_plan_id,role,content,created_at) VALUES(?1,?2,?3,?4,?5,?6)",
+        params![uuid::Uuid::new_v4().to_string(),project_id,task_plan_id,role,content,now()],
+    ).map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    Ok(())
+}
+
+pub fn messages(connection: &Connection, project_id: &str) -> AppResult<Vec<Message>> {
+    let mut statement = connection.prepare(
+        "SELECT id,project_id,task_plan_id,role,content,created_at FROM messages WHERE project_id=?1 ORDER BY created_at"
+    ).map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+    let rows = statement
+        .query_map([project_id], |row| {
+            Ok(Message {
+                id: row.get(0)?,
+                project_id: row.get(1)?,
+                task_plan_id: row.get(2)?,
+                role: row.get(3)?,
+                content: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        })
+        .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))
+}
+
 pub fn source_json(source: &SourceRecord) -> Value {
     json!({"sourceId":source.id,"name":source.original_name,"format":source.format,"checksum":source.sha256,"size":source.size})
 }
@@ -469,6 +517,27 @@ mod tests {
             ensure_draft_project(&connection, None).unwrap().name,
             "测试项目"
         );
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn running_workflow_is_marked_interrupted_on_startup_recovery() {
+        let path = std::env::temp_dir().join(format!("lian-{}.db", uuid::Uuid::new_v4()));
+        let connection = open(&path).unwrap();
+        let project = ensure_draft_project(&connection, Some("恢复测试")).unwrap();
+        connection.execute(
+            "INSERT INTO workflow_runs(id,task_plan_id,project_id,status,started_at) VALUES('run','plan',?1,'running',?2)",
+            params![project.id, now()],
+        ).unwrap();
+        recover_interrupted_runs(&connection).unwrap();
+        let status: String = connection
+            .query_row(
+                "SELECT status FROM workflow_runs WHERE id='run'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(status, "interrupted");
         let _ = std::fs::remove_file(path);
     }
 }

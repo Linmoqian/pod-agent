@@ -9,7 +9,7 @@ use tauri::{Emitter, State};
 
 use crate::domain::{Artifact, ArtifactFile, LifecycleEvent, PlanStep, TaskPlan, WorkflowRun};
 use crate::error::{AppError, AppResult};
-use crate::services::{db, storage, tools, worker};
+use crate::services::{db, planner, storage, tools, worker};
 use crate::state::AppState;
 
 fn emit(
@@ -54,22 +54,24 @@ fn choose_trait(schema: &Value, intent: &str) -> AppResult<String> {
 }
 
 #[tauri::command]
-pub fn submit_agent_intent(
+pub async fn submit_agent_intent(
     project_id: String,
     intent: Option<String>,
     dataset_ids: Vec<String>,
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> AppResult<TaskPlan> {
-    let connection = state
-        .connection
-        .lock()
-        .map_err(|_| AppError::retryable("DB_BUSY", "数据库暂时不可用"))?;
-    db::project(&connection, &project_id)?;
-    let dataset_id = dataset_ids
-        .first()
-        .ok_or_else(|| AppError::new("DATASET_REQUIRED", "请先导入一个表型 Dataset"))?;
-    let (dataset, _) = db::dataset(&connection, dataset_id)?;
+    let dataset = {
+        let connection = state
+            .connection
+            .lock()
+            .map_err(|_| AppError::retryable("DB_BUSY", "数据库暂时不可用"))?;
+        db::project(&connection, &project_id)?;
+        let dataset_id = dataset_ids
+            .first()
+            .ok_or_else(|| AppError::new("DATASET_REQUIRED", "请先导入一个表型 Dataset"))?;
+        db::dataset(&connection, dataset_id)?.0
+    };
     if dataset.project_id != project_id {
         return Err(AppError::new(
             "DATASET_PROJECT_MISMATCH",
@@ -79,14 +81,42 @@ pub fn submit_agent_intent(
     let intent = intent
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| "分析这批多环境表型数据".into());
-    let trait_id = choose_trait(&dataset.schema, &intent)?;
+    let fallback_trait = choose_trait(&dataset.schema, &intent)?;
+    let app_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    let intent_for_agent = intent.clone();
+    let dataset_for_agent = dataset.clone();
+    let proposal = tauri::async_runtime::spawn_blocking(move || {
+        planner::propose(&app_dir, &intent_for_agent, &dataset_for_agent)
+    })
+    .await
+    .ok()
+    .and_then(Result::ok);
+    let valid_traits: Vec<&str> = dataset.schema["traits"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|item| item["id"].as_str())
+        .collect();
+    let (title, trait_id, planner_info) = match proposal {
+        Some((proposal, model)) if valid_traits.contains(&proposal.trait_id.as_str()) => (
+            proposal.title,
+            proposal.trait_id,
+            json!({"mode":"model","model":model,"summary":proposal.summary}),
+        ),
+        _ => (
+            format!("{fallback_trait} 多环境表型分析"),
+            fallback_trait,
+            json!({"mode":"deterministic_fallback","model":null}),
+        ),
+    };
     let plan = TaskPlan {
         id: uuid::Uuid::new_v4().to_string(),
         project_id,
         dataset_id: dataset.id,
-        title: format!("{trait_id} 多环境表型分析"),
+        title,
         intent,
         trait_id,
+        planner: planner_info,
         model_spec: json!({
             "method":"REML",
             "fixedEffects":["environment_id"],
@@ -125,7 +155,25 @@ pub fn submit_agent_intent(
         ],
         created_at: db::now(),
     };
+    let connection = state
+        .connection
+        .lock()
+        .map_err(|_| AppError::retryable("DB_BUSY", "数据库暂时不可用"))?;
     db::insert_plan(&connection, &plan)?;
+    db::insert_message(
+        &connection,
+        &plan.project_id,
+        Some(&plan.id),
+        "user",
+        &plan.intent,
+    )?;
+    db::insert_message(
+        &connection,
+        &plan.project_id,
+        Some(&plan.id),
+        "assistant",
+        &format!("已建立任务：{}；等待确认后执行。", plan.title),
+    )?;
     emit(
         &app,
         &plan,
@@ -364,7 +412,14 @@ pub async fn confirm_task_plan(
             .lock()
             .map_err(|_| AppError::retryable("DB_BUSY", "数据库暂时不可用"))?;
         let plan = db::plan(&connection, &plan_id)?;
-        if plan.status != "awaiting_confirmation" {
+        if ![
+            "awaiting_confirmation",
+            "failed",
+            "cancelled",
+            "interrupted",
+        ]
+        .contains(&plan.status.as_str())
+        {
             return Err(AppError::new(
                 "TASK_PLAN_STATE_INVALID",
                 "任务计划当前不可启动",

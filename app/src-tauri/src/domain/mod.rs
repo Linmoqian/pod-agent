@@ -95,6 +95,8 @@ pub struct TaskPlan {
     pub title: String,
     pub intent: String,
     pub trait_id: String,
+    #[serde(default)]
+    pub planner: Value,
     pub model_spec: Value,
     pub expected_artifacts: Vec<String>,
     pub status: String,
@@ -130,6 +132,17 @@ pub struct ToolRun {
     pub finished_at: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Message {
+    pub id: String,
+    pub project_id: String,
+    pub task_plan_id: Option<String>,
+    pub role: String,
+    pub content: String,
+    pub created_at: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceSnapshot {
@@ -138,6 +151,7 @@ pub struct WorkspaceSnapshot {
     pub artifacts: Vec<Artifact>,
     pub task_plans: Vec<TaskPlan>,
     pub workflow_runs: Vec<WorkflowRun>,
+    pub messages: Vec<Message>,
 }
 
 #[derive(Debug, Clone, Serialize)]
