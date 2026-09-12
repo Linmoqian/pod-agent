@@ -13,6 +13,7 @@ import type {
   WorkflowRun,
   WorkspaceSnapshot,
 } from '../types';
+import MagneticCard from './MagneticCard';
 import TaskPlanPanel from './TaskPlanPanel';
 import styles from './WorkbenchPanel.module.css';
 
@@ -48,9 +49,10 @@ function DataCards({
             artifact.upstreamIds.includes(dataset.id),
         );
         return (
-          <button
+          <MagneticCard
             key={dataset.id}
-            className={styles.card}
+            className={`${styles.card} ${quality ? styles.interactiveCard : ''}`}
+            enabled={Boolean(quality)}
             onClick={() => quality && onOpenArtifact(quality)}
           >
             <span>{dataset.name}</span>
@@ -60,7 +62,7 @@ function DataCards({
             <Tag color={statusColor(dataset.qualityStatus)}>
               {dataset.qualityStatus}
             </Tag>
-          </button>
+          </MagneticCard>
         );
       })}
     </div>
@@ -82,15 +84,15 @@ function ResultCards({
   return (
     <div className={styles.stack}>
       {snapshot.artifacts.map((artifact) => (
-        <button
+        <MagneticCard
           key={artifact.id}
-          className={styles.card}
+          className={`${styles.card} ${styles.interactiveCard}`}
           onClick={() => onOpenArtifact(artifact)}
         >
           <span>{artifact.name}</span>
           <small>{artifact.artifactType}</small>
           <Tag color={statusColor(artifact.status)}>{artifact.status}</Tag>
-        </button>
+        </MagneticCard>
       ))}
     </div>
   );
