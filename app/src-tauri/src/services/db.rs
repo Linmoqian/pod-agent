@@ -2,7 +2,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
 use std::path::Path;
 
-use crate::domain::{Artifact, ArtifactFile, Dataset, Project, TaskPlan, WorkflowRun};
+use crate::domain::{Artifact, ArtifactFile, Dataset, Project, TaskPlan, ToolRun, WorkflowRun};
 use crate::error::{AppError, AppResult};
 
 pub fn now() -> String {
@@ -396,12 +396,40 @@ pub fn start_tool_run(
     connection: &Connection,
     run_id: &str,
     tool_id: &str,
+    tool_version: &str,
     input: Value,
 ) -> AppResult<String> {
     let id = uuid::Uuid::new_v4().to_string();
-    connection.execute("INSERT INTO tool_runs(id,workflow_run_id,tool_id,tool_version,input_json,status,log_text,started_at) VALUES(?1,?2,?3,'1.0.0',?4,'running','',?5)", params![id,run_id,tool_id,input.to_string(),now()])
+    connection.execute("INSERT INTO tool_runs(id,workflow_run_id,tool_id,tool_version,input_json,status,log_text,started_at) VALUES(?1,?2,?3,?4,?5,'running','',?6)", params![id,run_id,tool_id,tool_version,input.to_string(),now()])
         .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
     Ok(id)
+}
+
+pub fn tool_runs(connection: &Connection, workflow_run_id: &str) -> AppResult<Vec<ToolRun>> {
+    let mut statement = connection.prepare(
+        "SELECT id,workflow_run_id,tool_id,tool_version,input_json,output_json,status,log_text,started_at,finished_at FROM tool_runs WHERE workflow_run_id=?1 ORDER BY started_at"
+    ).map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+    let rows = statement
+        .query_map([workflow_run_id], |row| {
+            Ok(ToolRun {
+                id: row.get(0)?,
+                workflow_run_id: row.get(1)?,
+                tool_id: row.get(2)?,
+                tool_version: row.get(3)?,
+                input: parse_json(row.get(4)?),
+                output: parse_json(
+                    row.get::<_, Option<String>>(5)?
+                        .unwrap_or_else(|| "null".into()),
+                ),
+                status: row.get(6)?,
+                log: row.get(7)?,
+                started_at: row.get(8)?,
+                finished_at: row.get(9)?,
+            })
+        })
+        .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))
 }
 
 pub fn finish_tool_run(

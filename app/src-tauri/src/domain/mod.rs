@@ -115,6 +115,21 @@ pub struct WorkflowRun {
     pub finished_at: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolRun {
+    pub id: String,
+    pub workflow_run_id: String,
+    pub tool_id: String,
+    pub tool_version: String,
+    pub input: Value,
+    pub output: Value,
+    pub status: String,
+    pub log: String,
+    pub started_at: String,
+    pub finished_at: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceSnapshot {
@@ -131,6 +146,7 @@ pub struct ArtifactDetail {
     pub artifact: Artifact,
     pub upstream: Vec<Artifact>,
     pub dataset: Option<Dataset>,
+    pub tool_runs: Vec<ToolRun>,
 }
 
 #[derive(Debug, Clone, Serialize)]
