@@ -43,28 +43,53 @@
 }
 
 .taskPanel h3 {
+  margin: 0;
+  padding: 16px 16px 0;
+  border-radius: 16px 16px 0 0;
+  background: var(--color-surface-default);
   font-size: 18px;
 }
 
-.taskPanel p,
+.taskPanel > p {
+  margin: -12px 0 0;
+  padding: 10px 16px 16px;
+  border-radius: 0 0 16px 16px;
+  background: var(--color-surface-default);
+}
+
+.taskPanel > p,
 .specification {
   font-size: 13px;
   line-height: 1.65;
 }
 
 .specification {
-  gap: 6px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
   margin: 0;
 }
 
 .specification div {
-  display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
-  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--color-surface-default);
+  box-shadow: var(--shadow-low);
+}
+
+.specification div:last-child {
+  grid-column: 1 / -1;
+}
+
+.specification dt {
+  margin-bottom: 3px;
+  font-size: 11px;
 }
 
 .specification dd {
   margin: 0;
+  color: var(--color-text-primary);
   overflow-wrap: anywhere;
 }
 
@@ -73,8 +98,10 @@
   grid-template-columns: 25px minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
-  padding: 9px 0;
-  border-bottom: var(--border-subtle);
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--color-surface-default);
+  box-shadow: var(--shadow-low);
 }
 
 .step > span {
