@@ -58,7 +58,7 @@ describe('lian 工作区', () => {
     mockSnapshot();
     render(<Root />);
     expect(
-      await screen.findByRole('heading', { name: '今天想研究什么？' }),
+      await screen.findByRole('heading', { name: '让数据长成 可靠的结论' }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText('研究问题')).toBeInTheDocument();
     expect(

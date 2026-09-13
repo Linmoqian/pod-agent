@@ -1,11 +1,13 @@
 /*
  * 统一承载研究问题、文件选择与文件夹选择的输入器。
  * Created on 2026-09-12
+ * Updated on 2026-09-13
  * @author: https://github.com/Linmoqian
  */
 
 import { Button, Dropdown, Input } from 'antd';
 
+import AppIcon from '../../../components/common/AppIcon';
 import styles from './WorkspaceComposer.module.css';
 
 type WorkspaceComposerProps = {
@@ -35,7 +37,7 @@ export default function WorkspaceComposer({
             onSubmit();
           }
         }}
-        placeholder="描述你的问题，或者把数据拖到这里……"
+        placeholder="例如：比较不同环境下的株高表现，并筛选稳定材料……"
         autoSize={{ minRows: 3, maxRows: 7 }}
       />
       <div className={styles.actions}>
@@ -60,7 +62,10 @@ export default function WorkspaceComposer({
             ],
           }}
         >
-          <Button type="text">＋ 添加数据</Button>
+          <Button type="text" className={styles.dataButton}>
+            <AppIcon name="add" size={15} />
+            添加数据
+          </Button>
         </Dropdown>
         <Button
           type="primary"
@@ -69,9 +74,10 @@ export default function WorkspaceComposer({
           onClick={onSubmit}
           disabled={!intent.trim() || busy}
         >
-          ↑
+          <AppIcon name="send" size={17} />
         </Button>
       </div>
+      <div className={styles.hint}>Enter 提交 · Shift + Enter 换行</div>
     </div>
   );
 }

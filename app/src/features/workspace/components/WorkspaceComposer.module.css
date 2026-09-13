@@ -1,21 +1,29 @@
 .composer {
-  width: min(820px, calc(100% - 48px));
+  position: relative;
+  width: min(900px, calc(100% - 64px));
   align-self: center;
-  margin: 0 0 26px;
+  margin: 0 0 22px;
   overflow: hidden;
-  border: 1px solid var(--color-border-default);
-  border-radius: 22px;
-  background: var(--color-surface-default);
-  box-shadow: 0 16px 44px rgb(24 61 34 / 9%);
-  transition: border-color var(--duration-fast);
+  border: var(--border-subtle);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--color-surface-default) 94%, transparent);
+  box-shadow:
+    0 18px 50px rgb(24 61 34 / 10%),
+    0 2px 8px rgb(24 61 34 / 5%);
+  transition:
+    border-color var(--duration-fast) var(--easing-standard),
+    box-shadow var(--duration-fast) var(--easing-standard);
 }
 
 .composer:focus-within {
   border-color: var(--color-brand-500);
+  box-shadow:
+    0 20px 58px rgb(24 61 34 / 13%),
+    0 0 0 3px var(--color-focus-ring);
 }
 
 .composer textarea {
-  padding: 18px 18px 4px !important;
+  padding: 18px 20px 4px !important;
   border: 0 !important;
   box-shadow: none !important;
   resize: none;
@@ -26,11 +34,28 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 10px 10px;
+  padding: 7px 10px 11px;
+}
+
+.dataButton {
+  color: var(--color-text-secondary);
+}
+
+.hint {
+  position: absolute;
+  right: 58px;
+  bottom: 17px;
+  color: var(--color-text-disabled);
+  font-size: 10px;
+  pointer-events: none;
 }
 
 @media (max-width: 640px) {
   .composer {
     width: calc(100% - 28px);
+  }
+
+  .hint {
+    display: none;
   }
 }

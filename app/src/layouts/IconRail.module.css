@@ -1,6 +1,6 @@
 /*
  * Created on 2026-09-08
- * Updated on 2026-09-09
+ * Updated on 2026-09-13
  * @author: https://github.com/Linmoqian
  */
 
@@ -11,22 +11,31 @@
   align-items: center;
   flex-shrink: 0;
   gap: var(--space-2);
-  width: 68px;
+  width: 72px;
   height: 100%;
   padding: var(--space-3) 0;
   border-right: var(--border-subtle);
+  background: color-mix(in srgb, var(--color-surface-default) 72%, transparent);
+  backdrop-filter: saturate(150%) blur(var(--blur-chrome));
+  -webkit-backdrop-filter: saturate(150%) blur(var(--blur-chrome));
 }
 
 .logo {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 42px;
+  height: 42px;
   margin-bottom: var(--space-3);
   color: var(--color-text-inverse);
-  background: var(--color-brand-600);
-  border-radius: 13px;
+  background: linear-gradient(
+    145deg,
+    var(--color-brand-500),
+    var(--color-brand-700)
+  );
+  border-radius: 14px;
+  box-shadow: 0 9px 22px
+    color-mix(in srgb, var(--color-brand-700) 24%, transparent);
 }
 
 .spacer {
@@ -64,15 +73,15 @@
 }
 
 /* 激活导航位:淡底 + 品牌绿 */
-.navItem[data-active="true"] {
+.navItem[data-active='true'] {
   color: var(--color-brand-600);
   background: color-mix(in srgb, var(--color-brand-500) 12%, transparent);
 }
 
-.navItem[data-active="true"]::before {
-  content: "";
+.navItem[data-active='true']::before {
+  content: '';
   position: absolute;
-  left: -12px;
+  left: -14px;
   width: 3px;
   height: 18px;
   border-radius: var(--radius-full);
