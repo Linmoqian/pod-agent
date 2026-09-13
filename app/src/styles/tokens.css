@@ -16,8 +16,10 @@
   --color-surface-subtle: #fafff4;
   --color-surface-default: #ffffff;
   --color-surface-disabled: #f0f4ed;
+  --color-surface-muted: #f5f8f3;
   --color-text-primary: #333333;
   --color-text-secondary: #666666;
+  --color-text-tertiary: #7a7a7a;
   --color-text-disabled: #999999;
   --color-text-inverse: #ffffff;
   --color-border-subtle: #e8e8e8;
@@ -35,9 +37,9 @@
 
   /* 字体 */
   --font-family-sans:
-    system-ui, -apple-system, BlinkMacSystemFont, "Source Han Sans SC",
-    "PingFang SC", "Microsoft YaHei", sans-serif;
-  --font-family-serif-number: "Merriweather", Georgia, "Times New Roman", serif;
+    system-ui, -apple-system, BlinkMacSystemFont, 'Source Han Sans SC',
+    'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-family-serif-number: 'Merriweather', Georgia, 'Times New Roman', serif;
   --font-size-display: 40px;
   --font-size-section: 30px;
   --font-size-title: 22px;
@@ -142,7 +144,7 @@
 /* 暗色主题:<html data-theme="dark"> 时整体换色,尺寸/字体/动效不变。
  * 派生原则:表面变暗绿墨色、文字反转、品牌绿提亮保持暗底可读;
  * 亮色中 hover 变浅/按压变深的反馈方向,暗色下统一朝提亮方向走。 */
-[data-theme="dark"] {
+[data-theme='dark'] {
   --color-brand-500: #6aa877;
   --color-brand-600: #5b9e6b;
   --color-brand-700: #7cb989;
@@ -152,8 +154,10 @@
   --color-surface-subtle: #141b16;
   --color-surface-default: #1a231d;
   --color-surface-disabled: #202a23;
+  --color-surface-muted: #151d18;
   --color-text-primary: #e8ece7;
   --color-text-secondary: #aab4ab;
+  --color-text-tertiary: #909a91;
   --color-text-disabled: #7a837b;
   --color-text-inverse: #ffffff;
   --color-border-subtle: #2a332c;

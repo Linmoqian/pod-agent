@@ -25,6 +25,8 @@ export default function WorkspaceComposer({
   onChooseData,
   onSubmit,
 }: WorkspaceComposerProps) {
+  const canSubmit = Boolean(intent.trim()) && !busy;
+
   return (
     <div className={styles.composer}>
       <Input.TextArea
@@ -32,7 +34,7 @@ export default function WorkspaceComposer({
         value={intent}
         onChange={(event) => onIntentChange(event.target.value)}
         onPressEnter={(event) => {
-          if (!event.shiftKey && !event.nativeEvent.isComposing) {
+          if (canSubmit && !event.shiftKey && !event.nativeEvent.isComposing) {
             event.preventDefault();
             onSubmit();
           }
@@ -72,7 +74,7 @@ export default function WorkspaceComposer({
           shape="circle"
           aria-label="提交研究问题"
           onClick={onSubmit}
-          disabled={!intent.trim() || busy}
+          disabled={!canSubmit}
         >
           <AppIcon name="send" size={17} />
         </Button>

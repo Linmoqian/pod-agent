@@ -1,0 +1,7 @@
+.drawerRoot :global(.ant-drawer-content-wrapper) {
+  width: min(368px, calc(100vw - 56px)) !important;
+}
+
+.drawerRoot :global(.ant-drawer-body) {
+  padding: 0;
+}

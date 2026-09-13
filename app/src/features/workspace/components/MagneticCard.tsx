@@ -26,7 +26,7 @@ type MagneticCardProps = {
   children: ReactNode;
   className: string;
   enabled?: boolean;
-  onClick: () => void;
+  onClick?: () => void;
 };
 
 export default function MagneticCard({
@@ -52,10 +52,7 @@ export default function MagneticCard({
   };
 
   const move = (event: PointerEvent<HTMLButtonElement>) => {
-    if (
-      !motionEnabled ||
-      !window.matchMedia(FINE_POINTER_QUERY).matches
-    ) {
+    if (!motionEnabled || !window.matchMedia(FINE_POINTER_QUERY).matches) {
       return;
     }
 
@@ -75,6 +72,10 @@ export default function MagneticCard({
     if (!motionEnabled) return;
     scale.set(window.matchMedia(FINE_POINTER_QUERY).matches ? 1.01 : 1);
   };
+
+  if (!enabled) {
+    return <div className={className}>{children}</div>;
+  }
 
   return (
     <motion.button

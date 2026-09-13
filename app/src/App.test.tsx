@@ -65,7 +65,9 @@ describe('lian 工作区', () => {
       screen.getByRole('button', { name: /添加数据/ }),
     ).toBeInTheDocument();
     expect(screen.getByText('育种台')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: '任务' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('tab', { name: '任务' }),
+    ).toBeInTheDocument();
   });
 
   it('已有 Dataset 时自然语言先生成待确认计划', async () => {
@@ -117,7 +119,7 @@ describe('lian 工作区', () => {
     let snapshotCalls = 0;
     mocks.invoke.mockImplementation(async (command: string) => {
       if (command === 'ensure_draft_project') return project;
-    if (command === 'list_projects') return [project];
+      if (command === 'list_projects') return [project];
       if (command === 'get_workspace_snapshot')
         return snapshotCalls++
           ? planned
@@ -157,7 +159,7 @@ describe('lian Artifact', () => {
     };
     mocks.invoke.mockImplementation(async (command: string) => {
       if (command === 'ensure_draft_project') return project;
-    if (command === 'list_projects') return [project];
+      if (command === 'list_projects') return [project];
       if (command === 'get_workspace_snapshot')
         return { ...emptySnapshot, artifacts: [artifact] };
       if (command === 'get_artifact_detail')

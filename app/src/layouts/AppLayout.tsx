@@ -6,15 +6,19 @@
  */
 
 import { Button, Popconfirm, Select, Spin } from 'antd';
+import { lazy, Suspense, useState } from 'react';
 
 import AppIcon from '../components/common/AppIcon';
-import ArtifactDrawer from '../features/workspace/components/ArtifactDrawer';
-import WorkbenchPanel from '../features/workspace/components/WorkbenchPanel';
+import ResponsiveWorkbench from '../features/workspace/components/ResponsiveWorkbench';
 import WorkspaceComposer from '../features/workspace/components/WorkspaceComposer';
 import WorkspaceTimeline from '../features/workspace/components/WorkspaceTimeline';
 import useWorkspaceController from '../features/workspace/hooks/useWorkspaceController';
 import IconRail from './IconRail';
 import styles from './AppLayout.module.css';
+
+const ArtifactDrawer = lazy(
+  () => import('../features/workspace/components/ArtifactDrawer'),
+);
 
 type ProjectHeaderProps = {
   projectId: string;
@@ -87,6 +91,7 @@ function ProjectHeader(props: ProjectHeaderProps) {
 export default function AppLayout() {
   const controller = useWorkspaceController();
   const { snapshot } = controller;
+  const [artifactDrawerLoaded, setArtifactDrawerLoaded] = useState(false);
 
   if (!snapshot) {
     return (
@@ -147,22 +152,29 @@ export default function AppLayout() {
           />
         </section>
       </main>
-      {controller.workbenchOpen && (
-        <WorkbenchPanel
-          snapshot={snapshot}
-          latestPlan={latestPlan}
-          latestRun={latestRun}
-          activeRunId={controller.activeRunId}
-          busy={controller.busy}
-          onConfirm={(planId) => void controller.confirmPlan(planId)}
-          onCancel={(runId) => void controller.cancelWorkflow(runId)}
-          onOpenArtifact={controller.setSelectedArtifact}
-        />
-      )}
-      <ArtifactDrawer
-        artifact={controller.selectedArtifact}
-        onClose={() => controller.setSelectedArtifact(null)}
+      <ResponsiveWorkbench
+        open={controller.workbenchOpen}
+        onClose={() => controller.setWorkbenchOpen(false)}
+        snapshot={snapshot}
+        latestPlan={latestPlan}
+        latestRun={latestRun}
+        activeRunId={controller.activeRunId}
+        busy={controller.busy}
+        onConfirm={(planId) => void controller.confirmPlan(planId)}
+        onCancel={(runId) => void controller.cancelWorkflow(runId)}
+        onOpenArtifact={(artifact) => {
+          setArtifactDrawerLoaded(true);
+          controller.setSelectedArtifact(artifact);
+        }}
       />
+      {artifactDrawerLoaded && (
+        <Suspense fallback={null}>
+          <ArtifactDrawer
+            artifact={controller.selectedArtifact}
+            onClose={() => controller.setSelectedArtifact(null)}
+          />
+        </Suspense>
+      )}
       {controller.busy && (
         <div className={styles.busy}>
           <Spin />

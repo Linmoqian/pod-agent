@@ -5,11 +5,16 @@
  */
 
 import { App } from 'antd';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { workspaceApi } from '../../../services/workspace';
 import type { FieldMapping } from '../components/SourceReview';
-import type { Artifact, ImportInspection, Project, WorkspaceSnapshot } from '../types';
+import type {
+  Artifact,
+  ImportInspection,
+  Project,
+  WorkspaceSnapshot,
+} from '../types';
 import useImportActions from './useImportActions';
 import useWorkspaceLifecycle from './useWorkspaceLifecycle';
 
@@ -51,6 +56,7 @@ export default function useWorkspaceController() {
   const [mappingEdits, setMappingEdits] = useState<
     Record<string, FieldMapping>
   >({});
+  const submittingQuestion = useRef(false);
 
   const reportError = useCallback(
     (error: unknown) => message.error(errorText(error)),
@@ -60,7 +66,9 @@ export default function useWorkspaceController() {
     setSnapshot(await workspaceApi.snapshot(projectId));
   }, []);
   useWorkspaceBootstrap(reportError, setSnapshot);
-  useEffect(() => { workspaceApi.listProjects().then(setProjects).catch(reportError); }, [reportError]);
+  useEffect(() => {
+    workspaceApi.listProjects().then(setProjects).catch(reportError);
+  }, [reportError]);
 
   const projectId = snapshot?.project.id;
   useWorkspaceLifecycle(projectId, refresh, setActiveRunId);
@@ -87,18 +95,21 @@ export default function useWorkspaceController() {
   });
 
   const submitQuestion = async () => {
+    if (busy || submittingQuestion.current) return;
     const dataset = snapshot?.datasets[0];
     if (!dataset || !snapshot) {
       message.info('先添加一份 CSV、TSV 或 XLSX 表型数据');
       return;
     }
     if (!intent.trim()) return;
+    submittingQuestion.current = true;
     setBusy(true);
     try {
       await buildPlan(dataset.id, snapshot.project.id, intent.trim());
     } catch (error) {
       message.error(errorText(error));
     } finally {
+      submittingQuestion.current = false;
       setBusy(false);
     }
   };
@@ -139,9 +150,11 @@ export default function useWorkspaceController() {
   const archiveProject = async () => {
     if (!snapshot) return;
     await workspaceApi.archiveProject(snapshot.project.id);
-    const next = (await workspaceApi.listProjects()).filter((item) => item.status === 'active');
+    const next = (await workspaceApi.listProjects()).filter(
+      (item) => item.status === 'active',
+    );
     setProjects(next);
-    const project = next[0] ?? await workspaceApi.ensureDraftProject();
+    const project = next[0] ?? (await workspaceApi.ensureDraftProject());
     await refresh(project.id);
   };
 

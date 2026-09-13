@@ -199,3 +199,13 @@
     width: calc(100% - 56px);
   }
 }
+
+/* 作为 Drawer 内容时必须取消窄屏固定定位，避免逸出 Drawer 容器。 */
+.panel.embedded {
+  position: static;
+  width: 100%;
+  height: 100%;
+  padding: 24px 20px;
+  border-left: 0;
+  box-shadow: none;
+}

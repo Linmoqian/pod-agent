@@ -17,7 +17,7 @@ import MagneticCard from './MagneticCard';
 import TaskPlanPanel from './TaskPlanPanel';
 import styles from './WorkbenchPanel.module.css';
 
-type WorkbenchPanelProps = {
+export type WorkbenchPanelProps = {
   snapshot: WorkspaceSnapshot;
   latestPlan?: TaskPlan;
   latestRun?: WorkflowRun;
@@ -26,6 +26,7 @@ type WorkbenchPanelProps = {
   onConfirm: (planId: string) => void;
   onCancel: (runId: string) => void;
   onOpenArtifact: (artifact: Artifact) => void;
+  embedded?: boolean;
 };
 
 function DataCards({
@@ -101,7 +102,12 @@ function ResultCards({
 function MaterialCards({ snapshot }: Pick<WorkbenchPanelProps, 'snapshot'>) {
   const materials = snapshot.materials ?? [];
   if (!materials.length) {
-    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="导入数据后建立材料身份" />;
+    return (
+      <Empty
+        image={Empty.PRESENTED_IMAGE_SIMPLE}
+        description="导入数据后建立材料身份"
+      />
+    );
   }
   return (
     <div className={styles.stack}>
@@ -116,8 +122,14 @@ function MaterialCards({ snapshot }: Pick<WorkbenchPanelProps, 'snapshot'>) {
 }
 
 export default function WorkbenchPanel(props: WorkbenchPanelProps) {
-  const { snapshot, latestPlan, latestRun, activeRunId, onOpenArtifact } =
-    props;
+  const {
+    snapshot,
+    latestPlan,
+    latestRun,
+    activeRunId,
+    onOpenArtifact,
+    embedded,
+  } = props;
   const runningId =
     activeRunId ?? (latestRun?.status === 'running' ? latestRun.id : null);
   const task = latestPlan ? (
@@ -136,7 +148,7 @@ export default function WorkbenchPanel(props: WorkbenchPanelProps) {
     />
   );
   return (
-    <aside className={styles.panel}>
+    <aside className={`${styles.panel} ${embedded ? styles.embedded : ''}`}>
       <div className={styles.title}>
         <b>育种台</b>
         <span>
