@@ -27,15 +27,18 @@
   width: 42px;
   height: 42px;
   margin-bottom: var(--space-3);
-  color: var(--color-text-inverse);
-  background: linear-gradient(
-    145deg,
-    var(--color-brand-500),
-    var(--color-brand-700)
-  );
+  overflow: hidden;
+  background: #ffffff;
   border-radius: 14px;
   box-shadow: 0 9px 22px
     color-mix(in srgb, var(--color-brand-700) 24%, transparent);
+}
+
+.logo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .spacer {
