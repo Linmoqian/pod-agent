@@ -8,7 +8,6 @@
 import { Button, Select } from 'antd';
 import { useEffect, useState } from 'react';
 
-import BrandMark from '../../../components/common/BrandMark';
 import type {
   ImportInspection,
   SourceCandidate,
@@ -30,47 +29,6 @@ type WorkspaceTimelineProps = {
     materialResolutions: Record<string, string>,
   ) => void;
 };
-
-function WelcomeWorkspace() {
-  return (
-    <div className={styles.welcome}>
-      <div className={styles.welcomeTopline}>
-        <span>LIAN RESEARCH COPILOT</span>
-        <span aria-hidden />
-        <span>本地 · 可追溯</span>
-      </div>
-      <div className={styles.mark}>
-        <BrandMark size={64} />
-      </div>
-      <h1>
-        让数据长成
-        <br />
-        <em>可靠的结论</em>
-      </h1>
-      <p>
-        提出育种问题，或导入多环境表型数据。lian
-        会整理数据、生成分析计划，并保留每一步证据。
-      </p>
-      <div className={styles.capabilities} aria-label="工作流能力">
-        <div>
-          <span>01</span>
-          <b>理解数据</b>
-          <small>识别字段与材料身份</small>
-        </div>
-        <div>
-          <span>02</span>
-          <b>规划分析</b>
-          <small>先确认，再执行</small>
-        </div>
-        <div>
-          <span>03</span>
-          <b>追溯结果</b>
-          <small>保留模型与数据血缘</small>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function WorkspaceTimeline({
   messages,
@@ -155,7 +113,6 @@ export default function WorkspaceTimeline({
           )}
         </section>
       )}
-      {!messages.length && !inspection && <WelcomeWorkspace />}
     </div>
   );
 }

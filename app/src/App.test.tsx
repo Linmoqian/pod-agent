@@ -57,10 +57,10 @@ describe('lian 工作区', () => {
   it('显示安静的数据优先首页和统一入口', async () => {
     mockSnapshot();
     render(<Root />);
+    expect(await screen.findByLabelText('研究问题')).toBeInTheDocument();
     expect(
-      await screen.findByRole('heading', { name: '让数据长成 可靠的结论' }),
-    ).toBeInTheDocument();
-    expect(screen.getByLabelText('研究问题')).toBeInTheDocument();
+      screen.queryByRole('heading', { name: '让数据长成 可靠的结论' }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: /添加数据/ }),
     ).toBeInTheDocument();
