@@ -28,7 +28,7 @@
   height: 42px;
   margin-bottom: var(--space-3);
   overflow: hidden;
-  background: #ffffff;
+  background: var(--color-surface-default);
   border-radius: 14px;
   box-shadow: 0 9px 22px
     color-mix(in srgb, var(--color-brand-700) 24%, transparent);

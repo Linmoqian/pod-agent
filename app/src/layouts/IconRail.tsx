@@ -7,7 +7,7 @@
 import { useState } from "react";
 import { Tooltip } from "antd";
 
-import lianLabLogo from "../assets/lian-lab-logo.png";
+import lianLabEmblem from "../assets/lian-lab-emblem-transparent.png";
 import AppIcon from "../components/common/AppIcon";
 import SettingsModal from "../features/settings/components/SettingsModal";
 import styles from "./IconRail.module.css";
@@ -48,7 +48,7 @@ function IconRail({
   return (
     <nav className={styles.rail} aria-label="主导航">
       <div className={styles.logo} title="lian@育种台">
-        <img src={lianLabLogo} alt="lian@lab" />
+        <img src={lianLabEmblem} alt="lian@lab" />
       </div>
       <RailButton label="研究工作区" active>
         <AppIcon name="chat" size={22} />
