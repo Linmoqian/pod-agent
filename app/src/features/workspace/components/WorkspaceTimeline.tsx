@@ -8,7 +8,7 @@
 import { Button, Select } from 'antd';
 import { useEffect, useState } from 'react';
 
-import AppIcon from '../../../components/common/AppIcon';
+import BrandMark from '../../../components/common/BrandMark';
 import type {
   ImportInspection,
   SourceCandidate,
@@ -40,7 +40,7 @@ function WelcomeWorkspace() {
         <span>本地 · 可追溯</span>
       </div>
       <div className={styles.mark}>
-        <AppIcon name="brand-sprout" size={32} />
+        <BrandMark size={64} />
       </div>
       <h1>
         让数据长成

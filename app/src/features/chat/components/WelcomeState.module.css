@@ -32,9 +32,6 @@
   justify-content: center;
   width: 68px;
   height: 68px;
-  color: var(--color-text-inverse);
-  background: var(--color-brand-600);
-  border-radius: var(--radius-xl);
 }
 
 .eyebrow {

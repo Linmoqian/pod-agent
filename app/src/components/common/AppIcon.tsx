@@ -6,7 +6,6 @@
 
 import type { CSSProperties } from "react";
 import addIcon from "../../assets/generated-icons/add.png";
-import brandSproutIcon from "../../assets/generated-icons/brand-sprout.png";
 import cameraIcon from "../../assets/generated-icons/camera.png";
 import cameraOffIcon from "../../assets/generated-icons/camera-off.png";
 import chatIcon from "../../assets/generated-icons/chat.png";
@@ -31,7 +30,6 @@ import styles from "./AppIcon.module.css";
 
 const ICON_ASSETS = {
   add: addIcon,
-  "brand-sprout": brandSproutIcon,
   camera: cameraIcon,
   "camera-off": cameraOffIcon,
   chat: chatIcon,

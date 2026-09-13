@@ -3,7 +3,7 @@
  * 选项卡片为同组互斥单选,以 aria-pressed 表达选中态;
  * 主题/模式状态读写走 SettingsContext,由其负责持久化与 <html data-theme>。
  * Created on 2026-09-08
- * Updated on 2026-09-09
+ * Updated on 2026-09-13
  * @author: https://github.com/Linmoqian
  */
 
@@ -11,6 +11,7 @@ import { Modal } from "antd";
 import type { ReactNode } from "react";
 import { version } from "../../../../package.json";
 import AppIcon, { type AppIconName } from "../../../components/common/AppIcon";
+import BrandMark from "../../../components/common/BrandMark";
 import { useSettings } from "../context";
 import type { ExperienceMode, ThemePreference } from "../types";
 import styles from "./SettingsModal.module.css";
@@ -159,7 +160,7 @@ function AboutSection() {
       </h3>
       <div className={styles.aboutCard}>
         <span className={styles.aboutLogo} aria-hidden>
-          <AppIcon name="brand-sprout" size={30} />
+          <BrandMark size={42} />
         </span>
         <div className={styles.aboutText}>
           <p className={styles.aboutName}>
