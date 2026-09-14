@@ -132,6 +132,10 @@ fn agent_request(
                             });
                         }
                     }
+                } else if value["type"] == "yolo.task" {
+                    if let Some(callback) = on_progress {
+                        callback(&AgentProgress { kind: "yolo.task".into(), delta: value.to_string() });
+                    }
                 } else if value["type"] == response_type {
                     result = Some(value);
                 }
@@ -222,13 +226,31 @@ pub fn discuss(
             .collect::<Vec<_>>(),
         "context": context
     });
+    let active = std::cell::RefCell::new(std::collections::HashSet::<String>::new());
+    let forward = |progress: &AgentProgress| {
+        if progress.kind == "yolo.task" {
+            if let Ok(event) = serde_json::from_str::<Value>(&progress.delta) {
+                if let Some(id) = event["id"].as_str() {
+                    if event["status"] == "running" { active.borrow_mut().insert(id.into()); }
+                    else { active.borrow_mut().remove(id); }
+                }
+            }
+        }
+        on_progress(progress);
+    };
     let response = agent_request(
         app_dir,
         request,
         "discuss.result",
         Duration::from_secs(120),
-        Some(&on_progress),
-    )?;
+        Some(&forward),
+    );
+    for id in active.borrow().iter() {
+        on_progress(&AgentProgress { kind: "yolo.task".into(), delta: json!({
+            "id": id, "status": "error", "message": "工具进程已结束，未收到识别结果"
+        }).to_string() });
+    }
+    let response = response?;
     check_agent_ok(&response)?;
     let reasoning = response["reasoning"]
         .as_str()

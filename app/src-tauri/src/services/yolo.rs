@@ -11,6 +11,51 @@ use std::{collections::BTreeMap, path::Path, sync::{OnceLock, Mutex}};
 static ENDPOINT: OnceLock<Result<(String, String), String>> = OnceLock::new();
 static CACHE: Mutex<Option<(String, Session)>> = Mutex::new(None);
 
+fn folder_images(root: &Path) -> Result<Vec<String>, String> {
+    if !root.is_absolute() || !root.is_dir() { return Err("请选择有效的图片文件夹".into()); }
+    let mut pending = vec![root.to_path_buf()];
+    let mut images = Vec::new();
+    while let Some(directory) = pending.pop() {
+        for entry in std::fs::read_dir(directory).map_err(|_| "文件夹不可读")? {
+            let entry = entry.map_err(|_| "文件夹条目不可读")?;
+            let kind = entry.file_type().map_err(|_| "文件类型不可读")?;
+            let path = entry.path();
+            if kind.is_dir() { pending.push(path); }
+            else if kind.is_file() && path.extension().and_then(|ext| ext.to_str())
+                .is_some_and(|ext| matches!(ext.to_ascii_lowercase().as_str(), "jpg" | "jpeg" | "png")) {
+                images.push(path.to_string_lossy().into_owned());
+            }
+        }
+    }
+    images.sort();
+    Ok(images)
+}
+
+#[tauri::command]
+pub async fn yolo_folder_images(folder_path: String) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || folder_images(Path::new(&folder_path)))
+        .await.map_err(|_| "文件夹扫描中断".to_string())?
+}
+
+#[tauri::command]
+pub async fn yolo_drop_images(paths: Vec<String>) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut images = std::collections::BTreeSet::new();
+        for path in paths {
+            let path = Path::new(&path);
+            if !path.is_absolute() { return Err("图片路径必须为绝对路径".to_string()); }
+            let metadata = std::fs::symlink_metadata(path).map_err(|_| "拖入的路径不可读")?;
+            if metadata.file_type().is_symlink() { continue; }
+            if metadata.is_dir() { images.extend(folder_images(path)?); }
+            else if metadata.is_file() && path.extension().and_then(|ext| ext.to_str())
+                .is_some_and(|ext| matches!(ext.to_ascii_lowercase().as_str(), "jpg" | "jpeg" | "png")) {
+                images.insert(path.to_string_lossy().into_owned());
+            }
+        }
+        Ok(images.into_iter().collect())
+    }).await.map_err(|_| "拖放扫描中断".to_string())?
+}
+
 #[tauri::command]
 pub async fn yolo_detect_image(model_id: String, image_path: String) -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -182,6 +227,22 @@ pub fn endpoint(root: &Path) -> Result<(String, String), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn folder_scan_filters_and_recurses() {
+        let root = std::env::temp_dir().join(format!("yolo-folder-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(root.join("sub")).unwrap();
+        std::fs::write(root.join("a.JPG"), []).unwrap();
+        std::fs::write(root.join("sub/b.png"), []).unwrap();
+        std::fs::write(root.join("notes.txt"), []).unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&root, root.join("sub/loop")).unwrap();
+        let paths = folder_images(&root).unwrap();
+        assert_eq!(paths.len(), 2);
+        assert!(paths[0].ends_with("a.JPG"));
+        assert!(paths[1].ends_with("b.png"));
+        assert!(folder_images(&root.join("missing")).is_err());
+        std::fs::remove_dir_all(root).unwrap();
+    }
     #[test]
     fn nms_is_class_aware() {
         let data = [10.,10.,10., 10.,10.,10., 4.,4.,4., 4.,4.,4., 0.9,0.8,0., 0.,0.,0.9];

@@ -73,7 +73,8 @@ function discussSystemPrompt(context: DiscussRequest['context']) {
       ? '- 当前会话已绑定真实 Dataset：涉及具体数据结论时说明需要运行受控工作流来验证，不凭空给数值。'
       : '- 当前没有真实 Dataset：数值只能来自实际工具结果、明确标注的示例或文献，不得虚构分析。',
     '',
-    '回复使用简体中文 Markdown，简洁、要点化；适合在育种工作台的时间线中阅读。',
+    '回复简洁、专业、禁用 emoji、尊重事实',
+    '使用简体中文回复。',
   ].join('\n');
 }
 
@@ -131,6 +132,7 @@ async function runPrompt(
   prompt: string,
   includeReasoning = false,
   onDelta?: (delta: ReplyDelta) => void,
+  onYolo?: (event: Record<string, unknown>) => void,
 ): Promise<AgentReply> {
   let text = '';
   let reasoning = '';
@@ -144,6 +146,17 @@ async function runPrompt(
     streamFn: models.streamSimple.bind(models),
   });
   agent.subscribe((event) => {
+    if (event.type === 'tool_execution_start' && event.toolName === 'run_yolo_detection') {
+      onYolo?.({ id: event.toolCallId, status: 'running', imagePath: event.args.imagePath, modelId: event.args.modelId });
+    }
+    if (event.type === 'tool_execution_end' && event.toolName === 'run_yolo_detection') {
+      let summary;
+      try {
+        const text = event.result.content.find((item: { type: string }) => item.type === 'text');
+        summary = JSON.parse(text?.text ?? '{}');
+      } catch { /* 工具异常不是计数结果。 */ }
+      onYolo?.({ id: event.toolCallId, status: event.isError || summary?.ok !== true ? 'error' : 'done', message: summary?.message ?? 'YOLO 推理失败或已取消' });
+    }
     if (event.type === 'message_update') {
       if (event.assistantMessageEvent.type === 'text_delta') {
         text += event.assistantMessageEvent.delta;
@@ -225,6 +238,7 @@ for await (const line of input) {
             })}\n`,
           );
         },
+        (event) => process.stdout.write(`${JSON.stringify({ type: 'yolo.task', requestId: request?.requestId, ...event })}\n`),
       );
       process.stdout.write(
         `${JSON.stringify({

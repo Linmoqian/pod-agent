@@ -29,6 +29,8 @@ pub fn run() {
             services::yolo::yolo_detect_image,
             services::yolo::yolo_models,
             services::yolo::yolo_thumbnail,
+            services::yolo::yolo_folder_images,
+            services::yolo::yolo_drop_images,
             commands::conversation::ensure_active_conversation,
             commands::conversation::get_conversation_context,
             commands::conversation::open_project_context,

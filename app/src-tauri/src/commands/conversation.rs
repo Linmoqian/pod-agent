@@ -208,6 +208,13 @@ pub async fn send_message(
             &history,
             &context_summary,
             move |progress| {
+                if progress.kind == "yolo.task" {
+                    if let Ok(mut payload) = serde_json::from_str::<serde_json::Value>(&progress.delta) {
+                        payload["conversationId"] = json!(stream_conversation_id);
+                        let _ = stream_app.emit("lian-yolo-event", payload);
+                    }
+                    return;
+                }
                 let _ = stream_app.emit(
                     "lian-agent-event",
                     json!({
