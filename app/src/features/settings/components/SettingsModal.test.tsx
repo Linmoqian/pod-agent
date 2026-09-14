@@ -36,6 +36,14 @@ describe("SettingsModal", () => {
     expect(screen.getByText(`v${version}`)).toBeInTheDocument();
   });
 
+  it("在关于区展示两位开发成员肖像与名称", () => {
+    renderSettings();
+    expect(screen.getByRole("img", { name: "linmoqian 的开发成员肖像" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "qcl 的开发成员肖像" })).toBeInTheDocument();
+    expect(screen.getByText("linmoqian")).toBeInTheDocument();
+    expect(screen.getByText("qcl")).toBeInTheDocument();
+  });
+
   it("默认浅色主题与新手模式,选中卡片以 aria-pressed 标记", () => {
     renderSettings();
     expect(document.documentElement.dataset.theme).toBe("light");

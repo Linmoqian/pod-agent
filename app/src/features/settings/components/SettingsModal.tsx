@@ -8,9 +8,11 @@
  */
 
 import { Code2, FlaskConical, Monitor, Moon, Search, Sprout, Sun, SlidersHorizontal, UserRound } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { useState, type ReactNode } from 'react';
 import { version } from "../../../../package.json";
+import developerOnePortrait from "@/assets/developer-1.jpg";
+import developerTwoPortrait from "@/assets/developer-2.jpg";
 import {
   Dialog,
   DialogContent,
@@ -159,7 +161,14 @@ function ModeSection() {
   );
 }
 
+const DEVELOPERS = [
+  { name: "linmoqian", portrait: developerOnePortrait, accent: "purple" },
+  { name: "qcl", portrait: developerTwoPortrait, accent: "blue" },
+] as const;
+
 function AboutSection() {
+  const reduceMotion = useReducedMotion();
+
   return (
     <section className={styles.section} aria-labelledby="settings-about">
       <h3 id="settings-about" className={styles.sectionTitle}>
@@ -189,6 +198,23 @@ function AboutSection() {
             </a>
           </p>
         </div>
+      </div>
+      <div className={styles.developerGrid} aria-label="开发成员">
+        {DEVELOPERS.map(({ name, portrait, accent }, index) => (
+          <motion.div
+            key={name}
+            className={styles.developerCard}
+            data-accent={accent}
+            initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={reduceMotion ? { duration: 0 } : { duration: 0.24, delay: index * 0.08 }}
+            whileHover={reduceMotion ? undefined : { y: -3 }}
+          >
+            <img className={styles.developerPortrait} src={portrait} alt={`${name} 的开发成员肖像`} />
+            <span className={styles.developerRole}>开发成员</span>
+            <strong className={styles.developerName}>{name}</strong>
+          </motion.div>
+        ))}
       </div>
     </section>
   );
