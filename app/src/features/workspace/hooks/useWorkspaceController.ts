@@ -31,6 +31,20 @@ function errorText(error: unknown) {
     : String(error);
 }
 
+export type WorkspaceTab = {
+  id: string;
+  label: string;
+  projectId: string | null;
+};
+
+function tabFromSnapshot(snapshot: WorkspaceSnapshot): WorkspaceTab {
+  return {
+    id: snapshot.conversation.id,
+    label: snapshot.project?.name ?? snapshot.conversation.title,
+    projectId: snapshot.project?.id ?? null,
+  };
+}
+
 function useConversationBootstrap(
   reportError: (error: unknown) => void,
   setSnapshot: (snapshot: WorkspaceSnapshot) => void,
@@ -55,6 +69,7 @@ function useConversationBootstrap(
 
 export default function useWorkspaceController() {
   const [snapshot, setSnapshot] = useState<WorkspaceSnapshot | null>(null);
+  const [tabs, setTabs] = useState<WorkspaceTab[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [inspection, setInspection] = useState<ImportInspection | null>(null);
   const [intent, setIntent] = useState('');
@@ -69,6 +84,8 @@ export default function useWorkspaceController() {
   >({});
   const submittingQuestion = useRef(false);
   const importNameResolver = useRef<((projectId: string | null) => void) | null>(null);
+  const previewSnapshots = useRef(new Map<string, WorkspaceSnapshot>());
+  const previewTabCount = useRef(0);
   const [pendingImportName, setPendingImportName] = useState<string | null>(null);
 
   const reportError = useCallback(
@@ -78,7 +95,43 @@ export default function useWorkspaceController() {
   const refresh = useCallback(async (conversationId: string) => {
     setSnapshot(await workspaceApi.getConversationContext(conversationId));
   }, []);
+  const activateSnapshot = useCallback((next: WorkspaceSnapshot) => {
+    previewSnapshots.current.set(next.conversation.id, next);
+    setSnapshot(next);
+    const nextTab = tabFromSnapshot(next);
+    setTabs((current) => {
+      const found = current.some((item) => item.id === nextTab.id);
+      return found
+        ? current.map((item) => (item.id === nextTab.id ? nextTab : item))
+        : [...current, nextTab];
+    });
+  }, []);
+  const createPreviewConversation = useCallback(() => {
+    const preview = createBrowserPreviewSnapshot();
+    previewTabCount.current += 1;
+    const index = previewTabCount.current;
+    return {
+      ...preview,
+      conversation: {
+        ...preview.conversation,
+        id: `browser-preview-${index}`,
+        title: `临时会话 ${index}`,
+      },
+    };
+  }, []);
   useConversationBootstrap(reportError, setSnapshot);
+  useEffect(() => {
+    if (!snapshot) return;
+    previewSnapshots.current.set(snapshot.conversation.id, snapshot);
+    const currentTab = tabFromSnapshot(snapshot);
+    setTabs((current) =>
+      current.some((item) => item.id === currentTab.id)
+        ? current.map((item) =>
+            item.id === currentTab.id ? currentTab : item,
+          )
+        : [...current, currentTab],
+    );
+  }, [snapshot]);
   useEffect(() => {
     if (!isTauriRuntime()) {
       setProjects([]);
@@ -143,7 +196,7 @@ export default function useWorkspaceController() {
           conversationId,
           name.trim(),
         );
-        setSnapshot(context);
+        activateSnapshot(context);
         setProjects(await workspaceApi.listProjects());
         resolve(context.project?.id ?? null);
       } catch (error) {
@@ -151,7 +204,7 @@ export default function useWorkspaceController() {
         resolve(null);
       }
     },
-    [conversationId, reportError],
+    [activateSnapshot, conversationId, reportError],
   );
 
   const { registerCandidates, chooseData } = useImportActions({
@@ -280,7 +333,7 @@ export default function useWorkspaceController() {
     setInspection(null);
     setBusy(true);
     try {
-      setSnapshot(await workspaceApi.openProjectContext(targetProjectId));
+      activateSnapshot(await workspaceApi.openProjectContext(targetProjectId));
     } catch (error) {
       reportError(error);
     } finally {
@@ -292,7 +345,7 @@ export default function useWorkspaceController() {
     try {
       const project = await workspaceApi.createProject(name);
       setProjects(await workspaceApi.listProjects());
-      setSnapshot(await workspaceApi.openProjectContext(project.id));
+      activateSnapshot(await workspaceApi.openProjectContext(project.id));
     } catch (error) {
       reportError(error);
     } finally {
@@ -305,7 +358,7 @@ export default function useWorkspaceController() {
     try {
       await workspaceApi.archiveProject(projectId);
       setProjects(await workspaceApi.listProjects());
-      setSnapshot(await workspaceApi.newTemporaryConversation());
+      activateSnapshot(await workspaceApi.newTemporaryConversation());
     } catch (error) {
       reportError(error);
     } finally {
@@ -315,7 +368,11 @@ export default function useWorkspaceController() {
   const startNewConversation = async () => {
     setBusy(true);
     try {
-      setSnapshot(await workspaceApi.newTemporaryConversation());
+      if (!isTauriRuntime()) {
+        activateSnapshot(createPreviewConversation());
+        return;
+      }
+      activateSnapshot(await workspaceApi.newTemporaryConversation());
     } catch (error) {
       reportError(error);
     } finally {
@@ -330,7 +387,7 @@ export default function useWorkspaceController() {
         conversationId,
         name,
       );
-      setSnapshot(context);
+      activateSnapshot(context);
       setProjects(await workspaceApi.listProjects());
     } catch (error) {
       reportError(error);
@@ -338,9 +395,41 @@ export default function useWorkspaceController() {
       setBusy(false);
     }
   };
+  const activateTab = async (tabId: string) => {
+    if (!conversationId || tabId === conversationId) return;
+    setInspection(null);
+    setBusy(true);
+    try {
+      if (!isTauriRuntime()) {
+        const preview = previewSnapshots.current.get(tabId);
+        if (preview) activateSnapshot(preview);
+        return;
+      }
+      activateSnapshot(await workspaceApi.getConversationContext(tabId));
+    } catch (error) {
+      reportError(error);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const closeTab = async (tabId: string) => {
+    const index = tabs.findIndex((item) => item.id === tabId);
+    if (index < 0) return;
+    const remaining = tabs.filter((item) => item.id !== tabId);
+    previewSnapshots.current.delete(tabId);
+    setTabs(remaining);
+    if (tabId !== conversationId) return;
+    const adjacent = remaining[index] ?? remaining[index - 1];
+    if (adjacent) {
+      await activateTab(adjacent.id);
+      return;
+    }
+    await startNewConversation();
+  };
 
   return {
     snapshot,
+    tabs,
     projects,
     inspection,
     intent,
@@ -361,6 +450,8 @@ export default function useWorkspaceController() {
     createProject,
     archiveProject,
     startNewConversation,
+    activateTab,
+    closeTab,
     promoteCurrentConversation,
     resolvePendingImportName,
     chooseData,

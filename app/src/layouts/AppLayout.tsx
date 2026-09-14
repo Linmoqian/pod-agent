@@ -5,7 +5,7 @@
  * @author: https://github.com/Linmoqian
  */
 
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, X } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import { lazy, Suspense, useEffect, useState } from 'react';
 
@@ -41,7 +41,9 @@ import {
 import WorkbenchPanel from '../features/workspace/components/WorkbenchPanel';
 import WorkspaceComposer from '../features/workspace/components/WorkspaceComposer';
 import WorkspaceTimeline from '../features/workspace/components/WorkspaceTimeline';
-import useWorkspaceController from '../features/workspace/hooks/useWorkspaceController';
+import useWorkspaceController, {
+  type WorkspaceTab,
+} from '../features/workspace/hooks/useWorkspaceController';
 import AgentShell from './AgentShell';
 import styles from './AppLayout.module.css';
 
@@ -50,6 +52,11 @@ const ArtifactDrawer = lazy(
 );
 
 type ContextHeaderProps = {
+  tabs: WorkspaceTab[];
+  activeTabId: string;
+  busy: boolean;
+  onActivateTab: (tabId: string) => void;
+  onCloseTab: (tabId: string) => void;
   contextLabel: string;
   inProject: boolean;
   projects: { id: string; name: string; status: string }[];
@@ -95,6 +102,51 @@ function ContextHeader(props: ContextHeaderProps) {
 
   return (
     <header className={styles.header}>
+      <div className={styles.tabList} role="tablist" aria-label="已打开的会话">
+        {props.tabs.map((tab) => {
+          const active = tab.id === props.activeTabId;
+          return (
+            <motion.div
+              key={tab.id}
+              layout="position"
+              className={styles.tab}
+              data-active={active ? 'true' : undefined}
+              transition={{ type: 'spring', stiffness: 460, damping: 36, mass: 0.7 }}
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={active}
+                className={styles.tabLabel}
+                disabled={props.busy}
+                onClick={() => props.onActivateTab(tab.id)}
+              >
+                <span>{tab.label}</span>
+              </button>
+              <button
+                type="button"
+                className={styles.closeTab}
+                aria-label={`关闭${tab.label}`}
+                disabled={props.busy}
+                onClick={() => props.onCloseTab(tab.id)}
+              >
+                <X size={14} />
+              </button>
+            </motion.div>
+          );
+        })}
+      </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        className={styles.newTab}
+        aria-label="新建临时会话"
+        title="新建临时会话"
+        disabled={props.busy}
+        onClick={props.onStartNewConversation}
+      >
+        <Plus size={17} strokeWidth={1.75} />
+      </Button>
       <Dialog
         open={naming !== null}
         onOpenChange={(open) => {
@@ -307,6 +359,11 @@ export default function AppLayout() {
     >
       <main className={styles.main}>
         <ContextHeader
+          tabs={controller.tabs}
+          activeTabId={snapshot.conversation.id}
+          busy={controller.busy}
+          onActivateTab={(id) => void controller.activateTab(id)}
+          onCloseTab={(id) => void controller.closeTab(id)}
           contextLabel={project ? project.name : '临时会话'}
           inProject={Boolean(project)}
           projects={controller.projects}
