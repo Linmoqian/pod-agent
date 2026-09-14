@@ -6,6 +6,7 @@
 
 import { useState } from "react";
 import { Plus, RotateCw, Trash2 } from 'lucide-react';
+import { motion } from 'motion/react';
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,12 +72,13 @@ function CustomProviderList({
               disabled={refreshingId === row.id}
               onClick={() => void refresh(row.id)}
             >
-              <RotateCw
-                size={14}
-                strokeWidth={1.75}
-                className={refreshingId === row.id ? "animate-spin" : undefined}
+              <motion.span
                 aria-hidden
-              />
+                animate={refreshingId === row.id ? { rotate: 360 } : { rotate: 0 }}
+                transition={{ duration: 0.8, ease: 'linear', repeat: refreshingId === row.id ? Infinity : 0 }}
+              >
+                <RotateCw size={14} strokeWidth={1.75} />
+              </motion.span>
               刷新模型
             </Button>
             <Button

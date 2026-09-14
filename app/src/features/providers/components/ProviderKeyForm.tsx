@@ -7,6 +7,7 @@
 
 import { useState } from "react";
 import { KeyRound, Loader2 } from 'lucide-react';
+import { motion } from 'motion/react';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,7 +68,15 @@ function ProviderKeyForm({
         disabled={saving || !value.trim()}
         onClick={() => void submit()}
       >
-        {saving && <Loader2 size={14} strokeWidth={1.75} className="animate-spin" aria-hidden />}
+        {saving && (
+          <motion.span
+            aria-hidden
+            animate={{ rotate: 360 }}
+            transition={{ duration: 0.8, ease: 'linear', repeat: Infinity }}
+          >
+            <Loader2 size={14} strokeWidth={1.75} />
+          </motion.span>
+        )}
         保存
       </Button>
       {keyPreview && (
