@@ -6,8 +6,11 @@
  */
 
 import { useMemo, useState } from "react";
-import { Button, Input } from "antd";
-import AppIcon from "../components/common/AppIcon";
+import { Plus, Search } from 'lucide-react';
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+
 import type { ChatSession } from "../features/chat/types";
 import styles from "./Sidebar.module.css";
 
@@ -18,7 +21,7 @@ type SidebarProps = {
   onNewSession: () => void;
 };
 
-/* 单个会话项:选中态走品牌绿淡底 + 2px 指示条 */
+/* 单个会话项:选中态走 Action Blue 淡底 + 2px 指示条 */
 function SessionItem({
   session,
   active,
@@ -82,23 +85,26 @@ function Sidebar({
         </p>
       </header>
 
-      <Button
-        type="primary"
-        block
-        icon={<AppIcon name="add" size={17} />}
-        onClick={onNewSession}
-      >
+      <Button onClick={onNewSession} className="w-full">
+        <Plus size={17} strokeWidth={1.75} />
         新建任务
       </Button>
 
-      <Input
-        allowClear
-        value={keyword}
-        onChange={(event) => setKeyword(event.target.value)}
-        placeholder="搜索任务"
-        prefix={<AppIcon name="search" size={16} />}
-        aria-label="搜索任务"
-      />
+      {/* 搜索框:shadcn Input 无 prefix,用相对定位容器承载前缀图标 */}
+      <div className={styles.searchBox}>
+        <Search
+          size={16}
+          strokeWidth={1.75}
+          className={styles.searchIcon}
+          aria-hidden
+        />
+        <Input
+          value={keyword}
+          onChange={(event) => setKeyword(event.target.value)}
+          placeholder="搜索任务"
+          aria-label="搜索任务"
+        />
+      </div>
 
       <nav className={styles.sessionNav} aria-label="会话列表">
         {groups.map(([group, groupSessions]) => (

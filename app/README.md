@@ -64,6 +64,7 @@ app/
 | `pnpm test` | 前端单测（监听模式） |
 | `pnpm test:run` | 前端单测（单次执行，CI 用） |
 | `pnpm lint` | ESLint 检查 |
+| `pnpm check:react-stack` | 检查 React 单一运行时与冲突技术栈入口 |
 | `pnpm format` | Prettier 格式化 |
 
 Rust 侧验证在 `src-tauri/` 下执行：
@@ -76,9 +77,13 @@ cargo test
 
 ## 技术选型与取舍
 
-- 已引入（遵循仓库前端规范）：`react-router`（桌面端用 `MemoryRouter`）、`antd`（`ConfigProvider` + `zh_CN`）、`@reduxjs/toolkit` + `react-redux`、`motion`；界面图标统一由 `AppIcon` 加载农业字形 alpha mask；Markdown 链路为 `react-markdown` + `remark-gfm`（表格/删除线）+ `rehype-highlight` + `highlight.js`（代码高亮，显式声明以控版本）。
-- `@reduxjs/toolkit`、`react-redux`、`motion` 已安装但未接线，待出现跨页面工作流状态与动画需求时再建 `store/` 与动效层，不提前抽象。
-- 版本差异验证：antd v6 原生支持 React 19（peer 仅要求 `react >= 18`，无需补丁包）；react-router v8 从统一包 `react-router` 导入 `MemoryRouter` 等声明式 API，不再需要 `react-router-dom`。
+- 当前界面主栈为 `radix-ui` + shadcn/ui 组件模式、Tailwind CSS 4、CSS Modules、`lucide-react`、`react-router`（桌面端使用 `MemoryRouter`）和 `motion`。
+- 全局工作流状态使用 `@reduxjs/toolkit` + `react-redux`；局部状态优先使用 React Hooks。Rust/Tauri IPC 是业务数据事实来源，前端不维护第二份业务真相。
+- Markdown 链路为 `react-markdown` + `remark-gfm`（表格/删除线）+ `rehype-highlight` + `highlight.js`（代码高亮，显式声明以控版本）。
+- `@tanstack/react-query`、`@tanstack/react-table`、`react-hook-form`、`recharts`、`@xyflow/react`、`@react-three/fiber`、`@react-three/drei` 与 Monaco 组合保留作未来能力，不因为当前未接线而删除。
+- 依赖边界由 `pnpm.overrides` 固定 React/ReactDOM 单一运行时；`pnpm check:react-stack` 检查锁文件版本和源码入口，避免重新接入历史上的 Ant Design、TanStack Router、Zustand 或 ECharts 栈。
+- `@react-three/fiber` 与 `@xyflow/react` 当前分别带入 Zustand 5 / 4，这是上游包的传递依赖约束；业务代码不直接导入 Zustand，也不强行 override，待上游兼容同一主版本后再合并。
+- 锁文件中的 `react-is@17` 仅由测试工具 `pretty-format` 引入，生产图表链路使用 `react-is@19`，不属于第二份 React 运行时。
 - Lint 采用 ESLint 9 flat config + typescript-eslint + Prettier。规范提及的 Airbnb 风格配置不支持 ESLint 9 flat config 且维护停滞，故以 typescript-eslint 推荐规则 + Prettier 近似覆盖其核心约束（可读性、一致格式），并保留规范要求的 `max-lines` / `max-lines-per-function` warning 提示。
 - `tauri-plugin-opener` 已按最小授权原则移除，出现打开外部链接需求时再评估引入。
 - Markdown 内容当前来源于自有 LLM 回复，暂未接入 `rehype-sanitize`；若后续渲染用户输入的任意 Markdown，需先补消毒层。

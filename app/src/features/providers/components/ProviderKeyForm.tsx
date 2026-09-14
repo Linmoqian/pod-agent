@@ -6,8 +6,10 @@
  */
 
 import { useState } from "react";
-import { Button, Input, Tag } from "antd";
-import AppIcon from "../../../components/common/AppIcon";
+import { KeyRound, Loader2 } from 'lucide-react';
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import styles from "./ProviderSettingsModal.module.css";
 
 type ProviderKeyFormProps = {
@@ -39,32 +41,42 @@ function ProviderKeyForm({
 
   return (
     <div className={styles.keyForm}>
-      <Tag
-        color={keyPreview ? "green" : "default"}
-        icon={<AppIcon name="credential-key" size={12} />}
-        className={styles.keyTag}
+      {/* Badge 配置态走品牌绿,未配置走中性描边 */}
+      <Badge
+        variant="outline"
+        data-configured={Boolean(keyPreview)}
+        className={`${styles.keyTag} h-6 gap-1 px-2 font-normal`}
       >
+        <KeyRound size={12} strokeWidth={1.75} aria-hidden />
         {keyPreview ?? "未配置密钥"}
-      </Tag>
-      <Input.Password
-        size="small"
+      </Badge>
+      <Input
+        type="password"
+        className="h-8"
         value={value}
         placeholder="输入 API Key"
         aria-label={`${providerId} 密钥输入`}
         onChange={(event) => setValue(event.target.value)}
-        onPressEnter={submit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") void submit();
+        }}
       />
       <Button
-        size="small"
-        type="primary"
-        loading={saving}
-        disabled={!value.trim()}
-        onClick={submit}
+        size="sm"
+        className="h-8"
+        disabled={saving || !value.trim()}
+        onClick={() => void submit()}
       >
+        {saving && <Loader2 size={14} strokeWidth={1.75} className="animate-spin" aria-hidden />}
         保存
       </Button>
       {keyPreview && (
-        <Button size="small" onClick={() => void onClear(providerId)}>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8"
+          onClick={() => void onClear(providerId)}
+        >
           清除
         </Button>
       )}

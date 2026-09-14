@@ -2,6 +2,14 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 
+// 测试使用 @tauri 的 IPC mock;显式提供运行时标识以覆盖 Tauri 分支。
+if (!("__TAURI_INTERNALS__" in window)) {
+  Object.defineProperty(window, "__TAURI_INTERNALS__", {
+    configurable: true,
+    value: {},
+  });
+}
+
 // 未启用 vitest globals,需手动注册用例间 DOM 清理
 afterEach(cleanup);
 
@@ -21,7 +29,7 @@ if (!window.localStorage) {
   });
 }
 
-// jsdom 的伪元素样式查询未实现，antd 仅需要元素本身的滚动条样式。
+// jsdom 的伪元素样式查询未实现，测试只需保留元素本身的样式查询能力。
 const getComputedStyle = window.getComputedStyle.bind(window);
 window.getComputedStyle = (element: Element) => getComputedStyle(element);
 
@@ -42,7 +50,7 @@ if (typeof window.matchMedia !== "function") {
   });
 }
 
-// jsdom 未实现 ResizeObserver:antd 组件(如 Input/Tooltip)内部依赖它
+// jsdom 未实现 ResizeObserver:弹层与自适应组件依赖它
 if (typeof window.ResizeObserver !== "function") {
   class ResizeObserverStub {
     observe = () => {};

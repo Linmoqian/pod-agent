@@ -4,10 +4,24 @@
  * @author: https://github.com/Linmoqian
  */
 
-import { Alert, Select } from 'antd';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@/components/ui/alert';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 import type { SourceCandidate } from '../types';
 import styles from './SourceReview.module.css';
+
+/* 未映射哨兵值:shadcn Select 无 allowClear,用显式选项替代 */
+const NONE = '__none__';
 
 const ROLE_LABELS: Record<string, string> = {
   material: '材料标识',
@@ -34,17 +48,14 @@ export default function SourceReview({
 }: SourceReviewProps) {
   if (!candidate.supported) {
     return (
-      <Alert
-        type="warning"
-        title={`${candidate.name}：${candidate.ambiguities[0]}`}
-      />
+      <Alert>
+        <AlertTitle>无法自动识别</AlertTitle>
+        <AlertDescription>
+          {candidate.name}：{candidate.ambiguities[0]}
+        </AlertDescription>
+      </Alert>
     );
   }
-
-  const options = candidate.columns.map((column) => ({
-    label: column,
-    value: column,
-  }));
 
   return (
     <div className={styles.card}>
@@ -55,7 +66,9 @@ export default function SourceReview({
         </small>
       </div>
       {candidate.ambiguities.map((item) => (
-        <Alert key={item} type="warning" showIcon title={item} />
+        <Alert key={item}>
+          <AlertDescription>{item}</AlertDescription>
+        </Alert>
       ))}
       {candidate.sheets.map((sheet) => (
         <div key={sheet} className={styles.mappingGrid}>
@@ -64,19 +77,29 @@ export default function SourceReview({
             <label key={role}>
               <span>{label}</span>
               <Select
-                allowClear
-                value={value?.[sheet]?.[role] ?? undefined}
-                options={options}
-                onChange={(column) =>
+                value={value?.[sheet]?.[role] ?? NONE}
+                onValueChange={(column) =>
                   onChange({
                     ...value,
                     [sheet]: {
                       ...(value?.[sheet] ?? {}),
-                      [role]: column ?? null,
+                      [role]: column === NONE ? null : column,
                     },
                   })
                 }
-              />
+              >
+                <SelectTrigger aria-label={label}>
+                  <SelectValue placeholder="未映射" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>未映射</SelectItem>
+                  {candidate.columns.map((column) => (
+                    <SelectItem key={column} value={column}>
+                      {column}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </label>
           ))}
         </div>

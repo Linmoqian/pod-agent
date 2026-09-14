@@ -4,9 +4,10 @@
  * @author: https://github.com/Linmoqian
  */
 
-import { Empty, Tabs, Tag } from 'antd';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-import { statusColor } from '../status';
+import { statusTone } from '../status';
 import type {
   Artifact,
   TaskPlan,
@@ -29,17 +30,16 @@ export type WorkbenchPanelProps = {
   embedded?: boolean;
 };
 
+function EmptyHint({ description }: { description: string }) {
+  return <p className={styles.empty}>{description}</p>;
+}
+
 function DataCards({
   snapshot,
   onOpenArtifact,
 }: Pick<WorkbenchPanelProps, 'snapshot' | 'onOpenArtifact'>) {
   if (!snapshot.datasets.length) {
-    return (
-      <Empty
-        image={Empty.PRESENTED_IMAGE_SIMPLE}
-        description="尚未登记 Dataset"
-      />
-    );
+    return <EmptyHint description="尚未登记 Dataset" />;
   }
   return (
     <div className={styles.stack}>
@@ -60,9 +60,13 @@ function DataCards({
             <small>
               {dataset.schema.traits?.length ?? 0} 个性状 · v{dataset.version}
             </small>
-            <Tag color={statusColor(dataset.qualityStatus)}>
+            <Badge
+              variant="outline"
+              data-tone={statusTone(dataset.qualityStatus)}
+              className={styles.statusTag}
+            >
               {dataset.qualityStatus}
-            </Tag>
+            </Badge>
           </MagneticCard>
         );
       })}
@@ -75,12 +79,7 @@ function ResultCards({
   onOpenArtifact,
 }: Pick<WorkbenchPanelProps, 'snapshot' | 'onOpenArtifact'>) {
   if (!snapshot.artifacts.length) {
-    return (
-      <Empty
-        image={Empty.PRESENTED_IMAGE_SIMPLE}
-        description="运行后生成 Artifact"
-      />
-    );
+    return <EmptyHint description="运行后生成 Artifact" />;
   }
   return (
     <div className={styles.stack}>
@@ -92,7 +91,13 @@ function ResultCards({
         >
           <span>{artifact.name}</span>
           <small>{artifact.artifactType}</small>
-          <Tag color={statusColor(artifact.status)}>{artifact.status}</Tag>
+          <Badge
+            variant="outline"
+            data-tone={statusTone(artifact.status)}
+            className={styles.statusTag}
+          >
+            {artifact.status}
+          </Badge>
         </MagneticCard>
       ))}
     </div>
@@ -102,12 +107,7 @@ function ResultCards({
 function MaterialCards({ snapshot }: Pick<WorkbenchPanelProps, 'snapshot'>) {
   const materials = snapshot.materials ?? [];
   if (!materials.length) {
-    return (
-      <Empty
-        image={Empty.PRESENTED_IMAGE_SIMPLE}
-        description="导入数据后建立材料身份"
-      />
-    );
+    return <EmptyHint description="导入数据后建立材料身份" />;
   }
   return (
     <div className={styles.stack}>
@@ -142,10 +142,7 @@ export default function WorkbenchPanel(props: WorkbenchPanelProps) {
       onCancel={props.onCancel}
     />
   ) : (
-    <Empty
-      image={Empty.PRESENTED_IMAGE_SIMPLE}
-      description="提出问题后，任务计划会出现在这里"
-    />
+    <EmptyHint description="提出问题后，任务计划会出现在这里" />
   );
   return (
     <aside className={`${styles.panel} ${embedded ? styles.embedded : ''}`}>
@@ -157,33 +154,26 @@ export default function WorkbenchPanel(props: WorkbenchPanelProps) {
             : '当前上下文'}
         </span>
       </div>
-      <Tabs
-        items={[
-          { key: 'task', label: '任务', children: task },
-          {
-            key: 'data',
-            label: `数据 ${snapshot.datasets.length}`,
-            children: (
-              <DataCards snapshot={snapshot} onOpenArtifact={onOpenArtifact} />
-            ),
-          },
-          {
-            key: 'result',
-            label: `结果 ${snapshot.artifacts.length}`,
-            children: (
-              <ResultCards
-                snapshot={snapshot}
-                onOpenArtifact={onOpenArtifact}
-              />
-            ),
-          },
-          {
-            key: 'material',
-            label: `材料 ${snapshot.materials?.length ?? 0}`,
-            children: <MaterialCards snapshot={snapshot} />,
-          },
-        ]}
-      />
+      <Tabs defaultValue="task">
+        <TabsList variant="line">
+          <TabsTrigger value="task">任务</TabsTrigger>
+          <TabsTrigger value="data">数据 {snapshot.datasets.length}</TabsTrigger>
+          <TabsTrigger value="result">结果 {snapshot.artifacts.length}</TabsTrigger>
+          <TabsTrigger value="material">
+            材料 {snapshot.materials?.length ?? 0}
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="task">{task}</TabsContent>
+        <TabsContent value="data">
+          <DataCards snapshot={snapshot} onOpenArtifact={onOpenArtifact} />
+        </TabsContent>
+        <TabsContent value="result">
+          <ResultCards snapshot={snapshot} onOpenArtifact={onOpenArtifact} />
+        </TabsContent>
+        <TabsContent value="material">
+          <MaterialCards snapshot={snapshot} />
+        </TabsContent>
+      </Tabs>
     </aside>
   );
 }

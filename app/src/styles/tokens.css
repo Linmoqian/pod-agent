@@ -1,39 +1,39 @@
 /*
- * 设计 Token 单一来源:docs/design/2026-09-08-scau-inspired-design-tokens.md
- * 实现中的变量必须与该文档第 10 节同步,禁止在组件中散落相近色值。
+ * Agent 对话工作空间设计 Token，见 docs/design/2026-09-14-agent-chat.md
+ * 实现中的变量必须与该文档同步,禁止在组件中散落相近色值。
  * Created on 2026-09-08
  * @author: https://github.com/Linmoqian
  */
 
 :root {
-  /* 颜色 */
-  --color-brand-500: #40814f;
-  --color-brand-600: #327241;
-  --color-brand-700: #275a33;
-  --color-brand-strong: #007a49;
-  --color-brand-deep: #027245;
-  --color-surface-canvas: #fafcf8;
-  --color-surface-subtle: #fafff4;
+  /* 中性阅读表面与低饱和研究状态色。 */
+  --color-brand-500: #526b5e;
+  --color-brand-600: #435c4f;
+  --color-brand-700: #344b3f;
+  --color-brand-strong: #1d1d1f;
+  --color-brand-deep: #000000;
+  --color-surface-canvas: #ffffff;
+  --color-surface-subtle: #f7f7f5;
   --color-surface-default: #ffffff;
-  --color-surface-disabled: #f0f4ed;
-  --color-surface-muted: #f5f8f3;
-  --color-text-primary: #333333;
-  --color-text-secondary: #666666;
-  --color-text-tertiary: #7a7a7a;
+  --color-surface-disabled: #ececea;
+  --color-surface-muted: #fafafc;
+  --color-text-primary: #1d1d1f;
+  --color-text-secondary: #333333;
+  --color-text-tertiary: #757570;
   --color-text-disabled: #999999;
   --color-text-inverse: #ffffff;
-  --color-border-subtle: #e8e8e8;
-  --color-border-default: #d5d5d5;
-  --color-accent-gold: #edc25d;
-  --color-accent-teal: #3bb4ab;
-  --color-accent-red: #b93e2e;
-  --color-accent-mint: #4fb18d;
-  --color-state-success: var(--color-brand-500);
+  --color-border-subtle: #eeeee9;
+  --color-border-default: #e4e4df;
+  --color-accent-gold: #b7791f;
+  --color-accent-teal: #0f766e;
+  --color-accent-red: #b42318;
+  --color-accent-mint: #15803d;
+  --color-state-success: var(--color-accent-mint);
   --color-state-warning: var(--color-accent-gold);
   --color-state-danger: var(--color-accent-red);
   --color-state-info: var(--color-accent-teal);
   --color-overlay-image: rgba(0, 0, 0, 0.4);
-  --color-focus-ring: rgba(64, 129, 79, 0.28);
+  --color-focus-ring: rgba(82, 107, 94, 0.28);
 
   /* 字体 */
   --font-family-sans:
@@ -44,8 +44,8 @@
   --font-size-section: 30px;
   --font-size-title: 22px;
   --font-size-subtitle: 18px;
-  --font-size-body: 16px;
-  --font-size-reading: 17px;
+  --font-size-body: 14px;
+  --font-size-reading: 15px;
   --font-size-label: 14px;
   --font-size-caption: 12px;
   --font-size-metric: 50px;
@@ -86,9 +86,9 @@
   --layout-gutter: clamp(20px, 4vw, 60px);
 
   /* 圆角、边框与阴影 */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
+  --radius-sm: 8px;
+  --radius-md: 11px;
+  --radius-lg: 18px;
   --radius-xl: 20px;
   --radius-full: 9999px;
   --border-subtle: 1px solid var(--color-border-subtle);
@@ -96,17 +96,17 @@
   --shadow-card: 0 3px 20px rgba(0, 0, 0, 0.08);
   --shadow-media: 0 3px 20px rgba(0, 0, 0, 0.16);
   --shadow-header: 0 5px 10px rgba(0, 0, 0, 0.1);
-  --shadow-elevated: 0 24px 72px rgba(21, 48, 28, 0.18);
+  --shadow-elevated: 0 24px 72px rgba(15, 23, 42, 0.16);
 
-  /* Apple 式材料:沿用农业色板,不引入新的品牌色 */
+  /* Apple 式材料:沿用中性色板,不引入新的品牌色 */
   --material-rail: color-mix(
     in srgb,
-    var(--color-surface-default) 82%,
+    var(--color-surface-subtle) 78%,
     transparent
   );
   --material-toolbar: color-mix(
     in srgb,
-    var(--color-surface-default) 88%,
+    var(--color-surface-default) 72%,
     transparent
   );
   --material-modal: color-mix(
@@ -114,7 +114,7 @@
     var(--color-surface-default) 94%,
     transparent
   );
-  --material-scrim: rgba(15, 25, 18, 0.34);
+  --material-scrim: rgba(0, 0, 0, 0.34);
   --material-highlight: color-mix(
     in srgb,
     var(--color-surface-default) 72%,
@@ -134,39 +134,37 @@
 
   /* 代码语法色(GitHub 式低饱和):供 Markdown 代码块高亮,
    * 明暗两套跟随 data-theme,见第 13 节 */
-  --code-comment: #8a917f;
-  --code-keyword: #275a33;
-  --code-string: #1e7d76;
+  --code-comment: #64748b;
+  --code-keyword: #334155;
+  --code-string: #0f766e;
   --code-number: #9a6b1f;
-  --code-title: #327241;
+  --code-title: #475569;
 }
 
-/* 暗色主题:<html data-theme="dark"> 时整体换色,尺寸/字体/动效不变。
- * 派生原则:表面变暗绿墨色、文字反转、品牌绿提亮保持暗底可读;
- * 亮色中 hover 变浅/按压变深的反馈方向,暗色下统一朝提亮方向走。 */
+/* 暗色主题保持相同布局，状态色提升亮度以保证可读。 */
 [data-theme='dark'] {
-  --color-brand-500: #6aa877;
-  --color-brand-600: #5b9e6b;
-  --color-brand-700: #7cb989;
-  --color-brand-strong: #0e8f5c;
-  --color-brand-deep: #0d7a4e;
-  --color-surface-canvas: #101613;
-  --color-surface-subtle: #141b16;
-  --color-surface-default: #1a231d;
-  --color-surface-disabled: #202a23;
-  --color-surface-muted: #151d18;
-  --color-text-primary: #e8ece7;
-  --color-text-secondary: #aab4ab;
-  --color-text-tertiary: #909a91;
-  --color-text-disabled: #7a837b;
+  --color-brand-500: #a7bdac;
+  --color-brand-600: #92ad99;
+  --color-brand-700: #bed0c2;
+  --color-brand-strong: #272729;
+  --color-brand-deep: #000000;
+  --color-surface-canvas: #1c1c1b;
+  --color-surface-subtle: #20201e;
+  --color-surface-default: #262624;
+  --color-surface-disabled: #272729;
+  --color-surface-muted: #2a2a2c;
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #cccccc;
+  --color-text-tertiary: #a1a1a6;
+  --color-text-disabled: #7a7a7a;
   --color-text-inverse: #ffffff;
-  --color-border-subtle: #2a332c;
-  --color-border-default: #3a443c;
-  --color-accent-gold: #f0cd77;
-  --color-accent-teal: #55c2b8;
-  --color-accent-red: #d9705f;
-  --color-accent-mint: #63c29e;
-  --color-focus-ring: rgba(106, 168, 119, 0.4);
+  --color-border-subtle: #333333;
+  --color-border-default: #444444;
+  --color-accent-gold: #f0c36a;
+  --color-accent-teal: #5eead4;
+  --color-accent-red: #f87171;
+  --color-accent-mint: #4ade80;
+  --color-focus-ring: rgba(167, 189, 172, 0.4);
 
   --shadow-card: 0 3px 20px rgba(0, 0, 0, 0.32);
   --shadow-media: 0 3px 20px rgba(0, 0, 0, 0.5);
@@ -174,9 +172,9 @@
   --shadow-elevated: 0 24px 72px rgba(0, 0, 0, 0.55);
   --material-scrim: rgba(0, 0, 0, 0.56);
 
-  --code-comment: #7a837b;
-  --code-keyword: #7cb989;
-  --code-string: #63c2b8;
+  --code-comment: #94a3b8;
+  --code-keyword: #cbd5e1;
+  --code-string: #5eead4;
   --code-number: #f0cd77;
-  --code-title: #5b9e6b;
+  --code-title: #94a3b8;
 }

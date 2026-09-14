@@ -1,20 +1,21 @@
 /*
- * 按窗口宽度在常驻育种台与可访问抽屉之间切换。
+ * 触屏端将育种台转为可收起的底部面板，保持上下文始终可达。
  * Created on 2026-09-13
+ * Updated on 2026-09-14
  * @author: https://github.com/Linmoqian
  */
 
-import { Drawer } from 'antd';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import WorkbenchPanel, { type WorkbenchPanelProps } from './WorkbenchPanel';
 import styles from './ResponsiveWorkbench.module.css';
 
-const COMPACT_QUERY = '(max-width: 980px)';
+const COMPACT_QUERY = '(pointer: coarse) and (max-width: 1024px)';
 
 type ResponsiveWorkbenchProps = WorkbenchPanelProps & {
   open: boolean;
-  onClose: () => void;
+  onToggle: () => void;
 };
 
 function useCompactWorkbench() {
@@ -39,7 +40,7 @@ function PanelContent({ embedded, ...props }: WorkbenchPanelProps) {
 
 export default function ResponsiveWorkbench({
   open,
-  onClose,
+  onToggle,
   ...panelProps
 }: ResponsiveWorkbenchProps) {
   const compact = useCompactWorkbench();
@@ -49,15 +50,27 @@ export default function ResponsiveWorkbench({
   }
 
   return (
-    <Drawer
-      title="育种台"
-      placement="right"
-      open={open}
-      onClose={onClose}
-      destroyOnHidden
-      rootClassName={styles.drawerRoot}
+    <aside
+      className={styles.sheet}
+      data-expanded={open}
+      aria-label="育种台"
     >
-      {open && <PanelContent {...panelProps} embedded />}
-    </Drawer>
+      <button
+        type="button"
+        className={styles.sheetToggle}
+        aria-label={open ? '收起育种台' : '展开育种台'}
+        aria-expanded={open}
+        onClick={onToggle}
+      >
+        {open ? (
+          <ChevronDown size={18} strokeWidth={1.75} />
+        ) : (
+          <ChevronUp size={18} strokeWidth={1.75} />
+        )}
+      </button>
+      <div className={styles.sheetBody}>
+        <PanelContent {...panelProps} embedded />
+      </div>
+    </aside>
   );
 }

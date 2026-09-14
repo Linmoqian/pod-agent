@@ -30,7 +30,16 @@ const project = {
   createdAt: '2026-09-12',
   updatedAt: '2026-09-12',
 };
+const conversation = {
+  id: 'conversation-1',
+  projectId: project.id,
+  title: '研究对话',
+  status: 'active',
+  createdAt: '2026-09-12',
+  updatedAt: '2026-09-12',
+};
 const emptySnapshot = {
+  conversation,
   project,
   datasets: [],
   artifacts: [],
@@ -84,7 +93,7 @@ it('歧义确认后一次登记全部可分析文件', async () => {
   };
   mocks.open.mockResolvedValue(['/tmp/source-a.csv', '/tmp/source-b.csv']);
   mocks.invoke.mockImplementation(async (command: string) => {
-    if (command === 'ensure_draft_project') return project;
+    if (command === 'ensure_active_conversation') return emptySnapshot;
     if (command === 'list_projects') return [project];
     if (command === 'get_workspace_snapshot') return emptySnapshot;
     if (command === 'inspect_data_sources') {
@@ -145,9 +154,10 @@ it('运行中的任务可发出取消请求', async () => {
     finishedAt: null,
   };
   mocks.invoke.mockImplementation(async (command: string) => {
-    if (command === 'ensure_draft_project') return project;
+    if (command === 'ensure_active_conversation')
+      return { ...emptySnapshot, taskPlans: [plan], workflowRuns: [run] };
     if (command === 'list_projects') return [project];
-    if (command === 'get_workspace_snapshot') {
+    if (command === 'get_conversation_context') {
       return { ...emptySnapshot, taskPlans: [plan], workflowRuns: [run] };
     }
     if (command === 'cancel_workflow') return undefined;

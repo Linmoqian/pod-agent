@@ -1,0 +1,18 @@
+.card { margin: 12px 0; padding: 12px; border: 1px solid var(--color-border, #ddd); border-radius: 8px; min-width: 0; background: var(--color-bg-primary, #fff); }
+.card header, .labels, .card footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.card header { font-size: 12px; margin-bottom: 10px; }
+.card header span { color: var(--color-text-tertiary, #707578); font-size: 11px; }
+.card select { width: 100%; min-width: 0; font-size: 11px; background: transparent; color: inherit; border: 1px solid var(--color-border, #ddd); border-radius: 4px; padding: 5px; }
+.stage { position: relative; height: 96px; margin-top: 12px; }
+.placeholder { position: absolute; left: 8px; top: 14px; width: 68px; height: 64px; border: 1px dashed var(--color-border, #ccc); border-radius: 5px; display: grid; place-items: center; color: #92999c; }
+.right { left: auto; right: 8px; }
+.photo { position: absolute; top: 16px; width: 72px; height: 66px; padding: 3px; background: white; border: 1px solid #d6dadd; border-radius: 5px; box-shadow: 0 3px 8px #00000018; overflow: hidden; }
+.photo img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.scan { position: absolute; top: 2px; left: 2px; right: 2px; height: 2px; background: #29967c; box-shadow: 0 -7px 14px 5px #40c6a94d; }
+.labels { font-size: 10px; color: var(--color-text-secondary, #727777); }
+.card progress { width: 100%; height: 4px; accent-color: #29967c; display: block; margin: 10px 0; }
+.message { font-size: 11px; line-height: 1.5; height: 33px; overflow: auto; overflow-wrap: anywhere; color: var(--color-text-secondary, #727777); margin: 0 0 8px; }
+.card footer { justify-content: flex-start; }
+.card footer button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 28px; min-width: 28px; font-size: 11px; border: 0; border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
+.card button:disabled { opacity: .4; cursor: default; }
+.card button:active:not(:disabled) { transform: scale(.97); }

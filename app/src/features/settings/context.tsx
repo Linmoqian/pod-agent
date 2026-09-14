@@ -1,8 +1,7 @@
 /*
  * 全局设置上下文:主题偏好与体验模式。
  * 职责:localStorage 持久化、system 偏好跟随操作系统、解析后主题写入
- * <html data-theme>(tokens.css 据此切换明暗变量集)。antd 侧的明暗算法
- * 由 Root.tsx 中的 ThemeAwareConfigProvider 读取 resolvedTheme 完成。
+ * <html data-theme>(tokens.css 据此切换明暗变量集)，供 UI 原语与业务组件共同使用。
  * Created on 2026-09-08
  * @author: https://github.com/Linmoqian
  */

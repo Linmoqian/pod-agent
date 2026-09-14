@@ -7,10 +7,17 @@
  * @author: https://github.com/Linmoqian
  */
 
-import { Modal } from "antd";
-import type { ReactNode } from "react";
+import { Code2, FlaskConical, Monitor, Moon, Search, Sprout, Sun, SlidersHorizontal, UserRound } from 'lucide-react';
+import { motion } from 'motion/react';
+import { useState, type ReactNode } from 'react';
 import { version } from "../../../../package.json";
-import AppIcon, { type AppIconName } from "../../../components/common/AppIcon";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogOverlay,
+} from "@/components/ui/dialog";
 import BrandMark from "../../../components/common/BrandMark";
 import { useSettings } from "../context";
 import type { ExperienceMode, ThemePreference } from "../types";
@@ -53,7 +60,7 @@ type ThemeOption = {
   value: ThemePreference;
   label: string;
   description: string;
-  icon: AppIconName;
+  icon: ReactNode;
 };
 
 const THEME_OPTIONS: readonly ThemeOption[] = [
@@ -61,19 +68,19 @@ const THEME_OPTIONS: readonly ThemeOption[] = [
     value: "light",
     label: "浅色",
     description: "米绿画布与白色卡片的默认外观。",
-    icon: "theme-light",
+    icon: <Sun size={21} strokeWidth={1.75} />,
   },
   {
     value: "dark",
     label: "深色",
     description: "深绿墨色画布,适合暗光环境。",
-    icon: "theme-dark",
+    icon: <Moon size={21} strokeWidth={1.75} />,
   },
   {
     value: "system",
     label: "跟随系统",
     description: "随操作系统外观自动切换。",
-    icon: "theme-system",
+    icon: <Monitor size={21} strokeWidth={1.75} />,
   },
 ];
 
@@ -90,7 +97,7 @@ function ThemeSection() {
             key={value}
             label={label}
             description={description}
-            icon={<AppIcon name={icon} size={21} />}
+            icon={icon}
             selected={themePreference === value}
             onSelect={() => setThemePreference(value)}
           />
@@ -104,7 +111,7 @@ type ModeOption = {
   value: ExperienceMode;
   label: string;
   description: string;
-  icon: AppIconName;
+  icon: ReactNode;
 };
 
 /* 体验模式决定功能可见度与解释密度;当前作为全局偏好持久化,供各功能读取裁剪 */
@@ -113,19 +120,19 @@ const MODE_OPTIONS: readonly ModeOption[] = [
     value: "novice",
     label: "新手",
     description: "提供引导与解释,隐藏高级参数,适合首次使用。",
-    icon: "mode-novice",
+    icon: <Sprout size={21} strokeWidth={1.75} />,
   },
   {
     value: "expert",
     label: "专家",
     description: "开放完整功能与参数,精简引导,适合熟练用户。",
-    icon: "mode-expert",
+    icon: <FlaskConical size={21} strokeWidth={1.75} />,
   },
   {
     value: "developer",
     label: "开发人员",
     description: "额外显示调试信息与原始数据,用于开发与排障。",
-    icon: "mode-developer",
+    icon: <Code2 size={21} strokeWidth={1.75} />,
   },
 ];
 
@@ -142,7 +149,7 @@ function ModeSection() {
             key={value}
             label={label}
             description={description}
-            icon={<AppIcon name={icon} size={21} />}
+            icon={icon}
             selected={experienceMode === value}
             onSelect={() => setExperienceMode(value)}
           />
@@ -193,24 +200,50 @@ type SettingsModalProps = {
 };
 
 function SettingsModal({ open, onClose }: SettingsModalProps) {
+  const [activeSection, setActiveSection] = useState('appearance');
+  const [query, setQuery] = useState('');
+  const sections = [
+    { id: 'appearance', label: '外观', hint: '主题与界面', icon: <SlidersHorizontal size={16} /> },
+    { id: 'mode', label: '工作模式', hint: '助手行为', icon: <UserRound size={16} /> },
+    { id: 'about', label: '关于', hint: '版本信息', icon: <Code2 size={16} /> },
+  ];
+  const normalizedQuery = query.trim().toLowerCase();
+  const visible = (text: string) =>
+    !normalizedQuery || text.toLowerCase().includes(normalizedQuery);
   return (
-    <Modal
-      title="设置"
-      open={open}
-      onCancel={onClose}
-      footer={null}
-      centered
-      width={560}
-      rootClassName={styles.modalRoot}
-      transitionName="pod-modal"
-      maskTransitionName="pod-fade"
-    >
-      <div className={styles.body}>
-        <ThemeSection />
-        <ModeSection />
-        <AboutSection />
-      </div>
-    </Modal>
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogOverlay className={styles.modalOverlay} />
+      <DialogContent
+        className={`${styles.modalContent} sm:max-w-[760px]`}
+      >
+        <div className={styles.settingsLayout}>
+          <aside className={styles.settingsNav} aria-label="设置分类">
+            <DialogHeader>
+              <DialogTitle className={styles.modalTitle}>设置</DialogTitle>
+              <p className={styles.modalSubtitle}>配置你的 Agent 工作环境</p>
+            </DialogHeader>
+            <label className={styles.search}>
+              <Search size={15} aria-hidden />
+              <input aria-label="搜索设置" placeholder="搜索设置" value={query} onChange={(event) => setQuery(event.target.value)} />
+            </label>
+            <nav className={styles.sectionNav}>
+              {sections.map((section) => (
+                <button key={section.id} type="button" data-active={activeSection === section.id} onClick={() => { setActiveSection(section.id); document.getElementById(`settings-${section.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>
+                  {section.icon}<span><strong>{section.label}</strong><small>{section.hint}</small></span>
+                </button>
+              ))}
+            </nav>
+            <span className={styles.navFooter}>Pod Agent · v{version}</span>
+          </aside>
+          <motion.div className={styles.body} layout transition={{ duration: 0.2 }}>
+            {visible('外观主题') && <motion.div key="appearance" id="settings-appearance" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }}><ThemeSection /></motion.div>}
+            {visible('工作模式助手行为') && <motion.div key="mode" id="settings-mode" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }}><ModeSection /></motion.div>}
+            {visible('关于版本信息') && <motion.div key="about" id="settings-about" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }}><AboutSection /></motion.div>}
+            {normalizedQuery && !sections.some((section) => visible(section.label + section.hint)) && <p className={styles.noResults}>没有找到匹配的设置</p>}
+          </motion.div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

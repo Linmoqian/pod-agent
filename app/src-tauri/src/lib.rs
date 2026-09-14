@@ -26,6 +26,15 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            services::yolo::yolo_detect_image,
+            services::yolo::yolo_models,
+            services::yolo::yolo_thumbnail,
+            commands::conversation::ensure_active_conversation,
+            commands::conversation::get_conversation_context,
+            commands::conversation::open_project_context,
+            commands::conversation::new_temporary_conversation,
+            commands::conversation::send_message,
+            commands::conversation::promote_conversation,
             commands::project::ensure_draft_project,
             commands::project::list_projects,
             commands::project::create_project,

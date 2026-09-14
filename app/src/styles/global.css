@@ -5,7 +5,63 @@
  * @author: https://github.com/Linmoqian
  */
 
+@import "tailwindcss";
 @import "./tokens.css";
+
+/* shadcn 的 dark: 变体挂到现有 data-theme 机制(tokens.css 同款选择器) */
+@custom-variant dark (&:is([data-theme="dark"] *));
+
+/* shadcn 语义变量 → 项目设计 Token(tokens.css 单一来源):
+ * 只做指向不定义新色,明暗随 data-theme 自动切换。 */
+:root {
+  --background: var(--color-surface-canvas);
+  --foreground: var(--color-text-primary);
+  --card: var(--color-surface-default);
+  --card-foreground: var(--color-text-primary);
+  --popover: var(--color-surface-default);
+  --popover-foreground: var(--color-text-primary);
+  --primary: var(--color-brand-500);
+  --primary-foreground: var(--color-text-inverse);
+  --secondary: var(--color-surface-subtle);
+  --secondary-foreground: var(--color-text-primary);
+  --muted: var(--color-surface-muted);
+  --muted-foreground: var(--color-text-tertiary);
+  --accent: var(--color-surface-subtle);
+  --accent-foreground: var(--color-text-primary);
+  --destructive: var(--color-accent-red);
+  --border: var(--color-border-default);
+  --input: var(--color-border-subtle);
+  --ring: var(--color-focus-ring);
+}
+
+/* Tailwind 主题刻度 → 项目 Token:圆角/字体对齐 tokens.css,
+ * shadcn 组件里的 rounded-md、font-sans 等类因此沿用轻线条风格。 */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: 8px;
+  --radius-md: 11px;
+  --radius-lg: 18px;
+  --radius-xl: 20px;
+  --font-sans: var(--font-family-sans);
+}
 
 * {
   box-sizing: border-box;
@@ -57,7 +113,16 @@ button:not(:disabled):active {
   outline-offset: 2px;
 }
 
-/* 低频模态使用可中断的淡入缩放，避免 antd 默认从极小比例出现。 */
+/* 所有可点击元素共享轻微按压反馈；禁用态保持布局稳定。 */
+button:not(:disabled),
+[role='button']:not([aria-disabled='true']) {
+  transition-property: background-color, color, border-color, box-shadow,
+    transform;
+  transition-duration: var(--duration-fast);
+  transition-timing-function: var(--easing-standard);
+}
+
+/* 低频模态使用可中断的淡入缩放，保持当前 UI 原语的动效尺度。 */
 .pod-modal-enter,
 .pod-modal-appear {
   opacity: 0;

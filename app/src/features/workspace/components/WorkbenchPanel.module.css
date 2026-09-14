@@ -1,10 +1,12 @@
 .panel {
-  width: 368px;
+  width: var(--layout-sidebar);
   flex-shrink: 0;
   overflow-y: auto;
-  padding: 24px 20px;
+  padding: var(--space-6) var(--space-4);
   border-left: var(--border-subtle);
   background: var(--material-rail);
+  backdrop-filter: saturate(180%) blur(var(--blur-chrome));
+  -webkit-backdrop-filter: saturate(180%) blur(var(--blur-chrome));
 }
 
 .title,
@@ -15,8 +17,8 @@
 }
 
 .title {
-  margin-bottom: 14px;
-  padding: 0 4px;
+  margin-bottom: var(--space-4);
+  padding: 0 var(--space-1);
 }
 
 .title b {
@@ -35,7 +37,7 @@
 .specification {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .taskHeading,
@@ -46,16 +48,16 @@
 
 .taskPanel h3 {
   margin: 0;
-  padding: 16px 16px 0;
-  border-radius: 16px 16px 0 0;
+  padding: var(--space-4) var(--space-4) 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   background: var(--color-surface-default);
   font-size: 18px;
 }
 
 .taskPanel > p {
-  margin: -12px 0 0;
-  padding: 10px 16px 16px;
-  border-radius: 0 0 16px 16px;
+  margin: calc(-1 * var(--space-3)) 0 0;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
   background: var(--color-surface-default);
 }
 
@@ -68,16 +70,16 @@
 .specification {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: var(--space-2);
   margin: 0;
 }
 
 .specification div {
   min-width: 0;
-  padding: 12px;
-  border-radius: 14px;
+  padding: var(--space-3);
+  border: var(--border-subtle);
+  border-radius: var(--radius-md);
   background: var(--color-surface-default);
-  box-shadow: var(--shadow-card);
 }
 
 .specification div:last-child {
@@ -99,11 +101,11 @@
   display: grid;
   grid-template-columns: 25px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 14px;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: var(--border-subtle);
+  border-radius: var(--radius-md);
   background: var(--color-surface-default);
-  box-shadow: var(--shadow-card);
 }
 
 .step > span {
@@ -132,13 +134,13 @@
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 4px 8px;
+  gap: var(--space-1) var(--space-2);
   width: 100%;
-  padding: 14px;
+  padding: var(--space-3);
   text-align: left;
   color: inherit;
   border: var(--border-subtle);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--color-surface-default) 94%, transparent);
 }
 
@@ -205,7 +207,33 @@
   position: static;
   width: 100%;
   height: 100%;
-  padding: 24px 20px;
+  padding: 8px 14px 20px;
   border-left: 0;
   box-shadow: none;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+/* Badge 状态色:轻线条描边 + Token 状态色文字,明暗随 data-theme 切换 */
+.statusTag[data-tone='success'] {
+  color: var(--color-state-success);
+  border-color: color-mix(in srgb, var(--color-state-success) 40%, transparent);
+}
+
+.statusTag[data-tone='error'] {
+  color: var(--color-state-danger);
+  border-color: color-mix(in srgb, var(--color-state-danger) 40%, transparent);
+}
+
+.statusTag[data-tone='processing'] {
+  color: var(--color-state-info);
+  border-color: color-mix(in srgb, var(--color-state-info) 40%, transparent);
+}
+
+/* 工作区专用的轻量空态提示 */
+.empty {
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
+  font-size: var(--font-size-label);
+  color: var(--color-text-tertiary);
 }

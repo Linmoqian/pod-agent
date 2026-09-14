@@ -61,6 +61,7 @@ pub async fn submit_agent_intent(
     project_id: String,
     intent: Option<String>,
     dataset_ids: Vec<String>,
+    conversation_id: Option<String>,
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> AppResult<TaskPlan> {
@@ -182,19 +183,48 @@ pub async fn submit_agent_intent(
         .lock()
         .map_err(|_| AppError::retryable("DB_BUSY", "数据库暂时不可用"))?;
     db::insert_plan(&connection, &plan)?;
+    // 计划消息挂会话：优先调用方传入，否则项目最近会话，再否则新开。
+    let conversation = match conversation_id
+        .as_deref()
+        .filter(|id| !id.is_empty())
+        .and_then(|id| db::conversation(&connection, id).ok())
+    {
+        Some(conversation) => conversation,
+        None => {
+            let existing = db::latest_project_conversation(&connection, &plan.project_id)?;
+            match existing {
+                Some(conversation) => conversation,
+                None => {
+                    let timestamp = db::now();
+                    let conversation = crate::domain::Conversation {
+                        id: uuid::Uuid::new_v4().to_string(),
+                        project_id: Some(plan.project_id.clone()),
+                        title: plan.title.clone(),
+                        status: "active".into(),
+                        created_at: timestamp.clone(),
+                        updated_at: timestamp,
+                    };
+                    db::insert_conversation(&connection, &conversation)?;
+                    conversation
+                }
+            }
+        }
+    };
     db::insert_message(
         &connection,
-        &plan.project_id,
+        &conversation.id,
         Some(&plan.id),
         "user",
         &plan.intent,
+        None,
     )?;
     db::insert_message(
         &connection,
-        &plan.project_id,
+        &conversation.id,
         Some(&plan.id),
         "assistant",
         &format!("已建立任务：{}；等待确认后执行。", plan.title),
+        None,
     )?;
     emit(
         &app,
@@ -211,6 +241,7 @@ pub async fn submit_research_intent(
     project_id: String,
     intent: Option<String>,
     inputs: Vec<EntityRef>,
+    conversation_id: Option<String>,
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> AppResult<TaskPlan> {
@@ -242,7 +273,7 @@ pub async fn submit_research_intent(
         }
         values
     };
-    submit_agent_intent(project_id, intent, dataset_ids, app, state).await
+    submit_agent_intent(project_id, intent, dataset_ids, conversation_id, app, state).await
 }
 
 fn artifact_files(directory: &Path, names: &[String]) -> AppResult<Vec<ArtifactFile>> {

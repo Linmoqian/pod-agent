@@ -4,3 +4,4 @@ pub mod research;
 pub mod storage;
 pub mod tools;
 pub mod worker;
+pub mod yolo;

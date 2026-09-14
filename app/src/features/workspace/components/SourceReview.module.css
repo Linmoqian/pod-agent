@@ -1,10 +1,10 @@
 .card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 14px;
+  gap: var(--space-3);
+  padding: var(--space-4);
   border: var(--border-subtle);
-  border-radius: 13px;
+  border-radius: var(--radius-md);
 }
 
 .heading {
@@ -19,7 +19,7 @@
 .mappingGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: var(--space-2);
 }
 
 .mappingGrid strong {
@@ -29,7 +29,7 @@
 .mappingGrid label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
   color: var(--color-text-secondary);
   font-size: 12px;
 }

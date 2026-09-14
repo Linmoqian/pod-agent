@@ -44,7 +44,7 @@
   text-overflow: ellipsis;
 }
 
-/* 任务进行中:品牌绿提示,同时以文字表达状态 */
+/* 任务进行中:Action Blue 提示,同时以文字表达状态 */
 .metric[data-status="working"] {
   color: var(--color-brand-600);
 }

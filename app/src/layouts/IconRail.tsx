@@ -5,9 +5,10 @@
  * @author: https://github.com/Linmoqian
  */
 import { useState } from "react";
-import { Tooltip } from "antd";
+import { ChevronLeft, ChevronRight, MessageCircle, Settings } from 'lucide-react';
 
-import AppIcon from "../components/common/AppIcon";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+
 import BrandMark from "../components/common/BrandMark";
 import SettingsModal from "../features/settings/components/SettingsModal";
 import styles from "./IconRail.module.css";
@@ -51,28 +52,33 @@ function IconRail({
         <BrandMark size={42} label="lian@lab" />
       </div>
       <RailButton label="研究工作区" active>
-        <AppIcon name="chat" size={22} />
+        <MessageCircle size={22} strokeWidth={1.75} />
       </RailButton>
-      <Tooltip
-        title={workbenchOpen ? "收起育种台" : "展开育种台"}
-        placement="right"
-      >
-        <RailButton
-          label={workbenchOpen ? "收起育种台" : "展开育种台"}
-          onClick={onToggleWorkbench}
-        >
-          <AppIcon
-            name="panel-arrow"
-            size={19}
-            transform={workbenchOpen ? "none" : "rotate-180"}
-          />
-        </RailButton>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <RailButton
+            label={workbenchOpen ? "收起育种台" : "展开育种台"}
+            onClick={onToggleWorkbench}
+          >
+            {workbenchOpen ? (
+              <ChevronRight size={20} strokeWidth={1.75} />
+            ) : (
+              <ChevronLeft size={20} strokeWidth={1.75} />
+            )}
+          </RailButton>
+        </TooltipTrigger>
+        <TooltipContent side="right">
+          {workbenchOpen ? "收起育种台" : "展开育种台"}
+        </TooltipContent>
       </Tooltip>
       <div className={styles.spacer} />
-      <Tooltip title="设置" placement="right">
-        <RailButton label="设置" onClick={() => setSettingsOpen(true)}>
-          <AppIcon name="settings" size={22} />
-        </RailButton>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <RailButton label="设置" onClick={() => setSettingsOpen(true)}>
+            <Settings size={22} strokeWidth={1.75} />
+          </RailButton>
+        </TooltipTrigger>
+        <TooltipContent side="right">设置</TooltipContent>
       </Tooltip>
       <SettingsModal
         open={settingsOpen}

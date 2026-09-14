@@ -337,11 +337,44 @@ pub struct ToolRun {
 #[serde(rename_all = "camelCase")]
 pub struct Message {
     pub id: String,
-    pub project_id: String,
+    pub conversation_id: String,
     pub task_plan_id: Option<String>,
     pub role: String,
     pub content: String,
+    pub reasoning: Option<String>,
     pub created_at: String,
+}
+
+/// 对话是 lian 的交互单元，永远存在；project 为空表示临时会话。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Conversation {
+    pub id: String,
+    pub project_id: Option<String>,
+    pub title: String,
+    pub status: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// Agent 每次回答所拥有的渐进式上下文：conversation 永远存在，其余允许为空。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConversationContext {
+    pub conversation: Conversation,
+    pub project: Option<Project>,
+    pub overview: Option<ProjectOverview>,
+    pub datasets: Vec<Dataset>,
+    pub schemas: Vec<ResearchSchema>,
+    pub materials: Vec<Material>,
+    pub traits: Vec<TraitDefinition>,
+    pub environments: Vec<Environment>,
+    pub artifacts: Vec<Artifact>,
+    pub task_plans: Vec<TaskPlan>,
+    pub task_plan_runs: Vec<TaskPlanRun>,
+    pub executions: Vec<Execution>,
+    pub workflow_runs: Vec<WorkflowRun>,
+    pub messages: Vec<Message>,
 }
 
 #[derive(Debug, Clone, Serialize)]

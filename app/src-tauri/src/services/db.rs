@@ -4,11 +4,11 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use crate::domain::{
-    Artifact, ArtifactFile, Dataset, Message, Project, TaskPlan, ToolRun, WorkflowRun,
+    Artifact, ArtifactFile, Conversation, Dataset, Message, Project, TaskPlan, ToolRun, WorkflowRun,
 };
 use crate::error::{AppError, AppResult};
 
-const SCHEMA_VERSION: i64 = 2;
+const SCHEMA_VERSION: i64 = 4;
 
 pub fn now() -> String {
     chrono::Utc::now().to_rfc3339()
@@ -33,6 +33,24 @@ pub fn open(path: &Path) -> AppResult<Connection> {
     if current_version == 1 {
         let backup_path = path.with_extension(format!(
             "pre-v2-{}.db",
+            chrono::Utc::now().format("%Y%m%d%H%M%S")
+        ));
+        connection
+            .backup(DatabaseName::Main, &backup_path, None)
+            .map_err(|error| AppError::new("DB_BACKUP_FAILED", error.to_string()))?;
+    }
+    if current_version == 2 {
+        let backup_path = path.with_extension(format!(
+            "pre-v3-{}",
+            chrono::Utc::now().format("%Y%m%d%H%M%S")
+        ));
+        connection
+            .backup(DatabaseName::Main, &backup_path, None)
+            .map_err(|error| AppError::new("DB_BACKUP_FAILED", error.to_string()))?;
+    }
+    if current_version == 3 {
+        let backup_path = path.with_extension(format!(
+            "pre-v4-{}",
             chrono::Utc::now().format("%Y%m%d%H%M%S")
         ));
         connection
@@ -200,6 +218,12 @@ pub fn open(path: &Path) -> AppResult<Connection> {
     if current_version < 2 {
         migrate_v1(&connection)?;
     }
+    if current_version < 3 {
+        migrate_conversations_v1(&connection)?;
+    }
+    if current_version < 4 {
+        migrate_message_reasoning_v1(&connection)?;
+    }
     connection
         .pragma_update(None, "user_version", SCHEMA_VERSION)
         .map_err(|error| AppError::new("DB_MIGRATION_FAILED", error.to_string()))?;
@@ -249,6 +273,80 @@ fn migrate_lineage_v1(connection: &Connection) -> AppResult<()> {
            WHERE produced_by_run_id IS NULL OR (SELECT count(*) FROM executions e WHERE e.task_plan_run_id=artifacts.produced_by_run_id)<>1;"
     ).map_err(|error| AppError::new("DB_MIGRATION_FAILED", error.to_string()))?;
     Ok(())
+}
+
+/// v2→v3：对话成为交互单元。消息从直挂 Project 改为挂 Conversation，
+/// 历史 Project 消息各建一个「研究对话」会话承接；Conversation 的 project_id 允许为空（临时会话）。
+fn migrate_conversations_v1(connection: &Connection) -> AppResult<()> {
+    // 仅当 messages 仍是旧结构（直挂 project_id）时才搬迁；
+    // 兼容「新结构库被回拨版本号」的测试与异常形态，避免重复迁移报错。
+    let legacy_layout = connection
+        .prepare("PRAGMA table_info(messages)")
+        .and_then(|mut statement| {
+            statement
+                .query_map([], |row| row.get::<_, String>(1))
+                .map(|rows| {
+                    rows.filter_map(Result::ok)
+                        .any(|column| column == "project_id")
+                })
+        })
+        .map_err(|error| AppError::new("DB_MIGRATION_FAILED", error.to_string()))?;
+    connection
+        .execute_batch(
+            "CREATE TABLE IF NOT EXISTS conversations (
+               id TEXT PRIMARY KEY, project_id TEXT, title TEXT NOT NULL,
+               status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+               FOREIGN KEY(project_id) REFERENCES projects(id)
+             );",
+        )
+        .map_err(|error| AppError::new("DB_MIGRATION_FAILED", error.to_string()))?;
+    if !legacy_layout {
+        connection
+            .execute_batch(
+                "CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at);",
+            )
+            .map_err(|error| AppError::new("DB_MIGRATION_FAILED", error.to_string()))?;
+        return Ok(());
+    }
+    connection
+        .execute_batch(
+            "INSERT INTO conversations(id,project_id,title,status,created_at,updated_at)
+               SELECT 'conv:project:'||m.project_id, m.project_id, p.name, 'active', MIN(m.created_at), MAX(m.created_at)
+               FROM messages m JOIN projects p ON p.id=m.project_id GROUP BY m.project_id, p.name;
+             CREATE TABLE messages_v3 (
+               id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, task_plan_id TEXT,
+               role TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL,
+               FOREIGN KEY(conversation_id) REFERENCES conversations(id)
+             );
+             INSERT INTO messages_v3(id,conversation_id,task_plan_id,role,content,created_at)
+               SELECT id,'conv:project:'||project_id,task_plan_id,role,content,created_at FROM messages;
+             DROP TABLE messages;
+             ALTER TABLE messages_v3 RENAME TO messages;
+             CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at);",
+        )
+        .map_err(|error| AppError::new("DB_MIGRATION_FAILED", error.to_string()))?;
+    Ok(())
+}
+
+/// v3→v4：保留模型实际返回的思考文本；旧消息一律为 NULL。
+fn migrate_message_reasoning_v1(connection: &Connection) -> AppResult<()> {
+    let has_reasoning = connection
+        .prepare("PRAGMA table_info(messages)")
+        .and_then(|mut statement| {
+            statement
+                .query_map([], |row| row.get::<_, String>(1))
+                .map(|rows| {
+                    rows.filter_map(Result::ok)
+                        .any(|column| column == "reasoning")
+                })
+        })
+        .map_err(|error| AppError::new("DB_MIGRATION_FAILED", error.to_string()))?;
+    if has_reasoning {
+        return Ok(());
+    }
+    connection
+        .execute_batch("ALTER TABLE messages ADD COLUMN reasoning TEXT;")
+        .map_err(|error| AppError::new("DB_MIGRATION_FAILED", error.to_string()))
 }
 
 #[derive(Clone)]
@@ -873,36 +971,157 @@ pub fn attach_execution_logs(
 
 pub fn insert_message(
     connection: &Connection,
-    project_id: &str,
+    conversation_id: &str,
     task_plan_id: Option<&str>,
     role: &str,
     content: &str,
+    reasoning: Option<&str>,
 ) -> AppResult<()> {
     connection.execute(
-        "INSERT INTO messages(id,project_id,task_plan_id,role,content,created_at) VALUES(?1,?2,?3,?4,?5,?6)",
-        params![uuid::Uuid::new_v4().to_string(),project_id,task_plan_id,role,content,now()],
+        "INSERT INTO messages(id,conversation_id,task_plan_id,role,content,reasoning,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7)",
+        params![uuid::Uuid::new_v4().to_string(),conversation_id,task_plan_id,role,content,reasoning,now()],
+    ).map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    touch_conversation(connection, conversation_id)?;
+    Ok(())
+}
+
+fn map_message(row: &rusqlite::Row<'_>) -> rusqlite::Result<Message> {
+    Ok(Message {
+        id: row.get(0)?,
+        conversation_id: row.get(1)?,
+        task_plan_id: row.get(2)?,
+        role: row.get(3)?,
+        content: row.get(4)?,
+        reasoning: row.get(5)?,
+        created_at: row.get(6)?,
+    })
+}
+
+/// 当前会话的消息时间线。
+pub fn conversation_messages(
+    connection: &Connection,
+    conversation_id: &str,
+) -> AppResult<Vec<Message>> {
+    let mut statement = connection.prepare(
+        "SELECT id,conversation_id,task_plan_id,role,content,reasoning,created_at FROM messages WHERE conversation_id=?1 ORDER BY created_at",
+    )
+    .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+    let rows = statement
+        .query_map([conversation_id], map_message)
+        .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))
+}
+
+/// 项目内全部会话的消息（兼容旧 project 维度快照）。
+pub fn messages(connection: &Connection, project_id: &str) -> AppResult<Vec<Message>> {
+    let mut statement = connection
+        .prepare(
+            "SELECT m.id,m.conversation_id,m.task_plan_id,m.role,m.content,m.reasoning,m.created_at
+         FROM messages m JOIN conversations c ON c.id=m.conversation_id
+         WHERE c.project_id=?1 ORDER BY m.created_at",
+        )
+        .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+    let rows = statement
+        .query_map([project_id], map_message)
+        .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))
+}
+
+fn map_conversation(row: &rusqlite::Row<'_>) -> rusqlite::Result<Conversation> {
+    Ok(Conversation {
+        id: row.get(0)?,
+        project_id: row.get(1)?,
+        title: row.get(2)?,
+        status: row.get(3)?,
+        created_at: row.get(4)?,
+        updated_at: row.get(5)?,
+    })
+}
+
+const CONVERSATION_COLUMNS: &str = "id,project_id,title,status,created_at,updated_at";
+
+pub fn insert_conversation(connection: &Connection, conversation: &Conversation) -> AppResult<()> {
+    connection.execute(
+        "INSERT INTO conversations(id,project_id,title,status,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,?6)",
+        params![
+            conversation.id,
+            conversation.project_id,
+            conversation.title,
+            conversation.status,
+            conversation.created_at,
+            conversation.updated_at
+        ],
     ).map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
     Ok(())
 }
 
-pub fn messages(connection: &Connection, project_id: &str) -> AppResult<Vec<Message>> {
-    let mut statement = connection.prepare(
-        "SELECT id,project_id,task_plan_id,role,content,created_at FROM messages WHERE project_id=?1 ORDER BY created_at"
-    ).map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
-    let rows = statement
-        .query_map([project_id], |row| {
-            Ok(Message {
-                id: row.get(0)?,
-                project_id: row.get(1)?,
-                task_plan_id: row.get(2)?,
-                role: row.get(3)?,
-                content: row.get(4)?,
-                created_at: row.get(5)?,
-            })
-        })
-        .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
-    rows.collect::<Result<Vec<_>, _>>()
+pub fn conversation(connection: &Connection, conversation_id: &str) -> AppResult<Conversation> {
+    connection
+        .query_row(
+            &format!("SELECT {CONVERSATION_COLUMNS} FROM conversations WHERE id=?1"),
+            [conversation_id],
+            map_conversation,
+        )
+        .optional()
+        .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?
+        .ok_or_else(|| AppError::new("CONVERSATION_NOT_FOUND", "会话不存在"))
+}
+
+/// 最近一次活跃的会话（任意归属）；没有则返回 None。
+pub fn latest_conversation(connection: &Connection) -> AppResult<Option<Conversation>> {
+    connection
+        .query_row(
+            &format!(
+                "SELECT {CONVERSATION_COLUMNS} FROM conversations WHERE status='active' ORDER BY updated_at DESC LIMIT 1"
+            ),
+            [],
+            map_conversation,
+        )
+        .optional()
         .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))
+}
+
+pub fn latest_project_conversation(
+    connection: &Connection,
+    project_id: &str,
+) -> AppResult<Option<Conversation>> {
+    connection
+        .query_row(
+            &format!(
+                "SELECT {CONVERSATION_COLUMNS} FROM conversations WHERE status='active' AND project_id=?1 ORDER BY updated_at DESC LIMIT 1"
+            ),
+            [project_id],
+            map_conversation,
+        )
+        .optional()
+        .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))
+}
+
+pub fn touch_conversation(connection: &Connection, conversation_id: &str) -> AppResult<()> {
+    connection
+        .execute(
+            "UPDATE conversations SET updated_at=?1 WHERE id=?2",
+            params![now(), conversation_id],
+        )
+        .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    Ok(())
+}
+
+/// 把临时会话提升为项目容器：只改归属，不复制消息。
+pub fn attach_conversation_to_project(
+    connection: &Connection,
+    conversation_id: &str,
+    project_id: &str,
+) -> AppResult<()> {
+    connection
+        .execute(
+            "UPDATE conversations SET project_id=?1,updated_at=?2 WHERE id=?3",
+            params![project_id, now(), conversation_id],
+        )
+        .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    Ok(())
 }
 
 pub fn source_json(source: &SourceRecord) -> Value {
@@ -939,6 +1158,35 @@ mod tests {
                 "测试项目"
             );
         }
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn message_reasoning_survives_round_trip() {
+        let root = test_root();
+        let path = root.join("lian.db");
+        let connection = open(&path).unwrap();
+        let timestamp = now();
+        let conversation = Conversation {
+            id: "conversation-1".into(),
+            project_id: None,
+            title: "测试会话".into(),
+            status: "active".into(),
+            created_at: timestamp.clone(),
+            updated_at: timestamp,
+        };
+        insert_conversation(&connection, &conversation).unwrap();
+        insert_message(
+            &connection,
+            &conversation.id,
+            None,
+            "assistant",
+            "回答正文",
+            Some("真实模型思考"),
+        )
+        .unwrap();
+        let messages = conversation_messages(&connection, &conversation.id).unwrap();
+        assert_eq!(messages[0].reasoning.as_deref(), Some("真实模型思考"));
         std::fs::remove_dir_all(root).unwrap();
     }
 

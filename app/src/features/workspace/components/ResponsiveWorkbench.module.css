@@ -1,7 +1,65 @@
-.drawerRoot :global(.ant-drawer-content-wrapper) {
-  width: min(368px, calc(100vw - 56px)) !important;
+.sheet {
+  position: fixed;
+  z-index: 20;
+  right: 0;
+  bottom: calc(64px + env(safe-area-inset-bottom));
+  left: 0;
+  display: flex;
+  height: min(46dvh, 420px);
+  flex-direction: column;
+  overflow: hidden;
+  border-top: var(--border-subtle);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: var(--material-rail);
+  backdrop-filter: saturate(180%) blur(var(--blur-chrome));
+  -webkit-backdrop-filter: saturate(180%) blur(var(--blur-chrome));
+  box-shadow: 0 -8px 24px color-mix(in srgb, var(--color-brand-700) 8%, transparent);
+  transform: translateY(0);
+  transition: transform 220ms cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: transform;
 }
 
-.drawerRoot :global(.ant-drawer-body) {
+.sheet[data-expanded='false'] {
+  transform: translateY(calc(100% - 28px));
+}
+
+.sheetToggle {
+  display: grid;
+  width: 100%;
+  height: 28px;
+  flex-shrink: 0;
+  place-items: center;
   padding: 0;
+  border: 0;
+  border-bottom: var(--border-subtle);
+  background: transparent;
+  color: var(--color-text-disabled);
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.sheetToggle:active {
+  transform: scale(0.97);
+}
+
+.sheetBody {
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .sheetToggle:hover {
+    background: color-mix(in srgb, var(--color-text-primary) 5%, transparent);
+    color: var(--color-text-primary);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet {
+    transition: opacity 160ms ease;
+  }
 }

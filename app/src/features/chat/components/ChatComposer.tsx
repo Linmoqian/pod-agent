@@ -6,11 +6,10 @@
  */
 
 import { useState } from "react";
-import { Button, Input } from "antd";
-import AppIcon from "../../../components/common/AppIcon";
+import { SendHorizontal } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import styles from "./ChatComposer.module.css";
-
-const { TextArea } = Input;
 
 type ChatComposerProps = {
   onSend: (text: string) => void;
@@ -35,15 +34,15 @@ function ChatComposer({
   return (
     <div className={styles.composer}>
       <div className={styles.inputCard}>
-        <TextArea
+        {/* field-sizing 自动高度;不支持时退化为固定一行 */}
+        <Textarea
           value={value}
           autoFocus={autoFocus}
           placeholder={placeholder}
-          variant="borderless"
-          autoSize={{ minRows: 1, maxRows: 6 }}
+          className={`${styles.messageInput} field-sizing-content max-h-24 min-h-0 resize-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0`}
           onChange={(event) => setValue(event.target.value)}
-          onPressEnter={(event) => {
-            if (!event.shiftKey) {
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
               submit();
             }
@@ -51,13 +50,14 @@ function ChatComposer({
           aria-label="消息输入"
         />
         <Button
-          type="primary"
-          shape="circle"
+          size="icon"
           aria-label="发送"
-          icon={<AppIcon name="send" size={17} />}
+          className={`${styles.sendButton} size-10 shrink-0 rounded-full`}
           disabled={!value.trim()}
           onClick={submit}
-        />
+        >
+          <SendHorizontal size={17} strokeWidth={1.75} />
+        </Button>
       </div>
       <p className={styles.hint}>Enter 发送 · Shift+Enter 换行</p>
     </div>

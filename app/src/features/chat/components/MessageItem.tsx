@@ -7,7 +7,7 @@
  */
 
 import BrandMark from "../../../components/common/BrandMark";
-import MarkdownContent from "./MarkdownContent";
+import MarkdownContent from "../../../components/common/MarkdownContent";
 import type { ChatMessage } from "../types";
 import styles from "./MessageItem.module.css";
 

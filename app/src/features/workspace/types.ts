@@ -12,6 +12,16 @@ export type Project = {
   updatedAt: string;
 };
 
+/** 对话是 lian 的交互单元；projectId 为空表示临时会话，Project 只是可选容器。 */
+export type Conversation = {
+  id: string;
+  projectId: string | null;
+  title: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type TraitSchema = {
   id: string;
   name: string;
@@ -96,15 +106,19 @@ export type WorkflowRun = {
 
 export type TimelineMessage = {
   id: string;
-  projectId: string;
+  conversationId: string;
   taskPlanId: string | null;
   role: string;
   content: string;
+  reasoning?: string | null;
+  /** 仅在前端等待本轮真实 Agent 结果时使用，不持久化。 */
+  status?: 'pending' | 'streaming';
   createdAt: string;
 };
 
 export type WorkspaceSnapshot = {
-  project: Project;
+  conversation: Conversation;
+  project: Project | null;
   overview?: ProjectOverview;
   datasets: Dataset[];
   schemas?: ResearchSchema[];
@@ -153,13 +167,77 @@ export type ProjectOverview = {
   facts: string[];
 };
 
-export type ResearchSchema = { id: string; projectId: string; datasetType: string; version: number; layout: string; fields: unknown; roles: unknown; checksum: string; createdAt: string };
-export type Material = { id: string; projectId: string; canonicalCode: string; displayName: string; origin: string | null; generation: string | null; metadata: Record<string, unknown>; createdAt: string };
-export type TraitDefinition = { id: string; projectId: string; canonicalCode: string; name: string; valueType: string; unit: string | null; method: string | null; scale: string | null; ontologyRef: string | null; createdAt: string };
-export type Environment = { id: string; projectId: string; canonicalCode: string; name: string; location: string | null; year: number | null; season: string | null; treatment: unknown; metadata: unknown; createdAt: string };
+export type ResearchSchema = {
+  id: string;
+  projectId: string;
+  datasetType: string;
+  version: number;
+  layout: string;
+  fields: unknown;
+  roles: unknown;
+  checksum: string;
+  createdAt: string;
+};
+export type Material = {
+  id: string;
+  projectId: string;
+  canonicalCode: string;
+  displayName: string;
+  origin: string | null;
+  generation: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+};
+export type TraitDefinition = {
+  id: string;
+  projectId: string;
+  canonicalCode: string;
+  name: string;
+  valueType: string;
+  unit: string | null;
+  method: string | null;
+  scale: string | null;
+  ontologyRef: string | null;
+  createdAt: string;
+};
+export type Environment = {
+  id: string;
+  projectId: string;
+  canonicalCode: string;
+  name: string;
+  location: string | null;
+  year: number | null;
+  season: string | null;
+  treatment: unknown;
+  metadata: unknown;
+  createdAt: string;
+};
 export type TaskPlanRun = WorkflowRun;
-export type Execution = { id: string; taskPlanRunId: string; projectId: string; stepId: string; toolId: string; toolVersion: string; inputs: unknown; parameters: unknown; runtime: unknown; status: string; reproducibilityFingerprint: string; exitCode: number | null; errorCode: string | null; errorMessage: string | null; logsTruncated: boolean; startedAt: string; finishedAt: string | null };
-export type IdentitySuggestion = { sourceValue: string; targetMaterialId: string; targetCode: string; reasonCode: string };
+export type Execution = {
+  id: string;
+  taskPlanRunId: string;
+  projectId: string;
+  stepId: string;
+  toolId: string;
+  toolVersion: string;
+  inputs: unknown;
+  parameters: unknown;
+  runtime: unknown;
+  status: string;
+  reproducibilityFingerprint: string;
+  exitCode: number | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  logsTruncated: boolean;
+  startedAt: string;
+  finishedAt: string | null;
+};
+export type IdentitySuggestion = {
+  sourceValue: string;
+  targetMaterialId: string;
+  targetCode: string;
+  reasonCode: string;
+};
 
 export type ToolRun = {
   id: string;

@@ -7,8 +7,15 @@
  */
 
 import { useEffect, useState, type ReactNode } from "react";
-import { Button, Modal } from "antd";
-import AppIcon from "../../../components/common/AppIcon";
+import { Camera, RotateCcw, VideoOff } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogOverlay,
+} from "@/components/ui/dialog";
 import useCameraStream from "../hooks/useCameraStream";
 import { CAMERA_ERROR_TEXT, type CameraPhase } from "./cameraErrors";
 import styles from "./CameraModal.module.css";
@@ -53,18 +60,15 @@ function CameraModal({ open, onClose }: CameraModalProps) {
       : CAMERA_ERROR_TEXT[phase as Exclude<CameraPhase, "preview" | "loading">];
 
   return (
-    <Modal
-      title="相机"
-      open={open}
-      onCancel={onClose}
-      footer={null}
-      centered
-      width={520}
-      rootClassName={styles.modalRoot}
-      transitionName="pod-modal"
-      maskTransitionName="pod-fade"
-    >
-      <div className={styles.body}>
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogOverlay className={styles.modalOverlay} />
+      <DialogContent
+        className={`${styles.modalContent} max-h-[90dvh] overflow-y-auto sm:max-w-[520px]`}
+      >
+        <DialogHeader>
+          <DialogTitle className={styles.modalTitle}>相机</DialogTitle>
+        </DialogHeader>
+        <div className={styles.body}>
         <div className={styles.viewport}>
           {/* 拍照预览期间隐藏而非卸载 video,保证"重拍"时流仍接在同一元素上 */}
           <video
@@ -77,7 +81,7 @@ function CameraModal({ open, onClose }: CameraModalProps) {
           {photo && <img src={photo} alt="拍摄照片" className={styles.photo} />}
           {errorText && (
             <CameraStatePanel
-              icon={<AppIcon name="camera-off" size={28} />}
+              icon={<VideoOff size={28} strokeWidth={1.75} />}
               text={errorText}
             />
           )}
@@ -94,25 +98,27 @@ function CameraModal({ open, onClose }: CameraModalProps) {
         <div className={styles.actions}>
           {photo ? (
             <Button
-              icon={<AppIcon name="retry" size={16} />}
+              variant="outline"
               onClick={() => setPhoto(null)}
             >
+              <RotateCcw size={16} strokeWidth={1.75} />
               重拍
             </Button>
           ) : (
             <Button
-              type="primary"
-              shape="circle"
-              size="large"
+              size="icon-lg"
               aria-label="拍照"
-              icon={<AppIcon name="camera" size={20} />}
+              className="rounded-full size-12"
               disabled={phase !== "preview"}
               onClick={capture}
-            />
+            >
+              <Camera size={20} strokeWidth={1.75} />
+            </Button>
           )}
         </div>
       </div>
-    </Modal>
+      </DialogContent>
+    </Dialog>
   );
 }
 

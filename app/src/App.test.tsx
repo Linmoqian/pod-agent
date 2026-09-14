@@ -30,7 +30,16 @@ const project = {
   createdAt: '2026-09-12',
   updatedAt: '2026-09-12',
 };
+const conversation = {
+  id: 'conversation-1',
+  projectId: project.id,
+  title: '研究对话',
+  status: 'active',
+  createdAt: '2026-09-12',
+  updatedAt: '2026-09-12',
+};
 const emptySnapshot = {
+  conversation,
   project,
   datasets: [],
   artifacts: [],
@@ -41,9 +50,9 @@ const emptySnapshot = {
 
 function mockSnapshot(value = emptySnapshot) {
   mocks.invoke.mockImplementation(async (command: string) => {
-    if (command === 'ensure_draft_project') return project;
+    if (command === 'ensure_active_conversation') return value;
     if (command === 'list_projects') return [project];
-    if (command === 'get_workspace_snapshot') return value;
+    if (command === 'get_conversation_context') return value;
     throw new Error(`unexpected command: ${command}`);
   });
 }
@@ -59,7 +68,7 @@ describe('lian 工作区', () => {
     render(<Root />);
     expect(await screen.findByLabelText('研究问题')).toBeInTheDocument();
     expect(
-      await screen.findByRole('heading', { name: '需要一起探索什么？' }),
+      await screen.findByRole('heading', { name: '今天想研究什么？' }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole('heading', { name: '让数据长成 可靠的结论' }),
@@ -119,14 +128,11 @@ describe('lian 工作区', () => {
         },
       ],
     };
-    let snapshotCalls = 0;
     mocks.invoke.mockImplementation(async (command: string) => {
-      if (command === 'ensure_draft_project') return project;
+      if (command === 'ensure_active_conversation')
+        return { ...emptySnapshot, datasets: [dataset] };
       if (command === 'list_projects') return [project];
-      if (command === 'get_workspace_snapshot')
-        return snapshotCalls++
-          ? planned
-          : { ...emptySnapshot, datasets: [dataset] };
+      if (command === 'get_conversation_context') return planned;
       if (command === 'submit_agent_intent') return planned.taskPlans[0];
       throw new Error(`unexpected command: ${command}`);
     });
@@ -161,9 +167,10 @@ describe('lian Artifact', () => {
       createdAt: '2026-09-12',
     };
     mocks.invoke.mockImplementation(async (command: string) => {
-      if (command === 'ensure_draft_project') return project;
+      if (command === 'ensure_active_conversation')
+        return { ...emptySnapshot, artifacts: [artifact] };
       if (command === 'list_projects') return [project];
-      if (command === 'get_workspace_snapshot')
+      if (command === 'get_conversation_context')
         return { ...emptySnapshot, artifacts: [artifact] };
       if (command === 'get_artifact_detail')
         return { artifact, upstream: [], dataset: null, toolRuns: [] };

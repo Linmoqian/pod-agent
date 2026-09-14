@@ -4,9 +4,11 @@
  * @author: https://github.com/Linmoqian
  */
 
-import { Alert, Button, Tag } from 'antd';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
-import { statusColor } from '../status';
+import { statusTone } from '../status';
 import type { TaskPlan, WorkflowRun } from '../types';
 import styles from './WorkbenchPanel.module.css';
 
@@ -36,9 +38,13 @@ export default function TaskPlanPanel({
     <div className={styles.taskPanel}>
       <div className={styles.taskHeading}>
         <span>当前任务</span>
-        <Tag color={statusColor(run?.status ?? plan.status)}>
+        <Badge
+          variant="outline"
+          data-tone={statusTone(run?.status ?? plan.status)}
+          className={styles.statusTag}
+        >
           {run?.status ?? plan.status}
-        </Tag>
+        </Badge>
       </div>
       <h3>{plan.title}</h3>
       <p>{plan.planner.summary || '环境固定；材料与材料×环境为随机效应。'}</p>
@@ -76,14 +82,15 @@ export default function TaskPlanPanel({
               <b>{step.title}</b>
               <small>{step.toolId}</small>
             </div>
-            <Tag>{step.riskLevel}</Tag>
+            <Badge variant="outline" className={styles.statusTag}>
+              {step.riskLevel}
+            </Badge>
           </div>
         ))}
       </div>
       {canStart && (
         <Button
-          type="primary"
-          block
+          className="w-full"
           onClick={() => onConfirm(plan.id)}
           disabled={busy}
         >
@@ -91,12 +98,18 @@ export default function TaskPlanPanel({
         </Button>
       )}
       {runningId && (
-        <Button danger block onClick={() => onCancel(runningId)}>
+        <Button
+          variant="destructive"
+          className="w-full"
+          onClick={() => onCancel(runningId)}
+        >
           取消运行
         </Button>
       )}
       {run?.errorMessage && (
-        <Alert type="error" showIcon title={run.errorMessage} />
+        <Alert variant="destructive">
+          <AlertDescription>{run.errorMessage}</AlertDescription>
+        </Alert>
       )}
     </div>
   );

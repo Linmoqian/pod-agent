@@ -4,11 +4,20 @@
  * @author: https://github.com/Linmoqian
  */
 
-import { App, Button, Drawer, Spin, Tag } from 'antd';
 import { useEffect, useState } from 'react';
+import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import { workspaceApi } from '../../../services/workspace';
-import { statusColor } from '../status';
+import { statusTone } from '../status';
 import type { Artifact, ArtifactDetail } from '../types';
 import styles from './ArtifactDrawer.module.css';
 
@@ -32,7 +41,7 @@ function ArtifactContent({
   return (
     <div className={styles.provenance}>
       {trailLength > 1 && (
-        <Button type="link" onClick={onBack}>
+        <Button variant="link" onClick={onBack} className="px-0">
           ← 返回下游
         </Button>
       )}
@@ -64,7 +73,12 @@ function ArtifactContent({
         <h3>上游 Artifact</h3>
         {detail.upstream.length ? (
           detail.upstream.map((upstream) => (
-            <Button key={upstream.id} block onClick={() => onFollow(upstream)}>
+            <Button
+              key={upstream.id}
+              variant="outline"
+              className="w-full"
+              onClick={() => onFollow(upstream)}
+            >
               {upstream.name}
             </Button>
           ))
@@ -83,7 +97,13 @@ function ArtifactContent({
             <b>
               {run.toolId} {run.toolVersion}
             </b>
-            <Tag color={statusColor(run.status)}>{run.status}</Tag>
+            <Badge
+              variant="outline"
+              data-tone={statusTone(run.status)}
+              className={styles.statusTag}
+            >
+              {run.status}
+            </Badge>
             <pre>{JSON.stringify(run.input, null, 2)}</pre>
             <code>{run.log}</code>
           </div>
@@ -111,7 +131,6 @@ export default function ArtifactDrawer({
   artifact,
   onClose,
 }: ArtifactDrawerProps) {
-  const { message } = App.useApp();
   const [trail, setTrail] = useState<ArtifactDetail[]>([]);
   const [loading, setLoading] = useState(false);
   const detail = trail[trail.length - 1];
@@ -128,12 +147,12 @@ export default function ArtifactDrawer({
     workspaceApi
       .artifactDetail(artifact.id)
       .then((value) => alive && setTrail([value]))
-      .catch((error) => alive && message.error(errorText(error)))
+      .catch((error) => alive && toast.error(errorText(error)))
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
     };
-  }, [artifact, message]);
+  }, [artifact]);
 
   const followUpstream = async (upstream: Artifact) => {
     setLoading(true);
@@ -141,31 +160,39 @@ export default function ArtifactDrawer({
       const next = await workspaceApi.artifactDetail(upstream.id);
       setTrail((items) => [...items, next]);
     } catch (error) {
-      message.error(errorText(error));
+      toast.error(errorText(error));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Drawer
-      title="Artifact 血缘"
-      size="large"
+    <Sheet
       open={Boolean(artifact)}
-      onClose={onClose}
+      onOpenChange={(next) => !next && onClose()}
     >
-      {loading && !detail ? (
-        <Spin />
-      ) : (
-        detail && (
-          <ArtifactContent
-            detail={detail}
-            trailLength={trail.length}
-            onBack={() => setTrail((items) => items.slice(0, -1))}
-            onFollow={(upstream) => void followUpstream(upstream)}
-          />
-        )
-      )}
-    </Drawer>
+      <SheetContent side="right" className="overflow-y-auto sm:max-w-lg">
+        <SheetHeader>
+          <SheetTitle>Artifact 血缘</SheetTitle>
+        </SheetHeader>
+        {loading && !detail ? (
+          <div
+            className="flex items-center justify-center py-10 text-muted-foreground"
+            role="status"
+          >
+            <Loader2 size={20} strokeWidth={1.75} className="animate-spin" />
+          </div>
+        ) : (
+          detail && (
+            <ArtifactContent
+              detail={detail}
+              trailLength={trail.length}
+              onBack={() => setTrail((items) => items.slice(0, -1))}
+              onFollow={(upstream) => void followUpstream(upstream)}
+            />
+          )
+        )}
+      </SheetContent>
+    </Sheet>
   );
 }

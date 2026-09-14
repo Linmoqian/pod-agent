@@ -45,7 +45,7 @@
 .content td {
   border-right: var(--border-subtle);
   border-bottom: var(--border-subtle);
-  padding: 10px var(--space-3);
+  padding: var(--space-3);
   text-align: left;
   font-size: var(--font-size-label);
 }
@@ -72,7 +72,7 @@
   padding: var(--space-4);
   background: var(--color-surface-default);
   border: var(--border-subtle);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   overflow-x: auto;
   font-size: var(--font-size-label);
 }

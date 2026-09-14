@@ -5,8 +5,10 @@
  */
 
 import { useState } from "react";
-import { App, Button, Input } from "antd";
-import AppIcon from "../../../components/common/AppIcon";
+import { Plus, RotateCw, Trash2 } from 'lucide-react';
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import type { ProviderRow } from "../hooks/useProviderSettings";
 import styles from "./ProviderSettingsModal.module.css";
 
@@ -23,7 +25,6 @@ function CustomProviderList({
   onRemove,
   onRefreshModels,
 }: CustomProviderListProps) {
-  const { message } = App.useApp();
   const [name, setName] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
@@ -32,7 +33,7 @@ function CustomProviderList({
     const trimmedName = name.trim();
     const trimmedUrl = baseUrl.trim();
     if (!trimmedName || !/^https?:\/\/.+/.test(trimmedUrl)) {
-      void message.warning("请填写端点名称与 http(s) 地址");
+      toast.warning("请填写端点名称与 http(s) 地址");
       return;
     }
     onAdd(trimmedName, trimmedUrl);
@@ -45,9 +46,9 @@ function CustomProviderList({
     try {
       const error = await onRefreshModels(providerId);
       if (error) {
-        void message.error(`刷新失败:${error}`);
+        toast.error(`刷新失败:${error}`);
       } else {
-        void message.success("模型目录已刷新");
+        toast.success("模型目录已刷新");
       }
     } finally {
       setRefreshingId(null);
@@ -64,47 +65,58 @@ function CustomProviderList({
           </div>
           <div className={styles.customActions}>
             <Button
-              size="small"
-              icon={<AppIcon name="refresh" size={14} />}
-              loading={refreshingId === row.id}
+              size="sm"
+              variant="outline"
+              className="h-8"
+              disabled={refreshingId === row.id}
               onClick={() => void refresh(row.id)}
             >
+              <RotateCw
+                size={14}
+                strokeWidth={1.75}
+                className={refreshingId === row.id ? "animate-spin" : undefined}
+                aria-hidden
+              />
               刷新模型
             </Button>
             <Button
-              size="small"
-              danger
+              size="icon-sm"
+              variant="outline"
               aria-label={`删除 ${row.name}`}
-              icon={<AppIcon name="delete" size={14} />}
+              className="text-destructive hover:text-destructive"
               onClick={() => onRemove(row.id)}
-            />
+            >
+              <Trash2 size={14} strokeWidth={1.75} />
+            </Button>
           </div>
         </div>
       ))}
 
       <div className={styles.customAddForm}>
         <Input
-          size="small"
+          className="h-8"
           value={name}
           placeholder="端点名称,如 本地 Ollama"
           aria-label="自定义端点名称"
           onChange={(event) => setName(event.target.value)}
         />
         <Input
-          size="small"
+          className="h-8"
           value={baseUrl}
           placeholder="http://localhost:11434/v1"
           aria-label="自定义端点地址"
           onChange={(event) => setBaseUrl(event.target.value)}
-          onPressEnter={submit}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") submit();
+          }}
         />
         <Button
-          size="small"
-          type="primary"
-          icon={<AppIcon name="add" size={14} />}
+          size="sm"
+          className="h-8"
           disabled={!name.trim() || !baseUrl.trim()}
           onClick={submit}
         >
+          <Plus size={14} strokeWidth={1.75} aria-hidden />
           添加
         </Button>
       </div>

@@ -33,30 +33,21 @@
   box-shadow: 0 0 0 3px var(--color-focus-ring);
 }
 
-.inputCard :global(.ant-input) {
+/* shadcn Textarea/Button 定制:文字尺寸与占位色沿用 Token,发送键保留圆形禁用态 */
+.messageInput {
   font-size: var(--font-size-reading);
   line-height: var(--line-height-body);
   color: var(--color-text-primary);
 }
 
-.inputCard :global(.ant-input:focus-visible) {
-  outline: none;
-}
-
-.inputCard :global(.ant-btn) {
-  flex-shrink: 0;
-  width: 40px;
-  height: 40px;
-  box-shadow: none;
-}
-
-.inputCard :global(.ant-input)::placeholder {
+.messageInput::placeholder {
   color: var(--color-text-disabled);
 }
 
-.inputCard button:disabled {
+.sendButton:disabled {
   background: var(--color-surface-disabled);
   color: var(--color-text-disabled);
+  opacity: 1;
 }
 
 .hint {

@@ -6,8 +6,23 @@
  * @author: https://github.com/Linmoqian
  */
 
-import { Modal, Select } from "antd";
-import AppIcon from "../../../components/common/AppIcon";
+import { LayoutGrid, Server } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogOverlay,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import useProviderSettings from "../hooks/useProviderSettings";
 import type { ModelSelection } from "../types";
 import CustomProviderList from "./CustomProviderList";
@@ -58,42 +73,48 @@ function ProviderSettingsModal({ open, onClose }: ProviderSettingsModalProps) {
   };
 
   return (
-    <Modal
-      title="模型提供商"
-      open={open}
-      onCancel={onClose}
-      footer={null}
-      width={680}
-      destroyOnHidden
-      rootClassName={styles.modalRoot}
-      transitionName="pod-modal"
-      maskTransitionName="pod-fade"
-    >
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogOverlay className={styles.modalOverlay} />
+      <DialogContent
+        className={`${styles.modalContent} max-h-[90dvh] overflow-y-auto sm:max-w-[680px]`}>
+        <DialogHeader>
+          <DialogTitle className={styles.modalTitle}>模型提供商</DialogTitle>
+        </DialogHeader>
       <section className={styles.section}>
         <h4 className={styles.sectionTitle}>
-          <AppIcon name="provider-grid" size={16} />
+          <LayoutGrid size={16} strokeWidth={1.75} />
           当前模型
           <span className={styles.sectionHint}>共 {totalModels} 个可选</span>
         </h4>
+        {/* shadcn Select 无搜索;按提供商分组平铺,后续可升级 cmdk Combobox */}
         <Select
-          className={styles.modelSelector}
-          placeholder="选择对话使用的模型"
           value={toSelectionValue(currentModel)}
-          allowClear
-          showSearch
-          optionFilterProp="label"
-          aria-label="选择当前模型"
-          onChange={handleChange}
-          options={modelGroups.map((group) => ({
-            label: group.providerName,
-            options: group.options,
-          }))}
-        />
+          onValueChange={handleChange}
+        >
+          <SelectTrigger
+            className={styles.modelSelector}
+            aria-label="选择当前模型"
+          >
+            <SelectValue placeholder="选择对话使用的模型" />
+          </SelectTrigger>
+          <SelectContent>
+            {modelGroups.map((group) => (
+              <SelectGroup key={group.providerId}>
+                <SelectLabel>{group.providerName}</SelectLabel>
+                {group.options.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            ))}
+          </SelectContent>
+        </Select>
       </section>
 
       <section className={styles.section}>
         <h4 className={styles.sectionTitle}>
-          <AppIcon name="provider-server" size={16} />
+          <Server size={16} strokeWidth={1.75} />
           内置提供商密钥
         </h4>
         {builtinRows.map((row) => (
@@ -114,7 +135,7 @@ function ProviderSettingsModal({ open, onClose }: ProviderSettingsModalProps) {
 
       <section className={styles.section}>
         <h4 className={styles.sectionTitle}>
-          <AppIcon name="provider-server" size={16} />
+          <Server size={16} strokeWidth={1.75} />
           自定义 OpenAI 兼容端点
           <span className={styles.sectionHint}>
             适用于 Ollama、vLLM、LM Studio 等
@@ -127,7 +148,8 @@ function ProviderSettingsModal({ open, onClose }: ProviderSettingsModalProps) {
           onRefreshModels={refreshCustomModels}
         />
       </section>
-    </Modal>
+      </DialogContent>
+    </Dialog>
   );
 }
 

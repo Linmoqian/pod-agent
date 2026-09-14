@@ -132,13 +132,13 @@
   color: var(--color-text-secondary);
 }
 
-.modalRoot :global(.ant-modal-mask) {
+.modalOverlay {
   background: var(--material-scrim);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
 }
 
-.modalRoot :global(.ant-modal-content) {
+.modalContent {
   background: var(--material-modal);
   backdrop-filter: saturate(180%) blur(var(--blur-modal));
   -webkit-backdrop-filter: saturate(180%) blur(var(--blur-modal));
@@ -147,14 +147,21 @@
   box-shadow: var(--shadow-elevated);
 }
 
-.modalRoot :global(.ant-modal-title) {
+.modalTitle {
   font-size: var(--font-size-subtitle);
   font-weight: var(--font-weight-semibold);
   letter-spacing: var(--letter-spacing-title);
 }
 
-.modalRoot :global(.ant-btn) {
-  box-shadow: none;
+/* 密钥 Badge 配置态:品牌绿淡底 */
+.keyTag[data-configured="true"] {
+  border-color: color-mix(in srgb, var(--color-brand-500) 35%, transparent);
+  background: color-mix(in srgb, var(--color-brand-500) 12%, transparent);
+  color: var(--color-brand-600);
+}
+
+[data-theme='dark'] .keyTag[data-configured="true"] {
+  color: var(--color-brand-500);
 }
 
 @media (max-width: 720px) {
