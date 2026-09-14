@@ -7,7 +7,7 @@
 
 import { Circle, Plus, Trash2, X } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 
 import {
   AlertDialog,
@@ -89,6 +89,10 @@ function ContextHeader(props: ContextHeaderProps) {
   const [name, setName] = useState('');
   const [closingTab, setClosingTab] = useState<WorkspaceTab | null>(null);
   const [saveAndCloseTab, setSaveAndCloseTab] = useState<WorkspaceTab | null>(null);
+  const lastTemporaryTabIndex = props.tabs.reduce(
+    (lastIndex, tab, index) => (tab.projectId ? lastIndex : index),
+    -1,
+  );
   const createProject = () => {
     setName('');
     setNaming('create');
@@ -119,42 +123,12 @@ function ContextHeader(props: ContextHeaderProps) {
     return () => window.removeEventListener('keydown', save);
   }, [props.inProject]);
 
-  return (
-    <header className={styles.header}>
-      <div className={styles.tabList} role="tablist" aria-label="已打开的会话">
-        {props.tabs.map((tab) => {
-          const active = tab.id === props.activeTabId;
-          return (
-            <motion.div
-              key={tab.id}
-              layout="position"
-              className={styles.tab}
-              data-active={active ? 'true' : undefined}
-              transition={{ type: 'spring', stiffness: 460, damping: 36, mass: 0.7 }}
-            >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={active}
-                className={styles.tabLabel}
-                disabled={props.busy}
-                onClick={() => props.onActivateTab(tab.id)}
-              >
-                <span>{tab.label}</span>
-              </button>
-              <button
-                type="button"
-                className={styles.closeTab}
-                aria-label={`关闭${tab.label}`}
-                disabled={props.busy}
-                onClick={() => requestCloseTab(tab)}
-              >
-                <X size={14} />
-              </button>
-            </motion.div>
-          );
-        })}
-      </div>
+  const newConversationButton = (
+    <motion.div
+      layout="position"
+      className={styles.newTabSlot}
+      transition={{ type: 'spring', stiffness: 460, damping: 36, mass: 0.7 }}
+    >
       <Button
         variant="ghost"
         size="icon"
@@ -166,6 +140,48 @@ function ContextHeader(props: ContextHeaderProps) {
       >
         <Plus size={17} strokeWidth={1.75} />
       </Button>
+    </motion.div>
+  );
+
+  return (
+    <header className={styles.header}>
+      <div className={styles.tabList} role="tablist" aria-label="已打开的会话">
+        {props.tabs.map((tab, index) => {
+          const active = tab.id === props.activeTabId;
+          return (
+            <Fragment key={tab.id}>
+              <motion.div
+                layout="position"
+                className={styles.tab}
+                data-active={active ? 'true' : undefined}
+                transition={{ type: 'spring', stiffness: 460, damping: 36, mass: 0.7 }}
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  className={styles.tabLabel}
+                  disabled={props.busy}
+                  onClick={() => props.onActivateTab(tab.id)}
+                >
+                  <span>{tab.label}</span>
+                </button>
+                <button
+                  type="button"
+                  className={styles.closeTab}
+                  aria-label={`关闭${tab.label}`}
+                  disabled={props.busy}
+                  onClick={() => requestCloseTab(tab)}
+                >
+                  <X size={14} />
+                </button>
+              </motion.div>
+              {index === lastTemporaryTabIndex && newConversationButton}
+            </Fragment>
+          );
+        })}
+        {lastTemporaryTabIndex < 0 && newConversationButton}
+      </div>
       <Dialog
         open={naming !== null}
         onOpenChange={(open) => {

@@ -107,6 +107,10 @@
   flex: 0 0 30px;
   color: var(--color-text-secondary);
 }
+.newTabSlot {
+  display: flex;
+  flex: 0 0 auto;
+}
 .projectContext,
 .projectRow,
 .headerActions {
