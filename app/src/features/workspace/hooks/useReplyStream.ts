@@ -4,7 +4,7 @@
  * @author: https://github.com/Linmoqian
  */
 
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 import type { Dispatch, SetStateAction } from 'react';
 import type { WorkspaceSnapshot } from '../types';
@@ -18,36 +18,59 @@ export type AgentReplyDelta = {
 export default function useReplyStream(
   setSnapshot: Dispatch<SetStateAction<WorkspaceSnapshot | null>>,
 ) {
-  return useCallback(
-    (delta: AgentReplyDelta) => {
-      setSnapshot((current) => {
-        if (current?.conversation.id !== delta.conversationId) return current;
-        let messageIndex = -1;
-        for (let index = current.messages.length - 1; index >= 0; index -= 1) {
-          const message = current.messages[index];
-          if (message.role === 'assistant' && message.status) {
-            messageIndex = index;
-            break;
-          }
+  const queue = useRef<AgentReplyDelta[]>([]);
+  const frame = useRef<number | null>(null);
+
+  const flush = useCallback(() => {
+    frame.current = null;
+    const deltas = queue.current;
+    queue.current = [];
+    if (!deltas.length) return;
+
+    setSnapshot((current) => {
+      if (!current) return current;
+      const relevant = deltas.filter(
+        (delta) => delta.conversationId === current.conversation.id,
+      );
+      if (!relevant.length) return current;
+      let messageIndex = -1;
+      for (let index = current.messages.length - 1; index >= 0; index -= 1) {
+        const message = current.messages[index];
+        if (message.role === 'assistant' && message.status) {
+          messageIndex = index;
+          break;
         }
-        if (messageIndex < 0) return current;
-        const messages = [...current.messages];
-        const message = messages[messageIndex];
-        messages[messageIndex] = {
-          ...message,
-          status: 'streaming',
-          content:
-            delta.kind === 'text'
-              ? `${message.content}${delta.delta}`
-              : message.content,
-          reasoning:
-            delta.kind === 'thinking'
-              ? `${message.reasoning ?? ''}${delta.delta}`
-              : message.reasoning,
-        };
-        return { ...current, messages };
-      });
+      }
+      if (messageIndex < 0) return current;
+      const messages = [...current.messages];
+      const message = messages[messageIndex];
+      let content = message.content;
+      let reasoning = message.reasoning ?? '';
+      for (const delta of relevant) {
+        if (delta.kind === 'text') content += delta.delta;
+        else reasoning += delta.delta;
+      }
+      messages[messageIndex] = {
+        ...message,
+        status: 'streaming',
+        content,
+        reasoning,
+      };
+      return { ...current, messages };
+    });
+  }, [setSnapshot]);
+
+  useEffect(
+    () => () => {
+      if (frame.current !== null) window.cancelAnimationFrame(frame.current);
+      queue.current = [];
     },
-    [setSnapshot],
+    [],
   );
+
+  return useCallback((delta: AgentReplyDelta) => {
+    queue.current.push(delta);
+    if (frame.current !== null) return;
+    frame.current = window.requestAnimationFrame(flush);
+  }, [flush]);
 }

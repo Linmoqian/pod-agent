@@ -12,13 +12,13 @@ import {
   ChevronDown,
   ChevronUp,
   Copy,
-  Sparkles,
 } from 'lucide-react';
-import { motion, useReducedMotion } from 'motion/react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { toast } from 'sonner';
 import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import agentMascot from '../../../assets/agent-mascot.png';
 import {
   Select,
   SelectContent,
@@ -48,6 +48,7 @@ type WorkspaceTimelineProps = {
     importSessionId: string,
     materialResolutions: Record<string, string>,
   ) => void;
+  onRetry: (content: string) => void;
 };
 
 function WelcomeWorkspace({
@@ -55,11 +56,29 @@ function WelcomeWorkspace({
 }: {
   onSuggestion?: (value: string) => void;
 }) {
+  const reduced = useReducedMotion();
+
   return (
     <motion.div className={styles.welcome} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28 }}>
-      <div className={styles.welcomeMark}>
-        <Sparkles size={25} strokeWidth={1.4} />
-      </div>
+      <motion.div
+        className={styles.welcomeMascotFloat}
+        animate={reduced ? undefined : { y: [0, -6, 0], scale: [1, 1.025, 1] }}
+        transition={{ duration: 3.2, ease: 'easeInOut', repeat: Infinity }}
+      >
+        <motion.button
+          type="button"
+          className={styles.welcomeMascotButton}
+          aria-label="lian Agent 吉祥物"
+          whileTap={{ scale: 0.9 }}
+          transition={{ type: 'spring', stiffness: 460, damping: 24 }}
+        >
+          <img
+            className={styles.welcomeMascot}
+            src={agentMascot}
+            alt=""
+          />
+        </motion.button>
+      </motion.div>
       <h1>今天想研究什么？</h1>
       <p>从一个想法开始，一起把问题研究清楚。你可以直接提问，也可以先添加数据。</p>
       <div className={styles.suggestions}>
@@ -80,14 +99,16 @@ function WelcomeWorkspace({
 }
 
 function ReasoningBlock({ reasoning }: { reasoning?: string | null }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
+  const reduced = useReducedMotion();
   if (!reasoning?.trim()) return null;
   return (
     <section className={styles.reasoning}>
-      <button
+      <motion.button
         type="button"
         className={styles.reasoningToggle}
         aria-expanded={expanded}
+        whileTap={{ scale: 0.98 }}
         onClick={() => setExpanded((value) => !value)}
       >
         <BrainCircuit size={15} strokeWidth={1.75} aria-hidden />
@@ -97,12 +118,24 @@ function ReasoningBlock({ reasoning }: { reasoning?: string | null }) {
         ) : (
           <ChevronDown size={15} strokeWidth={1.75} aria-hidden />
         )}
-      </button>
-      {expanded && (
-        <div className={styles.reasoningContent}>
-          <MarkdownContent content={reasoning} />
-        </div>
-      )}
+      </motion.button>
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            className={styles.reasoningContent}
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={
+              reduced
+                ? { duration: 0 }
+                : { type: 'spring', stiffness: 420, damping: 38, mass: 0.8 }
+            }
+          >
+            <MarkdownContent content={reasoning} />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }
@@ -114,26 +147,40 @@ function supportedCandidates(inspection: ImportInspection | null) {
 }
 
 function PendingReply() {
+  const reduced = useReducedMotion();
   return (
     <div className={styles.pendingReply} role="status">
-      <span className={styles.pendingDot} aria-hidden />
+      <motion.span
+        className={styles.pendingDot}
+        aria-hidden
+        animate={reduced ? undefined : { opacity: [0.45, 1, 0.45], scale: [0.82, 1, 0.82] }}
+        transition={{ duration: 1.2, ease: 'easeInOut', repeat: Infinity }}
+      />
       正在生成回复
     </div>
   );
 }
 
 function StreamingReply({ content }: { content: string }) {
+  const reduced = useReducedMotion();
   return (
-    <div aria-busy aria-live="polite">
-      <MarkdownContent content={content} />
-      <span className={styles.typingCursor} aria-hidden />
+    <div aria-busy>
+      <span className={styles.streamStatus} role="status">正在生成回复</span>
+      <div className={styles.streamingText}>{content}</div>
+      <motion.span
+        className={styles.typingCursor}
+        aria-hidden
+        animate={reduced ? undefined : { opacity: [1, 1, 0, 0, 1] }}
+        transition={{ duration: 0.9, times: [0, 0.48, 0.5, 0.98, 1], repeat: Infinity }}
+      />
     </div>
   );
 }
 
 function TimelineMessages({
   messages,
-}: Pick<WorkspaceTimelineProps, 'messages'>) {
+  onRetry,
+}: Pick<WorkspaceTimelineProps, 'messages' | 'onRetry'>) {
   return messages.map((item) => (
     <div key={item.id} className={styles.message} data-role={item.role}>
       <small>{item.role === 'user' ? '你' : 'lian'}</small>
@@ -146,6 +193,15 @@ function TimelineMessages({
           <ReasoningBlock reasoning={item.reasoning} />
           <StreamingReply content={item.content} />
         </>
+      ) : item.status === 'error' ? (
+        <div className={styles.replyError} role="alert">
+          <p>{item.errorMessage || '回复生成失败'}</p>
+          {item.retryContent && (
+            <Button size="sm" variant="outline" onClick={() => onRetry(item.retryContent!)}>
+              重新发送
+            </Button>
+          )}
+        </div>
       ) : (
         <>
           <ReasoningBlock reasoning={item.reasoning} />
@@ -175,6 +231,7 @@ export default function WorkspaceTimeline({
   mappingEdits,
   onMappingChange,
   onRegister,
+  onRetry,
   onSuggestion,
 }: WorkspaceTimelineProps) {
   const scrollArea = useRef<HTMLDivElement>(null);
@@ -200,10 +257,16 @@ export default function WorkspaceTimeline({
         const area = event.currentTarget;
         follow.current =
           area.scrollHeight - area.scrollTop - area.clientHeight < 80;
-        setAway(!follow.current);
+        setAway((current) => current === !follow.current ? current : !follow.current);
+      }}
+      onPointerDown={(event) => {
+        if ((event.target as HTMLElement).closest('button, a, input, textarea, select, pre, code')) {
+          follow.current = false;
+          setAway(true);
+        }
       }}
     >
-      <TimelineMessages messages={messages} />
+      <TimelineMessages messages={messages} onRetry={onRetry} />
       {inspection && (
         <section className={styles.inspection}>
           <h3>数据识别</h3>

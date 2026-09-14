@@ -8,18 +8,16 @@
   background: var(--color-surface-canvas);
 }
 .loadingHeader, .loadingComposer { height: 48px; display: flex; align-items: center; gap: 10px; border-bottom: var(--border-default); }
-.loadingHeader span, .loadingHeader i, .loadingComposer span, .loadingComposer b, .loadingMessages span { display: block; border-radius: 5px; background: linear-gradient(90deg, var(--color-surface-subtle), var(--color-surface-disabled), var(--color-surface-subtle)); background-size: 200% 100%; animation: shimmer 1.4s ease-in-out infinite; }
+.loadingHeader span, .loadingHeader i, .loadingComposer span, .loadingComposer b, .loadingMessages span { display: block; border-radius: var(--radius-sm); background: var(--color-surface-disabled); }
 .loadingHeader span { width: 150px; height: 14px; margin-right: auto; }
 .loadingHeader i { width: 28px; height: 28px; }
 .loadingMessages { display: flex; flex-direction: column; gap: 16px; max-width: 620px; margin: auto; width: 100%; }
 .loadingMessages span:nth-child(odd) { width: 74%; height: 18px; }
 .loadingMessages span:nth-child(even) { width: 48%; height: 14px; }
-.loadingComposer { margin-top: auto; height: 90px; border: var(--border-default); border-radius: 10px; padding: 16px; }
+.loadingComposer { margin-top: auto; height: 90px; border: var(--border-default); border-radius: var(--radius-lg); padding: 16px; }
 .loadingComposer span { flex: 1; height: 14px; }
 .loadingComposer b { width: 34px; height: 34px; }
 .loading strong { align-self: center; color: var(--color-text-tertiary); font-size: 12px; font-weight: 500; }
-@keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
-@media (prefers-reduced-motion: reduce) { .loadingHeader span, .loadingHeader i, .loadingComposer span, .loadingComposer b, .loadingMessages span { animation: none; } }
 .main {
   display: flex;
   flex: 1;
@@ -78,14 +76,14 @@
   width: min(260px, calc(100vw - 24px));
   padding: 5px;
   border-color: var(--color-border-default);
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   background: var(--color-surface-default);
   color: var(--color-text-primary);
   box-shadow: var(--shadow-elevated);
 }
 .contextMenu [data-slot='dropdown-menu-item'] {
   min-height: 32px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
 }
 .namingDialog {
@@ -94,7 +92,7 @@
   gap: 18px;
   padding: 22px;
   border-color: var(--color-border-default);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--color-surface-default);
   color: var(--color-text-primary);
 }

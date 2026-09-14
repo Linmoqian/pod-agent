@@ -68,6 +68,8 @@ export default function useWorkspaceController() {
     Record<string, FieldMapping>
   >({});
   const submittingQuestion = useRef(false);
+  const importNameResolver = useRef<((projectId: string | null) => void) | null>(null);
+  const [pendingImportName, setPendingImportName] = useState<string | null>(null);
 
   const reportError = useCallback(
     (error: unknown) => toast.error(errorText(error)),
@@ -116,6 +118,42 @@ export default function useWorkspaceController() {
     [refresh],
   );
 
+  const resolveImportTarget = useCallback(
+    async (defaultName: string) => {
+      // 项目上下文直接落当前项目；临时会话交由应用内命名弹窗提升。
+      if (snapshot?.project) return snapshot.project.id;
+      return new Promise<string | null>((resolve) => {
+        importNameResolver.current = resolve;
+        setPendingImportName(defaultName);
+      });
+    },
+    [snapshot?.project],
+  );
+  const resolvePendingImportName = useCallback(
+    async (name: string | null) => {
+      const resolve = importNameResolver.current;
+      importNameResolver.current = null;
+      setPendingImportName(null);
+      if (!resolve || !name?.trim() || !conversationId) {
+        resolve?.(null);
+        return;
+      }
+      try {
+        const context = await workspaceApi.promoteConversation(
+          conversationId,
+          name.trim(),
+        );
+        setSnapshot(context);
+        setProjects(await workspaceApi.listProjects());
+        resolve(context.project?.id ?? null);
+      } catch (error) {
+        reportError(error);
+        resolve(null);
+      }
+    },
+    [conversationId, reportError],
+  );
+
   const { registerCandidates, chooseData } = useImportActions({
     intent,
     mappingEdits,
@@ -126,33 +164,20 @@ export default function useWorkspaceController() {
     setBusy,
     setInspection,
     setMappingEdits,
-    resolveImportTarget: async (defaultName: string) => {
-      // 项目上下文直接落当前项目；临时会话先提升为项目再导入。
-      if (snapshot?.project) return snapshot.project.id;
-      const name = window.prompt(
-        '保存为项目（数据需要一个科研容器）',
-        defaultName,
-      );
-      if (!name?.trim()) return null;
-      const context = await workspaceApi.promoteConversation(
-        String(conversationId),
-        name.trim(),
-      );
-      setSnapshot(context);
-      setProjects(await workspaceApi.listProjects());
-      return context.project?.id ?? null;
-    },
+    resolveImportTarget,
   });
 
-  const submitQuestion = async () => {
+  const submitQuestion = async (questionOverride?: string) => {
     if (busy || submittingQuestion.current) return;
-    if (!intent.trim() || !snapshot) return;
+    const question = questionOverride?.trim() || intent.trim();
+    if (!question || !snapshot) return;
     if (!isTauriRuntime()) {
       toast.warning('当前为浏览器预览，发送消息请在 Tauri 桌面端运行');
       return;
     }
     submittingQuestion.current = true;
     setBusy(true);
+    let optimisticAssistantId: string | null = null;
     try {
       const dataset = snapshot.datasets[0];
       if (dataset && snapshot.project) {
@@ -160,14 +185,14 @@ export default function useWorkspaceController() {
         await buildPlan(
           dataset.id,
           snapshot.project.id,
-          intent.trim(),
+          question,
           snapshot.conversation.id,
         );
       } else {
         // 无数据：lian 仍可讨论、解释、设计与规划。
-        const question = intent.trim();
         const timestamp = new Date().toISOString();
         const optimisticPrefix = `pending:${Date.now()}`;
+        optimisticAssistantId = `${optimisticPrefix}:assistant`;
         setSnapshot((current) =>
           current
             ? {
@@ -183,7 +208,7 @@ export default function useWorkspaceController() {
                     createdAt: timestamp,
                   },
                   {
-                    id: `${optimisticPrefix}:assistant`,
+                    id: optimisticAssistantId,
                     conversationId: current.conversation.id,
                     taskPlanId: null,
                     role: 'assistant',
@@ -203,7 +228,27 @@ export default function useWorkspaceController() {
         setSnapshot(context);
       }
     } catch (error) {
-      toast.error(errorText(error));
+      const message = errorText(error);
+      if (optimisticAssistantId) {
+        setSnapshot((current) =>
+          current
+          ? {
+              ...current,
+              messages: current.messages.map((item) =>
+                item.id === optimisticAssistantId
+                  ? {
+                      ...item,
+                      status: 'error',
+                      errorMessage: message,
+                      retryContent: question,
+                    }
+                  : item,
+              ),
+            }
+          : current,
+        );
+      }
+      toast.error(message);
     } finally {
       submittingQuestion.current = false;
       setBusy(false);
@@ -304,6 +349,7 @@ export default function useWorkspaceController() {
     activeRunId,
     selectedArtifact,
     mappingEdits,
+    pendingImportName,
     setIntent,
     setWorkbenchOpen,
     setSelectedArtifact,
@@ -316,6 +362,7 @@ export default function useWorkspaceController() {
     archiveProject,
     startNewConversation,
     promoteCurrentConversation,
+    resolvePendingImportName,
     chooseData,
     registerCandidates,
   };

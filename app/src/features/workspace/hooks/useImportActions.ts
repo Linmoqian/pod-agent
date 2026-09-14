@@ -7,6 +7,7 @@
 import { useCallback, useEffect } from 'react';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { open } from '@tauri-apps/plugin-dialog';
+import { isYoloDropTarget } from './yoloDropTarget';
 
 import { isTauriRuntime, workspaceApi } from '../../../services/workspace';
 import type { FieldMapping } from '../components/SourceReview';
@@ -45,7 +46,7 @@ function useDragDrop(inspectPaths: (paths: string[]) => Promise<void>) {
     let unlisten: (() => void) | undefined;
     getCurrentWebview()
       .onDragDropEvent((event) => {
-        if (event.payload.type === 'drop')
+        if (event.payload.type === 'drop' && !isYoloDropTarget(event.payload.position))
           void inspectPaths(event.payload.paths);
       })
       .then((value) => {

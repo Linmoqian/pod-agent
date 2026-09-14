@@ -13,6 +13,7 @@ import {
   TriangleAlertIcon,
 } from "lucide-react"
 import { useSyncExternalStore } from "react"
+import { motion } from "motion/react"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 
 // 订阅 <html data-theme> 变化,把属性值作为外部数据源接入 React。
@@ -44,7 +45,14 @@ const Toaster = ({ ...props }: ToasterProps) => {
         info: <InfoIcon className="size-4" />,
         warning: <TriangleAlertIcon className="size-4" />,
         error: <OctagonXIcon className="size-4" />,
-        loading: <Loader2Icon className="size-4 animate-spin" />,
+        loading: (
+          <motion.span
+            animate={{ rotate: 360 }}
+            transition={{ duration: 0.8, ease: "linear", repeat: Infinity }}
+          >
+            <Loader2Icon className="size-4" />
+          </motion.span>
+        ),
       }}
       style={
         {

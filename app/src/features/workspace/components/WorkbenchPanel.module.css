@@ -49,7 +49,7 @@
 .taskPanel h3 {
   margin: 0;
   padding: var(--space-4) var(--space-4) 0;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-radius: var(--radius-lg);
   background: var(--color-surface-default);
   font-size: 18px;
 }
@@ -57,7 +57,7 @@
 .taskPanel > p {
   margin: calc(-1 * var(--space-3)) 0 0;
   padding: var(--space-3) var(--space-4) var(--space-4);
-  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  border-radius: var(--radius-lg);
   background: var(--color-surface-default);
 }
 

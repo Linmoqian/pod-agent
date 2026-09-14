@@ -6,7 +6,8 @@
  */
 
 import { Plus, Trash2 } from 'lucide-react';
-import { lazy, Suspense, useState } from 'react';
+import { motion, useReducedMotion } from 'motion/react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 
 import {
   AlertDialog,
@@ -61,6 +62,24 @@ type ContextHeaderProps = {
   onStartNewConversation: () => void;
   onPromoteConversation: (name: string) => void;
 };
+
+function LoadingShell() {
+  const reduced = useReducedMotion();
+
+  return (
+    <motion.div
+      className={styles.loading}
+      role="status"
+      animate={reduced ? undefined : { opacity: [0.62, 1, 0.62] }}
+      transition={{ duration: 1.4, ease: 'easeInOut', repeat: Infinity }}
+    >
+      <div className={styles.loadingHeader}><span /><i /><i /></div>
+      <div className={styles.loadingMessages}><span /><span /><span /><span /></div>
+      <div className={styles.loadingComposer}><span /><b /></div>
+      <strong>正在连接 lian</strong>
+    </motion.div>
+  );
+}
 
 function ContextHeader(props: ContextHeaderProps) {
   const [naming, setNaming] = useState<'create' | 'save' | null>(null);
@@ -244,16 +263,14 @@ export default function AppLayout() {
   const controller = useWorkspaceController();
   const { snapshot } = controller;
   const [artifactDrawerLoaded, setArtifactDrawerLoaded] = useState(false);
+  const [importName, setImportName] = useState('');
+
+  useEffect(() => {
+    setImportName(controller.pendingImportName ?? '');
+  }, [controller.pendingImportName]);
 
   if (!snapshot) {
-    return (
-      <div className={styles.loading} role="status">
-        <div className={styles.loadingHeader}><span /><i /><i /></div>
-        <div className={styles.loadingMessages}><span /><span /><span /><span /></div>
-        <div className={styles.loadingComposer}><span /><b /></div>
-        <strong>正在连接 lian</strong>
-      </div>
-    );
+    return <LoadingShell />;
   }
 
   const project = snapshot.project;
@@ -332,6 +349,7 @@ export default function AppLayout() {
                 resolutions,
               )
             }
+            onRetry={(content) => void controller.submitQuestion(content)}
           />
           <WorkspaceComposer
             intent={controller.intent}
@@ -350,6 +368,49 @@ export default function AppLayout() {
           />
         </Suspense>
       )}
+      <Dialog
+        open={controller.pendingImportName !== null}
+        onOpenChange={(open) => {
+          if (!open) void controller.resolvePendingImportName(null);
+        }}
+      >
+        <DialogContent className={styles.namingDialog}>
+          <DialogHeader>
+            <DialogTitle>保存为项目后导入</DialogTitle>
+            <DialogDescription>
+              数据需要归属到一个项目，便于后续继续研究。
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            className={styles.namingForm}
+            onSubmit={(event) => {
+              event.preventDefault();
+              void controller.resolvePendingImportName(importName);
+            }}
+          >
+            <Input
+              aria-label="导入项目名称"
+              placeholder="例如：大豆多环境试验"
+              value={importName}
+              onChange={(event) => setImportName(event.target.value)}
+              autoFocus
+              maxLength={120}
+            />
+            <DialogFooter className={styles.namingActions}>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => void controller.resolvePendingImportName(null)}
+              >
+                取消
+              </Button>
+              <Button type="submit" disabled={!importName.trim()}>
+                确定
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </AgentShell>
   );
 }

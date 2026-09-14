@@ -43,10 +43,16 @@ export default function WorkspaceComposer({
   }, [intent]);
 
   return (
-    <motion.div className={styles.composer} layout transition={{ duration: 0.18 }}>
+    <motion.div
+      className={styles.composer}
+      layout
+      transition={{ layout: { type: 'spring', stiffness: 420, damping: 38, mass: 0.8 } }}
+    >
       <textarea
         ref={input}
         aria-label="研究问题"
+        aria-describedby="workspace-composer-hint"
+        maxLength={4000}
         value={intent}
         rows={2}
         onChange={(event) => onIntentChange(event.target.value)}
@@ -90,7 +96,7 @@ export default function WorkspaceComposer({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <span className={styles.hint}>
+        <span className={styles.hint} id="workspace-composer-hint">
           {busy ? 'lian 正在整理思路…' : `${intent.length}/4000 · Enter 发送 · Shift + Enter 换行`}
         </span>
         <button
@@ -100,7 +106,13 @@ export default function WorkspaceComposer({
           disabled={!canSubmit}
         >
           {busy ? (
-            <Loader2 size={16} className="animate-spin" />
+            <motion.span
+              aria-hidden
+              animate={{ rotate: 360 }}
+              transition={{ duration: 0.8, ease: 'linear', repeat: Infinity }}
+            >
+              <Loader2 size={16} />
+            </motion.span>
           ) : (
             <ArrowUp size={17} strokeWidth={2} />
           )}

@@ -1,5 +1,5 @@
 /*
- * 设置模态测试:三区块渲染、主题切换副作用、模式持久化与系统跟随。
+ * 设置模态测试:独立页面切换、主题副作用、模式持久化与系统跟随。
  * Created on 2026-09-08
  * @author: https://github.com/Linmoqian
  */
@@ -27,30 +27,40 @@ beforeEach(() => {
 });
 
 describe("SettingsModal", () => {
-  it("渲染外观、模式与关于区块,展示应用名和版本", () => {
+  it("将外观、工作模式与关于渲染为独立页面", async () => {
+    const user = userEvent.setup();
     renderSettings();
     expect(screen.getByRole("heading", { name: "外观" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "模式" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "关于" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /工作模式/ }));
     expect(screen.getByRole("heading", { name: "模式" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "外观" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /关于/ }));
     expect(screen.getByRole("heading", { name: "关于" })).toBeInTheDocument();
     expect(screen.getAllByText("Pod Agent").length).toBeGreaterThan(0);
     expect(screen.getByText(`v${version}`)).toBeInTheDocument();
   });
 
-  it("在关于区展示两位开发成员肖像与名称", () => {
+  it("在关于页展示两位开发成员肖像与名称", async () => {
+    const user = userEvent.setup();
     renderSettings();
+    await user.click(screen.getByRole("button", { name: /关于/ }));
     expect(screen.getByRole("img", { name: "linmoqian 的开发成员肖像" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "qcl 的开发成员肖像" })).toBeInTheDocument();
     expect(screen.getByText("linmoqian")).toBeInTheDocument();
     expect(screen.getByText("qcl")).toBeInTheDocument();
   });
 
-  it("默认浅色主题与新手模式,选中卡片以 aria-pressed 标记", () => {
+  it("默认浅色主题与新手模式,选中卡片以 aria-pressed 标记", async () => {
+    const user = userEvent.setup();
     renderSettings();
     expect(document.documentElement.dataset.theme).toBe("light");
     expect(screen.getByRole("button", { name: /浅色/ })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
+    await user.click(screen.getByRole("button", { name: /工作模式/ }));
     expect(screen.getByRole("button", { name: /新手/ })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -71,6 +81,7 @@ describe("SettingsModal", () => {
   it("切换为专家模式并持久化,选中态随选项移动", async () => {
     const user = userEvent.setup();
     renderSettings();
+    await user.click(screen.getByRole("button", { name: /工作模式/ }));
     await user.click(screen.getByRole("button", { name: /专家/ }));
     const stored = JSON.parse(
       window.localStorage.getItem("pod-agent.settings") ?? "{}",
@@ -106,13 +117,15 @@ describe("SettingsModal", () => {
     expect(document.documentElement.dataset.theme).toBe("dark");
   });
 
-  it("再次打开时从 localStorage 恢复深色主题", () => {
+  it("再次打开时从 localStorage 恢复深色主题与开发人员模式", async () => {
+    const user = userEvent.setup();
     window.localStorage.setItem(
       "pod-agent.settings",
       JSON.stringify({ themePreference: "dark", experienceMode: "developer" }),
     );
     renderSettings();
     expect(document.documentElement.dataset.theme).toBe("dark");
+    await user.click(screen.getByRole("button", { name: /工作模式/ }));
     expect(screen.getByRole("button", { name: /开发人员/ })).toHaveAttribute(
       "aria-pressed",
       "true",

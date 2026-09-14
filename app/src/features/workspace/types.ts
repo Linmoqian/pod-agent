@@ -112,7 +112,9 @@ export type TimelineMessage = {
   content: string;
   reasoning?: string | null;
   /** 仅在前端等待本轮真实 Agent 结果时使用，不持久化。 */
-  status?: 'pending' | 'streaming';
+  status?: 'pending' | 'streaming' | 'error';
+  errorMessage?: string;
+  retryContent?: string;
   createdAt: string;
 };
 

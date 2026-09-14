@@ -1,14 +1,14 @@
 /*
- * 设置模态:外观(主题)、模式与关于三个区块。
+ * 设置模态:外观、工作模式与关于三个独立页面。
  * 选项卡片为同组互斥单选,以 aria-pressed 表达选中态;
  * 主题/模式状态读写走 SettingsContext,由其负责持久化与 <html data-theme>。
  * Created on 2026-09-08
- * Updated on 2026-09-13
+ * Updated on 2026-09-14
  * @author: https://github.com/Linmoqian
  */
 
 import { Code2, FlaskConical, Monitor, Moon, Search, Sprout, Sun, SlidersHorizontal, UserRound } from 'lucide-react';
-import { motion, useReducedMotion } from 'motion/react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useState, type ReactNode } from 'react';
 import { version } from "../../../../package.json";
 import developerOnePortrait from "@/assets/developer-1.jpg";
@@ -225,17 +225,33 @@ type SettingsModalProps = {
   onClose: () => void;
 };
 
+type SettingsSection = 'appearance' | 'mode' | 'about';
+
 function SettingsModal({ open, onClose }: SettingsModalProps) {
-  const [activeSection, setActiveSection] = useState('appearance');
+  const [activeSection, setActiveSection] = useState<SettingsSection>('appearance');
   const [query, setQuery] = useState('');
-  const sections = [
-    { id: 'appearance', label: '外观', hint: '主题与界面', icon: <SlidersHorizontal size={16} /> },
-    { id: 'mode', label: '工作模式', hint: '助手行为', icon: <UserRound size={16} /> },
-    { id: 'about', label: '关于', hint: '版本信息', icon: <Code2 size={16} /> },
+  const reduceMotion = useReducedMotion();
+  const sections: ReadonlyArray<{
+    id: SettingsSection;
+    label: string;
+    hint: string;
+    keywords: readonly string[];
+    icon: ReactNode;
+  }> = [
+    { id: 'appearance', label: '外观', hint: '主题与界面', keywords: ['浅色', '深色', '系统', '主题'], icon: <SlidersHorizontal size={16} /> },
+    { id: 'mode', label: '工作模式', hint: '助手行为', keywords: ['新手', '专家', '开发人员', '引导', '调试'], icon: <UserRound size={16} /> },
+    { id: 'about', label: '关于', hint: '版本信息', keywords: ['版本', '作者', '开发成员', 'pod agent'], icon: <Code2 size={16} /> },
   ];
   const normalizedQuery = query.trim().toLowerCase();
-  const visible = (text: string) =>
-    !normalizedQuery || text.toLowerCase().includes(normalizedQuery);
+  const matchingSections = sections.filter((section) =>
+    `${section.label}${section.hint}${section.keywords.join('')}`
+      .toLowerCase()
+      .includes(normalizedQuery),
+  );
+  const selectSection = (section: SettingsSection) => {
+    setActiveSection(section);
+    setQuery('');
+  };
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogOverlay className={styles.modalOverlay} />
@@ -250,22 +266,58 @@ function SettingsModal({ open, onClose }: SettingsModalProps) {
             </DialogHeader>
             <label className={styles.search}>
               <Search size={15} aria-hidden />
-              <input aria-label="搜索设置" placeholder="搜索设置" value={query} onChange={(event) => setQuery(event.target.value)} />
+              <input
+                aria-label="搜索设置"
+                placeholder="搜索设置"
+                value={query}
+                onChange={(event) => {
+                  const nextQuery = event.target.value;
+                  setQuery(nextQuery);
+                  const normalized = nextQuery.trim().toLowerCase();
+                  const matches = sections.filter((section) =>
+                    `${section.label}${section.hint}${section.keywords.join('')}`
+                      .toLowerCase()
+                      .includes(normalized),
+                  );
+                  if (normalized && matches.length === 1) setActiveSection(matches[0].id);
+                }}
+              />
             </label>
             <nav className={styles.sectionNav}>
-              {sections.map((section) => (
-                <button key={section.id} type="button" data-active={activeSection === section.id} onClick={() => { setActiveSection(section.id); document.getElementById(`settings-${section.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>
+              {matchingSections.map((section) => (
+                <button key={section.id} type="button" data-active={activeSection === section.id} aria-current={activeSection === section.id ? 'page' : undefined} onClick={() => selectSection(section.id)}>
                   {section.icon}<span><strong>{section.label}</strong><small>{section.hint}</small></span>
                 </button>
               ))}
             </nav>
             <span className={styles.navFooter}>Pod Agent · v{version}</span>
           </aside>
-          <motion.div className={styles.body} layout transition={{ duration: 0.2 }}>
-            {visible('外观主题') && <motion.div key="appearance" id="settings-appearance" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }}><ThemeSection /></motion.div>}
-            {visible('工作模式助手行为') && <motion.div key="mode" id="settings-mode" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }}><ModeSection /></motion.div>}
-            {visible('关于版本信息') && <motion.div key="about" id="settings-about" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }}><AboutSection /></motion.div>}
-            {normalizedQuery && !sections.some((section) => visible(section.label + section.hint)) && <p className={styles.noResults}>没有找到匹配的设置</p>}
+          <motion.div
+            className={styles.body}
+            layout
+            transition={
+              reduceMotion
+                ? { duration: 0 }
+                : { layout: { type: 'spring', stiffness: 420, damping: 38, mass: 0.8 } }
+            }
+          >
+            {matchingSections.length ? (
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={activeSection}
+                  initial={reduceMotion ? false : { opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={reduceMotion ? undefined : { opacity: 0 }}
+                  transition={reduceMotion ? { duration: 0 } : { duration: 0.14, ease: 'easeOut' }}
+                >
+                  {activeSection === 'appearance' && <ThemeSection />}
+                  {activeSection === 'mode' && <ModeSection />}
+                  {activeSection === 'about' && <AboutSection />}
+                </motion.div>
+              </AnimatePresence>
+            ) : (
+              <p className={styles.noResults}>没有找到匹配的设置</p>
+            )}
           </motion.div>
         </div>
       </DialogContent>

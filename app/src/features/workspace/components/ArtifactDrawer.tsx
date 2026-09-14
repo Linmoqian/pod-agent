@@ -6,6 +6,7 @@
 
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { motion } from 'motion/react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
@@ -32,11 +33,13 @@ function ArtifactContent({
   trailLength,
   onBack,
   onFollow,
+  loading,
 }: {
   detail: ArtifactDetail;
   trailLength: number;
   onBack: () => void;
   onFollow: (artifact: Artifact) => void;
+  loading: boolean;
 }) {
   return (
     <div className={styles.provenance}>
@@ -77,6 +80,7 @@ function ArtifactContent({
               key={upstream.id}
               variant="outline"
               className="w-full"
+              disabled={loading}
               onClick={() => onFollow(upstream)}
             >
               {upstream.name}
@@ -133,21 +137,44 @@ export default function ArtifactDrawer({
 }: ArtifactDrawerProps) {
   const [trail, setTrail] = useState<ArtifactDetail[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const detail = trail[trail.length - 1];
+
+  const loadArtifact = async (artifactId: string, replace = false) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const next = await workspaceApi.artifactDetail(artifactId);
+      setTrail((items) => (replace ? [next] : [...items, next]));
+    } catch (reason) {
+      const message = errorText(reason);
+      setError(message);
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     let alive = true;
     if (!artifact) {
       setTrail([]);
+      setError(null);
       return () => {
         alive = false;
       };
     }
     setLoading(true);
+    setError(null);
     workspaceApi
       .artifactDetail(artifact.id)
       .then((value) => alive && setTrail([value]))
-      .catch((error) => alive && toast.error(errorText(error)))
+      .catch((reason) => {
+        if (!alive) return;
+        const message = errorText(reason);
+        setError(message);
+        toast.error(message);
+      })
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
@@ -155,15 +182,7 @@ export default function ArtifactDrawer({
   }, [artifact]);
 
   const followUpstream = async (upstream: Artifact) => {
-    setLoading(true);
-    try {
-      const next = await workspaceApi.artifactDetail(upstream.id);
-      setTrail((items) => [...items, next]);
-    } catch (error) {
-      toast.error(errorText(error));
-    } finally {
-      setLoading(false);
-    }
+    await loadArtifact(upstream.id);
   };
 
   return (
@@ -180,7 +199,25 @@ export default function ArtifactDrawer({
             className="flex items-center justify-center py-10 text-muted-foreground"
             role="status"
           >
-            <Loader2 size={20} strokeWidth={1.75} className="animate-spin" />
+            <motion.span
+              aria-hidden
+              animate={{ rotate: 360 }}
+              transition={{ duration: 0.8, ease: 'linear', repeat: Infinity }}
+            >
+              <Loader2 size={20} strokeWidth={1.75} />
+            </motion.span>
+          </div>
+        ) : error && !detail ? (
+          <div className={styles.errorState} role="alert">
+            <p>{error}</p>
+            {artifact && (
+              <Button
+                variant="outline"
+                onClick={() => void loadArtifact(artifact.id, true)}
+              >
+                重试
+              </Button>
+            )}
           </div>
         ) : (
           detail && (
@@ -189,6 +226,7 @@ export default function ArtifactDrawer({
               trailLength={trail.length}
               onBack={() => setTrail((items) => items.slice(0, -1))}
               onFollow={(upstream) => void followUpstream(upstream)}
+              loading={loading}
             />
           )
         )}
