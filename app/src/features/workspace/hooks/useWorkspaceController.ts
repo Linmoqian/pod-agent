@@ -371,18 +371,61 @@ export default function useWorkspaceController() {
       setBusy(false);
     }
   };
-  const promoteCurrentConversation = async (name: string) => {
-    if (!conversationId) return;
+  const promoteConversation = async (
+    targetConversationId: string,
+    name: string,
+  ): Promise<boolean> => {
+    if (!targetConversationId) return false;
     setBusy(true);
     try {
+      if (!isTauriRuntime()) {
+        const source = previewSnapshots.current.get(targetConversationId);
+        if (!source) return false;
+        const now = new Date().toISOString();
+        const project: Project = {
+          id: `browser-project-${targetConversationId}`,
+          name,
+          status: 'active',
+          createdAt: now,
+          updatedAt: now,
+        };
+        const context: WorkspaceSnapshot = {
+          ...source,
+          conversation: {
+            ...source.conversation,
+            projectId: project.id,
+            title: name,
+            updatedAt: now,
+          },
+          project,
+        };
+        previewSnapshots.current.set(targetConversationId, context);
+        const promotedTab = tabFromSnapshot(context);
+        setTabs((current) =>
+          current.map((item) =>
+            item.id === promotedTab.id ? promotedTab : item,
+          ),
+        );
+        if (targetConversationId === conversationId) activateSnapshot(context);
+        return true;
+      }
       const context = await workspaceApi.promoteConversation(
-        conversationId,
+        targetConversationId,
         name,
       );
-      activateSnapshot(context);
+      previewSnapshots.current.set(context.conversation.id, context);
+      const promotedTab = tabFromSnapshot(context);
+      setTabs((current) =>
+        current.map((item) =>
+          item.id === promotedTab.id ? promotedTab : item,
+        ),
+      );
+      if (targetConversationId === conversationId) activateSnapshot(context);
       setProjects(await workspaceApi.listProjects());
+      return true;
     } catch (error) {
       reportError(error);
+      return false;
     } finally {
       setBusy(false);
     }
@@ -442,7 +485,7 @@ export default function useWorkspaceController() {
     startNewConversation,
     activateTab,
     closeTab,
-    promoteCurrentConversation,
+    promoteConversation,
     resolvePendingImportName,
     chooseData,
     registerCandidates,

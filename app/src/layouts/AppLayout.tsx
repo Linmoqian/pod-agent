@@ -5,7 +5,7 @@
  * @author: https://github.com/Linmoqian
  */
 
-import { Plus, Trash2, X } from 'lucide-react';
+import { Circle, Plus, Trash2, X } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import { useEffect, useState } from 'react';
 
@@ -63,7 +63,7 @@ type ContextHeaderProps = {
   onCreateProject: (name: string) => void;
   onArchiveProject: () => void;
   onStartNewConversation: () => void;
-  onPromoteConversation: (name: string) => void;
+  onPromoteConversation: (conversationId: string, name: string) => Promise<boolean>;
 };
 
 function LoadingShell() {
@@ -87,14 +87,37 @@ function LoadingShell() {
 function ContextHeader(props: ContextHeaderProps) {
   const [naming, setNaming] = useState<'create' | 'save' | null>(null);
   const [name, setName] = useState('');
+  const [closingTab, setClosingTab] = useState<WorkspaceTab | null>(null);
+  const [saveAndCloseTab, setSaveAndCloseTab] = useState<WorkspaceTab | null>(null);
   const createProject = () => {
     setName('');
     setNaming('create');
   };
-  const promoteConversation = () => {
-    setName('');
-    setNaming('save');
+  const requestCloseTab = (tab: WorkspaceTab) => {
+    if (tab.projectId) {
+      props.onCloseTab(tab.id);
+      return;
+    }
+    setClosingTab(tab);
   };
+
+  useEffect(() => {
+    const save = (event: KeyboardEvent) => {
+      if (
+        props.inProject ||
+        event.key.toLowerCase() !== 's' ||
+        (!event.ctrlKey && !event.metaKey)
+      ) {
+        return;
+      }
+      event.preventDefault();
+      setName('');
+      setSaveAndCloseTab(null);
+      setNaming('save');
+    };
+    window.addEventListener('keydown', save);
+    return () => window.removeEventListener('keydown', save);
+  }, [props.inProject]);
 
   return (
     <header className={styles.header}>
@@ -124,7 +147,7 @@ function ContextHeader(props: ContextHeaderProps) {
                 className={styles.closeTab}
                 aria-label={`关闭${tab.label}`}
                 disabled={props.busy}
-                onClick={() => props.onCloseTab(tab.id)}
+                onClick={() => requestCloseTab(tab)}
               >
                 <X size={14} />
               </button>
@@ -146,7 +169,10 @@ function ContextHeader(props: ContextHeaderProps) {
       <Dialog
         open={naming !== null}
         onOpenChange={(open) => {
-          if (!open) setNaming(null);
+          if (!open) {
+            setNaming(null);
+            setSaveAndCloseTab(null);
+          }
         }}
       >
         <DialogContent className={styles.namingDialog}>
@@ -160,11 +186,23 @@ function ContextHeader(props: ContextHeaderProps) {
           </DialogHeader>
           <form
             className={styles.namingForm}
-            onSubmit={(event) => {
+            onSubmit={async (event) => {
               event.preventDefault();
               if (!name.trim()) return;
-              if (naming === 'create') props.onCreateProject(name.trim());
-              else props.onPromoteConversation(name.trim());
+              if (naming === 'create') {
+                props.onCreateProject(name.trim());
+              } else {
+                const conversationId = saveAndCloseTab?.id ?? props.activeTabId;
+                const saved = await props.onPromoteConversation(
+                  conversationId,
+                  name.trim(),
+                );
+                if (saved && saveAndCloseTab) {
+                  props.onCloseTab(saveAndCloseTab.id);
+                  setSaveAndCloseTab(null);
+                }
+                if (!saved) return;
+              }
               setNaming(null);
             }}
           >
@@ -180,7 +218,10 @@ function ContextHeader(props: ContextHeaderProps) {
               <Button
                 type="button"
                 variant="ghost"
-                onClick={() => setNaming(null)}
+                onClick={() => {
+                  setNaming(null);
+                  setSaveAndCloseTab(null);
+                }}
               >
                 取消
               </Button>
@@ -191,7 +232,7 @@ function ContextHeader(props: ContextHeaderProps) {
           </form>
         </DialogContent>
       </Dialog>
-      <div className={styles.projectContext}>
+      {props.inProject && <div className={styles.projectContext}>
         <div className={styles.eyebrow}>
           <span className={styles.statusDot} aria-hidden />
           <span>育种研究对话</span>
@@ -227,19 +268,13 @@ function ContextHeader(props: ContextHeaderProps) {
               <DropdownMenuItem onSelect={props.onStartNewConversation}>
                 新的临时会话
               </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={props.inProject}
-                onSelect={promoteConversation}
-              >
-                保存为项目…
-              </DropdownMenuItem>
               <DropdownMenuItem onSelect={createProject}>
                 新建项目…
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </div>
+      </div>}
       <div className={styles.headerActions}>
         {props.inProject && (
           <div className={styles.contextStats} aria-label="项目概览">
@@ -255,15 +290,13 @@ function ContextHeader(props: ContextHeaderProps) {
           </div>
         )}
         {!props.inProject && (
-          <Button
-            variant="ghost"
-            className={styles.newProject}
-            onClick={promoteConversation}
-            aria-label="保存为项目"
+          <span
+            className={styles.unsavedDot}
+            aria-label="未保存的临时会话"
+            title="未保存的临时会话，按 Ctrl+S 保存"
           >
-            <Plus size={15} strokeWidth={1.75} />
-            保存为项目
-          </Button>
+            <Circle size={8} fill="currentColor" aria-hidden />
+          </span>
         )}
         {props.inProject && (
           <Button
@@ -303,6 +336,41 @@ function ContextHeader(props: ContextHeaderProps) {
           </AlertDialog>
         )}
       </div>
+      <AlertDialog
+        open={closingTab !== null}
+        onOpenChange={(open) => !open && setClosingTab(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>保存临时会话？</AlertDialogTitle>
+            <AlertDialogDescription>
+              关闭后仍可选择将这次研究保存为项目，方便后续继续。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              variant="outline"
+              onClick={() => {
+                if (closingTab) props.onCloseTab(closingTab.id);
+                setClosingTab(null);
+              }}
+            >
+              仍然关闭
+            </AlertDialogAction>
+            <Button
+              onClick={() => {
+                setSaveAndCloseTab(closingTab);
+                setClosingTab(null);
+                setName('');
+                setNaming('save');
+              }}
+            >
+              保存并关闭
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </header>
   );
 }
@@ -365,9 +433,7 @@ export default function AppLayout() {
           onCreateProject={(name) => void controller.createProject(name)}
           onArchiveProject={() => void controller.archiveProject()}
           onStartNewConversation={() => void controller.startNewConversation()}
-          onPromoteConversation={(name) =>
-            void controller.promoteCurrentConversation(name)
-          }
+          onPromoteConversation={(id, name) => controller.promoteConversation(id, name)}
         />
         <section className={styles.workspace}>
           <WorkspaceTimeline

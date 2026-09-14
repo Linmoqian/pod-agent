@@ -121,6 +121,14 @@
 .headerActions {
   flex: 0 0 auto;
 }
+
+.unsavedDot {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  color: var(--color-brand-500);
+}
 .eyebrow,
 .projectRow h1,
 .divider,
