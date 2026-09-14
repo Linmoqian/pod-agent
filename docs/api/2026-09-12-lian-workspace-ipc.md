@@ -173,3 +173,4 @@ const plan = await invoke("submit_agent_intent", {
 | --- | --- | --- | --- | --- |
 | 2026-09-12 | 0.1.0 | 兼容 | 建立 V1 八个 command 与三个生命周期事件契约 | 无 |
 | 2026-09-12 | 0.2.0 | 兼容扩展 | 增加 M2 科研语义、导入确认、Execution、Lineage 与 Project API | V1 command 保留至 M3 |
+| 2026-09-14 | 0.3.0 | 领域重构 | 对话成为交互单元：新增 `ensure_active_conversation` / `get_conversation_context` / `open_project_context` / `new_temporary_conversation` / `send_message` / `promote_conversation`；`submit_agent_intent` / `submit_research_intent` 增加可选 `conversationId`；Agent 进程新增 `discuss` 请求（返回 Markdown 回复，上下文明确声明当前无数据） | DB v3：messages 改挂 conversations，历史 Project 消息自动迁入「研究对话」会话；升级前自动备份 `pre-v3-*` |
