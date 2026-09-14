@@ -74,6 +74,47 @@
   border-bottom: 1px solid currentColor;
   transform: rotate(45deg);
 }
+.contextMenu {
+  width: min(260px, calc(100vw - 24px));
+  padding: 5px;
+  border-color: var(--color-border-default);
+  border-radius: 7px;
+  background: var(--color-surface-default);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-elevated);
+}
+.contextMenu [data-slot='dropdown-menu-item'] {
+  min-height: 32px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.namingDialog {
+  width: min(440px, calc(100vw - 32px));
+  max-width: 440px;
+  gap: 18px;
+  padding: 22px;
+  border-color: var(--color-border-default);
+  border-radius: 8px;
+  background: var(--color-surface-default);
+  color: var(--color-text-primary);
+}
+.namingForm {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+.namingForm input {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+}
+.namingActions {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 0;
+}
 .newProject {
   font-size: 12px;
   color: var(--color-text-tertiary);

@@ -82,7 +82,7 @@ function ContextHeader(props: ContextHeaderProps) {
           if (!open) setNaming(null);
         }}
       >
-        <DialogContent>
+        <DialogContent className={styles.namingDialog}>
           <DialogHeader>
             <DialogTitle>
               {naming === 'create' ? '新建项目' : '保存为项目'}
@@ -92,6 +92,7 @@ function ContextHeader(props: ContextHeaderProps) {
             </DialogDescription>
           </DialogHeader>
           <form
+            className={styles.namingForm}
             onSubmit={(event) => {
               event.preventDefault();
               if (!name.trim()) return;
@@ -108,7 +109,7 @@ function ContextHeader(props: ContextHeaderProps) {
               autoFocus
               maxLength={120}
             />
-            <DialogFooter className="mt-4">
+            <DialogFooter className={styles.namingActions}>
               <Button
                 type="button"
                 variant="ghost"
@@ -137,7 +138,10 @@ function ContextHeader(props: ContextHeaderProps) {
                 <span>{props.contextLabel}</span>
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
+            <DropdownMenuContent
+              align="start"
+              className={styles.contextMenu}
+            >
               <DropdownMenuItem disabled>
                 当前 · {props.contextLabel}
               </DropdownMenuItem>

@@ -4,6 +4,7 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { isTauri } from '@tauri-apps/api/core';
 import {
   ArrowLeftRight,
   Folder,
@@ -30,6 +31,7 @@ const DEFAULT_LAYOUT: Layout = {
   workbench: 320,
 };
 const STORAGE_KEY = 'lian.chat-layout.v1';
+const COMPACT_LAYOUT_QUERY = '(max-width: 980px)';
 function readLayout(): Layout {
   try {
     const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
@@ -73,10 +75,20 @@ export default function AgentShell({
   onSwitchProject: (id: string) => void;
 }) {
   const [layout, setLayout] = useState(readLayout);
+  const nativeWindow = isTauri();
+  const mac = /Mac/i.test(navigator.platform);
   const yoloTask = useYoloTask();
+  const shownYolo = useRef(new Set<string>());
+  useEffect(() => {
+    const incoming = yoloTask.photos.filter((photo) => photo.external && !shownYolo.current.has(photo.id));
+    if (!incoming.length) return;
+    incoming.forEach((photo) => shownYolo.current.add(photo.id));
+    if (!workbenchOpen) onToggleWorkbench();
+    if (window.matchMedia(COMPACT_LAYOUT_QUERY).matches) setMobilePanel('workbench');
+  }, [yoloTask.photos, workbenchOpen, onToggleWorkbench]);
   const [navigationOpen, setNavigationOpen] = useState(true);
   const [narrow, setNarrow] = useState(
-    () => window.matchMedia('(max-width: 820px)').matches,
+    () => window.matchMedia(COMPACT_LAYOUT_QUERY).matches,
   );
   const [mobilePanel, setMobilePanel] = useState<PanelId | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -115,7 +127,7 @@ export default function AgentShell({
     };
   }, []);
   useEffect(() => {
-    const media = window.matchMedia('(max-width: 820px)');
+    const media = window.matchMedia(COMPACT_LAYOUT_QUERY);
     const update = () => {
       setNarrow(media.matches);
       setMobilePanel(null);
@@ -227,6 +239,8 @@ export default function AgentShell({
         className={styles.panel}
         style={{ width: layout[id], order: isLeft ? 0 : 2 }}
         data-side={isLeft ? 'left' : 'right'}
+        data-drag-source={dragging === id ? 'true' : undefined}
+        data-drag-peer={dragging && dragging !== id ? 'true' : undefined}
         aria-label={label}
       >
         <div className={styles.panelHeader}>
@@ -329,8 +343,7 @@ export default function AgentShell({
               )}
             </div>
             <div className={styles.navFooter}>
-              <YoloTaskCard task={yoloTask} />
-              <button onClick={() => setSettingsOpen(true)}>
+              <button aria-label="打开设置" onClick={() => setSettingsOpen(true)}>
                 <Settings size={16} />
                 设置
               </button>
@@ -338,7 +351,7 @@ export default function AgentShell({
             </div>
           </nav>
         ) : (
-          <div className={styles.panelBody}>{workbench}</div>
+          <div className={styles.panelBody}><YoloTaskCard task={yoloTask} />{workbench}</div>
         )}
         <div
           className={styles.resize}
@@ -395,7 +408,13 @@ export default function AgentShell({
         : workbenchOpen;
   return (
     <div className={styles.shell} ref={root} onContextMenu={(event) => { event.preventDefault(); setContextMenu({ x: Math.min(event.clientX, window.innerWidth - 230), y: Math.min(event.clientY, window.innerHeight - 190) }); }}>
-      <header className={styles.titlebar}>
+      <header
+        className={styles.titlebar}
+        aria-label="工作空间顶部栏"
+        data-native-mac={nativeWindow && mac ? 'true' : undefined}
+        data-tauri-drag-region={nativeWindow ? '' : undefined}
+        onContextMenu={(event) => event.stopPropagation()}
+      >
         <span className={styles.wordmark}>
           lian<span> / </span>
           <small>研究工作空间</small>
@@ -403,14 +422,14 @@ export default function AgentShell({
         <div>
           <button
             aria-label={visible('navigation') ? '切换会话侧栏' : '展开会话侧栏'}
-            title="会话侧栏 · ⌘B"
+            title={`会话侧栏 · ${mac ? '⌘B' : 'Ctrl+B'}`}
             onClick={toggleNavigation}
           >
             <PanelLeft size={17} />
           </button>
           <button
             aria-label={visible('workbench') ? '切换育种台' : '展开育种台'}
-            title="研究上下文 · ⌘⇧B"
+            title={`研究上下文 · ${mac ? '⌘⇧B' : 'Ctrl+Shift+B'}`}
             onClick={toggleWorkbench}
           >
             <PanelRight size={17} />
@@ -426,9 +445,6 @@ export default function AgentShell({
             }}
           >
             <RotateCcw size={15} />
-          </button>
-          <button aria-label="打开设置" onClick={() => setSettingsOpen(true)}>
-            <Settings size={16} />
           </button>
         </div>
       </header>
@@ -456,8 +472,11 @@ export default function AgentShell({
         <div
           className={styles.dropPreview}
           data-side={targetSide || (dragging === leftPanel ? 'left' : 'right')}
+          role="status"
         >
-          释放以停靠到{targetSide === 'right' ? '右' : '左'}侧
+          <span>
+            释放以停靠到{targetSide === 'right' ? '右' : '左'}侧
+          </span>
         </div>
       )}
       {contextMenu && (

@@ -1,7 +1,7 @@
 /*
  * 展示 Project 内消息时间线与待确认的数据识别结果。
  * Created on 2026-09-12
- * Updated on 2026-09-13
+ * Updated on 2026-09-14
  * @author: https://github.com/Linmoqian
  */
 
@@ -34,7 +34,6 @@ import type {
 } from '../types';
 import type { FieldMapping } from './SourceReview';
 import SourceReview from './SourceReview';
-import TypewriterMarkdown from './TypewriterMarkdown';
 import styles from './WorkspaceTimeline.module.css';
 
 type WorkspaceTimelineProps = {
@@ -132,18 +131,9 @@ function StreamingReply({ content }: { content: string }) {
   );
 }
 
-function useSeenMessageIds(messages: TimelineMessage[]) {
-  const seenMessageIds = useRef(new Set(messages.map((message) => message.id)));
-  useEffect(() => {
-    messages.forEach((message) => seenMessageIds.current.add(message.id));
-  }, [messages]);
-  return seenMessageIds;
-}
-
 function TimelineMessages({
   messages,
 }: Pick<WorkspaceTimelineProps, 'messages'>) {
-  const seenMessageIds = useSeenMessageIds(messages);
   return messages.map((item) => (
     <div key={item.id} className={styles.message} data-role={item.role}>
       <small>{item.role === 'user' ? '你' : 'lian'}</small>
@@ -159,11 +149,7 @@ function TimelineMessages({
       ) : (
         <>
           <ReasoningBlock reasoning={item.reasoning} />
-          <TypewriterMarkdown
-            messageId={item.id}
-            content={item.content}
-            animate={!seenMessageIds.current.has(item.id)}
-          />
+          <MarkdownContent content={item.content} />
           <button
             className={styles.copy}
             aria-label="复制回复"

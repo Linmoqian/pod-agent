@@ -16,7 +16,10 @@ const mocks = vi.hoisted(() => ({
   open: vi.fn(),
 }));
 
-vi.mock('@tauri-apps/api/core', () => ({ invoke: mocks.invoke }));
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: mocks.invoke,
+  isTauri: () => '__TAURI_INTERNALS__' in window,
+}));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: mocks.open }));
 vi.mock('@tauri-apps/api/event', () => ({
   listen: mocks.listen,
@@ -115,7 +118,7 @@ it('自由对话在 Agent 返回前立即展示提问和生成中回复', async 
   const input = await screen.findByLabelText('研究问题');
   await user.type(input, '如何安排田间重复？{enter}');
   expect(await screen.findByText('如何安排田间重复？')).toBeInTheDocument();
-  expect(screen.getByRole('status')).toHaveTextContent('正在生成回复');
+  expect(screen.getByText('正在生成回复')).toHaveAttribute('role', 'status');
   await waitFor(() =>
     expect(mocks.listen).toHaveBeenCalledWith(
       'lian-agent-event',
@@ -177,7 +180,7 @@ it('真实思考文本可展开或收起，正文保持独立显示', async () =
         conversationId: conversation.id,
         taskPlanId: null,
         role: 'assistant',
-        content: '建议先检查重复数和环境信息。',
+        content: '**建议**\n\n- 检查重复数\n- 核对环境信息',
         reasoning: '先确认问题没有要求虚构数据结论。',
         createdAt: '2026-09-14',
       },
@@ -193,10 +196,12 @@ it('真实思考文本可展开或收起，正文保持独立显示', async () =
   render(<Root />);
   const toggle = await screen.findByRole('button', { name: '模型思考' });
   expect(screen.getByText('先确认问题没有要求虚构数据结论。')).toBeInTheDocument();
-  expect(screen.getByText('建议先检查重复数和环境信息。')).toBeInTheDocument();
+  expect(screen.getByText('建议').tagName).toBe('STRONG');
+  expect(screen.getByText('检查重复数').tagName).toBe('LI');
+  expect(screen.getByText('核对环境信息').tagName).toBe('LI');
   await user.click(toggle);
   expect(screen.queryByText('先确认问题没有要求虚构数据结论。')).not.toBeInTheDocument();
-  expect(screen.getByText('建议先检查重复数和环境信息。')).toBeInTheDocument();
+  expect(screen.getByText('检查重复数')).toBeInTheDocument();
 });
 
 it('普通浏览器缺少 Tauri IPC 时仍显示工作区预览', async () => {
