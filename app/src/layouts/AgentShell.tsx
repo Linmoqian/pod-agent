@@ -466,7 +466,7 @@ export default function AgentShell({
             ) : (
               <GripVertical size={14} />
             )}
-            <span>{id === 'navigation' ? '工作空间' : '研究上下文'}</span>
+            <span>{id === 'navigation' ? '工作空间' : '育种台'}</span>
           </button>
           <button
             aria-label={`移动${label}到${isLeft ? '右' : '左'}侧`}
@@ -653,7 +653,7 @@ export default function AgentShell({
           </button>
           <button
             aria-label={visible('workbench') ? '切换育种台' : '展开育种台'}
-            title={`研究上下文 · ${mac ? '⌘⇧B' : 'Ctrl+Shift+B'}`}
+            title={`育种台 · ${mac ? '⌘⇧B' : 'Ctrl+Shift+B'}`}
             onClick={toggleWorkbench}
           >
             <PanelRight size={17} />
@@ -745,7 +745,7 @@ export default function AgentShell({
         >
           <li><button role="menuitem" onClick={() => { onNewConversation(); setContextMenu(null); }}><Plus size={15} />新的临时会话 <kbd>⌘N</kbd></button></li>
           <li><button role="menuitem" onClick={() => { toggleNavigation(); setContextMenu(null); }}><PanelLeft size={15} />切换会话侧栏</button></li>
-          <li><button role="menuitem" onClick={() => { toggleWorkbench(); setContextMenu(null); }}><PanelRight size={15} />切换研究上下文</button></li>
+          <li><button role="menuitem" onClick={() => { toggleWorkbench(); setContextMenu(null); }}><PanelRight size={15} />切换育种台</button></li>
           <li className={styles.menuDivider} />
           <li><button role="menuitem" onClick={() => { updateLayout(() => DEFAULT_LAYOUT, true); setContextMenu(null); }}><RotateCcw size={15} />恢复默认布局</button></li>
       </motion.menu>

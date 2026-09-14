@@ -1,22 +1,22 @@
 /*
- * lian 右侧育种台的任务、数据与结果上下文面板。
+ * lian 右侧育种台的常驻任务与可管理任务标签面板。
  * Created on 2026-09-12
  * @author: https://github.com/Linmoqian
  */
 
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Plus, X } from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { useState } from 'react';
 
-import { statusTone } from '../status';
-import type {
-  Artifact,
-  TaskPlan,
-  WorkflowRun,
-  WorkspaceSnapshot,
-} from '../types';
-import MagneticCard from './MagneticCard';
+import type { TaskPlan, WorkflowRun, WorkspaceSnapshot } from '../types';
 import TaskPlanPanel from './TaskPlanPanel';
 import styles from './WorkbenchPanel.module.css';
+
+type WorkbenchTab = {
+  id: string;
+  label: string;
+  pinned?: boolean;
+};
 
 export type WorkbenchPanelProps = {
   snapshot: WorkspaceSnapshot;
@@ -26,99 +26,11 @@ export type WorkbenchPanelProps = {
   busy: boolean;
   onConfirm: (planId: string) => void;
   onCancel: (runId: string) => void;
-  onOpenArtifact: (artifact: Artifact) => void;
   embedded?: boolean;
 };
 
 function EmptyHint({ description }: { description: string }) {
   return <p className={styles.empty}>{description}</p>;
-}
-
-function DataCards({
-  snapshot,
-  onOpenArtifact,
-}: Pick<WorkbenchPanelProps, 'snapshot' | 'onOpenArtifact'>) {
-  if (!snapshot.datasets.length) {
-    return <EmptyHint description="尚未登记 Dataset" />;
-  }
-  return (
-    <div className={styles.stack}>
-      {snapshot.datasets.map((dataset) => {
-        const quality = snapshot.artifacts.find(
-          (artifact) =>
-            artifact.artifactType === 'quality.report' &&
-            artifact.upstreamIds.includes(dataset.id),
-        );
-        return (
-          <MagneticCard
-            key={dataset.id}
-            className={`${styles.card} ${quality ? styles.interactiveCard : ''}`}
-            enabled={Boolean(quality)}
-            onClick={() => quality && onOpenArtifact(quality)}
-          >
-            <span>{dataset.name}</span>
-            <small>
-              {dataset.schema.traits?.length ?? 0} 个性状 · v{dataset.version}
-            </small>
-            <Badge
-              variant="outline"
-              data-tone={statusTone(dataset.qualityStatus)}
-              className={styles.statusTag}
-            >
-              {dataset.qualityStatus}
-            </Badge>
-          </MagneticCard>
-        );
-      })}
-    </div>
-  );
-}
-
-function ResultCards({
-  snapshot,
-  onOpenArtifact,
-}: Pick<WorkbenchPanelProps, 'snapshot' | 'onOpenArtifact'>) {
-  if (!snapshot.artifacts.length) {
-    return <EmptyHint description="运行后生成 Artifact" />;
-  }
-  return (
-    <div className={styles.stack}>
-      {snapshot.artifacts.map((artifact) => (
-        <MagneticCard
-          key={artifact.id}
-          className={`${styles.card} ${styles.interactiveCard}`}
-          onClick={() => onOpenArtifact(artifact)}
-        >
-          <span>{artifact.name}</span>
-          <small>{artifact.artifactType}</small>
-          <Badge
-            variant="outline"
-            data-tone={statusTone(artifact.status)}
-            className={styles.statusTag}
-          >
-            {artifact.status}
-          </Badge>
-        </MagneticCard>
-      ))}
-    </div>
-  );
-}
-
-function MaterialCards({ snapshot }: Pick<WorkbenchPanelProps, 'snapshot'>) {
-  const materials = snapshot.materials ?? [];
-  if (!materials.length) {
-    return <EmptyHint description="导入数据后建立材料身份" />;
-  }
-  return (
-    <div className={styles.stack}>
-      {materials.map((material) => (
-        <div key={material.id} className={styles.card}>
-          <span>{material.displayName}</span>
-          <small>{material.canonicalCode}</small>
-        </div>
-      ))}
-    </div>
-  );
 }
 
 export default function WorkbenchPanel(props: WorkbenchPanelProps) {
@@ -127,9 +39,13 @@ export default function WorkbenchPanel(props: WorkbenchPanelProps) {
     latestPlan,
     latestRun,
     activeRunId,
-    onOpenArtifact,
     embedded,
   } = props;
+  const [tabs, setTabs] = useState<WorkbenchTab[]>([
+    { id: 'task', label: '任务', pinned: true },
+  ]);
+  const [activeTabId, setActiveTabId] = useState('task');
+  const reduced = useReducedMotion();
   const runningId =
     activeRunId ?? (latestRun?.status === 'running' ? latestRun.id : null);
   const task = latestPlan ? (
@@ -144,6 +60,23 @@ export default function WorkbenchPanel(props: WorkbenchPanelProps) {
   ) : (
     <EmptyHint description="提出问题后，任务计划会出现在这里" />
   );
+  const addTab = () => {
+    const id = `task-${Date.now()}`;
+    setTabs((current) => [
+      ...current,
+      { id, label: latestPlan?.title || `任务 ${current.length}` },
+    ]);
+    setActiveTabId(id);
+  };
+  const closeTab = (tabId: string) => {
+    const index = tabs.findIndex((tab) => tab.id === tabId);
+    if (index < 0 || tabs[index].pinned) return;
+    const next = tabs.filter((tab) => tab.id !== tabId);
+    setTabs(next);
+    if (tabId === activeTabId) {
+      setActiveTabId(next[index]?.id ?? next[index - 1]?.id ?? 'task');
+    }
+  };
   return (
     <aside className={`${styles.panel} ${embedded ? styles.embedded : ''}`}>
       <div className={styles.title}>
@@ -151,29 +84,66 @@ export default function WorkbenchPanel(props: WorkbenchPanelProps) {
         <span>
           {snapshot.overview
             ? `${snapshot.overview.materialCount} 材料 · ${snapshot.overview.executionCount} 次执行`
-            : '当前上下文'}
+          : '等待任务'}
         </span>
       </div>
-      <Tabs defaultValue="task">
-        <TabsList variant="line">
-          <TabsTrigger value="task">任务</TabsTrigger>
-          <TabsTrigger value="data">数据 {snapshot.datasets.length}</TabsTrigger>
-          <TabsTrigger value="result">结果 {snapshot.artifacts.length}</TabsTrigger>
-          <TabsTrigger value="material">
-            材料 {snapshot.materials?.length ?? 0}
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="task">{task}</TabsContent>
-        <TabsContent value="data">
-          <DataCards snapshot={snapshot} onOpenArtifact={onOpenArtifact} />
-        </TabsContent>
-        <TabsContent value="result">
-          <ResultCards snapshot={snapshot} onOpenArtifact={onOpenArtifact} />
-        </TabsContent>
-        <TabsContent value="material">
-          <MaterialCards snapshot={snapshot} />
-        </TabsContent>
-      </Tabs>
+      <div className={styles.tabBar} role="tablist" aria-label="育种台任务标签">
+        <div className={styles.tabList}>
+          {tabs.map((tab) => {
+            const active = tab.id === activeTabId;
+            return (
+              <motion.div
+                key={tab.id}
+                layout="position"
+                className={styles.tab}
+                data-active={active ? 'true' : undefined}
+                transition={{ type: 'spring', stiffness: 460, damping: 36, mass: 0.7 }}
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  className={styles.tabLabel}
+                  onClick={() => setActiveTabId(tab.id)}
+                >
+                  <span>{tab.label}</span>
+                </button>
+                {!tab.pinned && (
+                  <button
+                    type="button"
+                    className={styles.closeTab}
+                    aria-label={`关闭${tab.label}`}
+                    onClick={() => closeTab(tab.id)}
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </motion.div>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          className={styles.newTab}
+          aria-label="新建育种台任务标签"
+          title="新建任务标签"
+          onClick={addTab}
+        >
+          <Plus size={16} />
+        </button>
+      </div>
+      <AnimatePresence initial={false} mode="wait">
+        <motion.div
+          key={activeTabId}
+          className={styles.tabContent}
+          initial={reduced ? false : { opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={reduced ? undefined : { opacity: 0, y: -2 }}
+          transition={{ duration: 0.16, ease: [0.23, 1, 0.32, 1] }}
+        >
+          {task}
+        </motion.div>
+      </AnimatePresence>
     </aside>
   );
 }

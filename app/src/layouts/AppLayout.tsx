@@ -7,7 +7,7 @@
 
 import { Plus, Trash2, X } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
   AlertDialog,
@@ -46,10 +46,6 @@ import useWorkspaceController, {
 } from '../features/workspace/hooks/useWorkspaceController';
 import AgentShell from './AgentShell';
 import styles from './AppLayout.module.css';
-
-const ArtifactDrawer = lazy(
-  () => import('../features/workspace/components/ArtifactDrawer'),
-);
 
 type ContextHeaderProps = {
   tabs: WorkspaceTab[];
@@ -314,7 +310,6 @@ function ContextHeader(props: ContextHeaderProps) {
 export default function AppLayout() {
   const controller = useWorkspaceController();
   const { snapshot } = controller;
-  const [artifactDrawerLoaded, setArtifactDrawerLoaded] = useState(false);
   const [importName, setImportName] = useState('');
 
   useEffect(() => {
@@ -350,10 +345,6 @@ export default function AppLayout() {
           busy={controller.busy}
           onConfirm={(id) => void controller.confirmPlan(id)}
           onCancel={(id) => void controller.cancelWorkflow(id)}
-          onOpenArtifact={(artifact) => {
-            setArtifactDrawerLoaded(true);
-            controller.setSelectedArtifact(artifact);
-          }}
         />
       }
     >
@@ -417,14 +408,6 @@ export default function AppLayout() {
           />
         </section>
       </main>
-      {artifactDrawerLoaded && (
-        <Suspense fallback={null}>
-          <ArtifactDrawer
-            artifact={controller.selectedArtifact}
-            onClose={() => controller.setSelectedArtifact(null)}
-          />
-        </Suspense>
-      )}
       <Dialog
         open={controller.pendingImportName !== null}
         onOpenChange={(open) => {

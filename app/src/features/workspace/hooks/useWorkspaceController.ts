@@ -15,12 +15,7 @@ import {
   workspaceApi,
 } from '../../../services/workspace';
 import type { FieldMapping } from '../components/SourceReview';
-import type {
-  Artifact,
-  ImportInspection,
-  Project,
-  WorkspaceSnapshot,
-} from '../types';
+import type { ImportInspection, Project, WorkspaceSnapshot } from '../types';
 import useImportActions from './useImportActions';
 import useWorkspaceLifecycle from './useWorkspaceLifecycle';
 import useReplyStream from './useReplyStream';
@@ -76,9 +71,6 @@ export default function useWorkspaceController() {
   const [busy, setBusy] = useState(false);
   const [workbenchOpen, setWorkbenchOpen] = useState(true);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
-  const [selectedArtifact, setSelectedArtifact] = useState<Artifact | null>(
-    null,
-  );
   const [mappingEdits, setMappingEdits] = useState<
     Record<string, FieldMapping>
   >({});
@@ -436,12 +428,10 @@ export default function useWorkspaceController() {
     busy,
     workbenchOpen,
     activeRunId,
-    selectedArtifact,
     mappingEdits,
     pendingImportName,
     setIntent,
     setWorkbenchOpen,
-    setSelectedArtifact,
     setMappingEdits,
     submitQuestion,
     confirmPlan,
