@@ -59,11 +59,11 @@
 .optionCard {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--space-2);
   min-height: 132px;
   padding: var(--space-4);
-  text-align: left;
+  text-align: center;
   background: var(--color-surface-default);
   border: var(--border-default);
   border-radius: 14px;
@@ -116,14 +116,17 @@
   font-size: var(--font-size-caption);
   line-height: var(--line-height-title);
   color: var(--color-text-secondary);
+  text-align: center;
 }
 
 /* 关于区:品牌图标 + 名称/版本/简介/作者 */
 .aboutCard {
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: center;
   gap: var(--space-4);
   padding: var(--space-5);
+  text-align: center;
   background: var(--color-surface-subtle);
   border: var(--border-subtle);
   border-radius: 14px;
@@ -144,6 +147,7 @@
 .aboutText {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: var(--space-1);
   min-width: 0;
 }
@@ -205,13 +209,13 @@
 }
 
 .developerCard {
-  display: grid;
-  grid-template-columns: 52px minmax(0, 1fr);
-  grid-template-rows: auto auto;
-  column-gap: var(--space-3);
+  display: flex;
+  flex-direction: column;
   align-items: center;
+  gap: var(--space-1);
   min-width: 0;
   padding: var(--space-3);
+  text-align: center;
   background: var(--color-surface-default);
   border: var(--border-default);
   border-radius: var(--radius-sm);
@@ -222,7 +226,6 @@
 .developerCard[data-accent="blue"] { --developer-accent: #2774b8; }
 
 .developerPortrait {
-  grid-row: span 2;
   width: 52px;
   height: 52px;
   object-fit: cover;
@@ -230,7 +233,7 @@
   border-radius: 50%;
 }
 
-.developerRole { align-self: end; font-size: 11px; color: var(--color-text-tertiary); }
+.developerRole { font-size: 11px; color: var(--color-text-tertiary); }
 
 .developerName {
   overflow: hidden;
