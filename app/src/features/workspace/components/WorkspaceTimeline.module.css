@@ -10,6 +10,25 @@
   padding: 32px 0 20px;
 }
 
+.welcome {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+  padding: var(--space-6);
+  text-align: center;
+}
+
+.welcome h1 {
+  color: var(--color-text-primary);
+  font-size: clamp(24px, 3.5vw, 38px);
+  font-weight: 650;
+  letter-spacing: -0.035em;
+  line-height: 1.2;
+}
+
 .message {
   max-width: 78%;
   padding: 4px 2px;

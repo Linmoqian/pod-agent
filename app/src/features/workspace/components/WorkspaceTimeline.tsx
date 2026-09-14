@@ -8,6 +8,7 @@
 import { Button, Select } from 'antd';
 import { useEffect, useState } from 'react';
 
+import BrandMark from '../../../components/common/BrandMark';
 import type {
   ImportInspection,
   SourceCandidate,
@@ -29,6 +30,15 @@ type WorkspaceTimelineProps = {
     materialResolutions: Record<string, string>,
   ) => void;
 };
+
+function WelcomeWorkspace() {
+  return (
+    <div className={styles.welcome}>
+      <BrandMark size={56} />
+      <h1>需要一起探索什么？</h1>
+    </div>
+  );
+}
 
 export default function WorkspaceTimeline({
   messages,
@@ -113,6 +123,7 @@ export default function WorkspaceTimeline({
           )}
         </section>
       )}
+      {!messages.length && !inspection && <WelcomeWorkspace />}
     </div>
   );
 }
