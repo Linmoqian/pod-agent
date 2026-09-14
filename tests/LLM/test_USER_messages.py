@@ -42,4 +42,4 @@ def send_message(message: str):
 
 
 if __name__ == "__main__":
-    send_message("我是你爹啊")
+    send_message("你好你好")
