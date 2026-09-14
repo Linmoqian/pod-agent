@@ -40,7 +40,7 @@ function toSelectionValue(
   return selection ? `${selection.providerId}/${selection.modelId}` : undefined;
 }
 
-function ProviderSettingsModal({ open, onClose }: ProviderSettingsModalProps) {
+export function ProviderSettingsPanel() {
   const {
     rows,
     currentModel,
@@ -73,13 +73,7 @@ function ProviderSettingsModal({ open, onClose }: ProviderSettingsModalProps) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogOverlay className={styles.modalOverlay} />
-      <DialogContent
-        className={`${styles.modalContent} max-h-[90dvh] overflow-y-auto sm:max-w-[680px]`}>
-        <DialogHeader>
-          <DialogTitle className={styles.modalTitle}>模型提供商</DialogTitle>
-        </DialogHeader>
+    <>
       <section className={styles.section}>
         <h4 className={styles.sectionTitle}>
           <LayoutGrid size={16} strokeWidth={1.75} />
@@ -148,6 +142,20 @@ function ProviderSettingsModal({ open, onClose }: ProviderSettingsModalProps) {
           onRefreshModels={refreshCustomModels}
         />
       </section>
+    </>
+  );
+}
+
+function ProviderSettingsModal({ open, onClose }: ProviderSettingsModalProps) {
+  return (
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogOverlay className={styles.modalOverlay} />
+      <DialogContent
+        className={`${styles.modalContent} max-h-[90dvh] overflow-y-auto sm:max-w-[680px]`}>
+        <DialogHeader>
+          <DialogTitle className={styles.modalTitle}>模型提供商</DialogTitle>
+        </DialogHeader>
+        <ProviderSettingsPanel />
       </DialogContent>
     </Dialog>
   );

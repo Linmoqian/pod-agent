@@ -12,16 +12,20 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import App from "./App";
 import { SettingsProvider } from "./features/settings/context";
+import { Provider } from "react-redux";
+import { store } from "./store";
 
 export default function Root() {
   return (
-    <SettingsProvider>
-      <TooltipProvider delayDuration={200}>
-        <MemoryRouter>
-          <App />
-        </MemoryRouter>
-        <Toaster position="top-center" />
-      </TooltipProvider>
-    </SettingsProvider>
+    <Provider store={store}>
+      <SettingsProvider>
+        <TooltipProvider delayDuration={200}>
+          <MemoryRouter>
+            <App />
+          </MemoryRouter>
+          <Toaster position="top-center" />
+        </TooltipProvider>
+      </SettingsProvider>
+    </Provider>
   );
 }

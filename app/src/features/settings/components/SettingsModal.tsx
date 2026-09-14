@@ -7,9 +7,9 @@
  * @author: https://github.com/Linmoqian
  */
 
-import { Code2, FlaskConical, Monitor, Moon, Search, Sprout, Sun, SlidersHorizontal, UserRound } from 'lucide-react';
+import { Bot, Code2, FlaskConical, Monitor, Moon, Search, Sprout, Sun, SlidersHorizontal, UserRound } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { version } from "../../../../package.json";
 import developerOnePortrait from "@/assets/developer-1.jpg";
 import developerTwoPortrait from "@/assets/developer-2.jpg";
@@ -21,6 +21,7 @@ import {
   DialogOverlay,
 } from "@/components/ui/dialog";
 import BrandMark from "../../../components/common/BrandMark";
+import { ProviderSettingsPanel } from "../../providers/components/ProviderSettingsModal";
 import { useSettings } from "../context";
 import type { ExperienceMode, ThemePreference } from "../types";
 import styles from "./SettingsModal.module.css";
@@ -225,12 +226,13 @@ type SettingsModalProps = {
   onClose: () => void;
 };
 
-type SettingsSection = 'appearance' | 'mode' | 'about';
+type SettingsSection = 'appearance' | 'mode' | 'model' | 'about';
 
 function SettingsModal({ open, onClose }: SettingsModalProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>('appearance');
   const [query, setQuery] = useState('');
   const reduceMotion = useReducedMotion();
+  const { experienceMode } = useSettings();
   const sections: ReadonlyArray<{
     id: SettingsSection;
     label: string;
@@ -240,8 +242,16 @@ function SettingsModal({ open, onClose }: SettingsModalProps) {
   }> = [
     { id: 'appearance', label: '外观', hint: '主题与界面', keywords: ['浅色', '深色', '系统', '主题'], icon: <SlidersHorizontal size={16} /> },
     { id: 'mode', label: '工作模式', hint: '助手行为', keywords: ['新手', '专家', '开发人员', '引导', '调试'], icon: <UserRound size={16} /> },
+    ...(experienceMode === 'developer'
+      ? [{ id: 'model' as const, label: '模型', hint: '提供商与密钥', keywords: ['模型', '提供商', '密钥', '端点'], icon: <Bot size={16} /> }]
+      : []),
     { id: 'about', label: '关于', hint: '版本信息', keywords: ['版本', '作者', '开发成员', 'pod agent'], icon: <Code2 size={16} /> },
   ];
+  useEffect(() => {
+    if (experienceMode !== 'developer' && activeSection === 'model') {
+      setActiveSection('mode');
+    }
+  }, [activeSection, experienceMode]);
   const normalizedQuery = query.trim().toLowerCase();
   const matchingSections = sections.filter((section) =>
     `${section.label}${section.hint}${section.keywords.join('')}`
@@ -284,11 +294,23 @@ function SettingsModal({ open, onClose }: SettingsModalProps) {
               />
             </label>
             <nav className={styles.sectionNav}>
-              {matchingSections.map((section) => (
-                <button key={section.id} type="button" data-active={activeSection === section.id} aria-current={activeSection === section.id ? 'page' : undefined} onClick={() => selectSection(section.id)}>
-                  {section.icon}<span><strong>{section.label}</strong><small>{section.hint}</small></span>
-                </button>
-              ))}
+              <AnimatePresence initial={false}>
+                {matchingSections.map((section) => (
+                  <motion.button
+                    key={section.id}
+                    type="button"
+                    data-active={activeSection === section.id}
+                    aria-current={activeSection === section.id ? 'page' : undefined}
+                    onClick={() => selectSection(section.id)}
+                    initial={section.id === 'model' && !reduceMotion ? { opacity: 0, y: -8 } : false}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={reduceMotion ? undefined : { opacity: 0, y: -4 }}
+                    transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 460, damping: 34, mass: 0.65 }}
+                  >
+                    {section.icon}<span><strong>{section.label}</strong><small>{section.hint}</small></span>
+                  </motion.button>
+                ))}
+              </AnimatePresence>
             </nav>
             <span className={styles.navFooter}>Pod Agent · v{version}</span>
           </aside>
@@ -312,6 +334,7 @@ function SettingsModal({ open, onClose }: SettingsModalProps) {
                 >
                   {activeSection === 'appearance' && <ThemeSection />}
                   {activeSection === 'mode' && <ModeSection />}
+                  {activeSection === 'model' && <ProviderSettingsPanel />}
                   {activeSection === 'about' && <AboutSection />}
                 </motion.div>
               </AnimatePresence>
