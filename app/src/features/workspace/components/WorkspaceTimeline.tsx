@@ -12,6 +12,8 @@ import {
   ChevronDown,
   ChevronUp,
   Copy,
+  Database,
+  LoaderCircle,
 } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { toast } from 'sonner';
@@ -156,6 +158,7 @@ function PendingReply() {
         animate={reduced ? undefined : { opacity: [0.45, 1, 0.45], scale: [0.82, 1, 0.82] }}
         transition={{ duration: 1.2, ease: 'easeInOut', repeat: Infinity }}
       />
+      <LoaderCircle size={15} aria-hidden />
       正在生成回复
     </div>
   );
@@ -269,7 +272,7 @@ export default function WorkspaceTimeline({
       <TimelineMessages messages={messages} onRetry={onRetry} />
       {inspection && (
         <section className={styles.inspection}>
-          <h3>数据识别</h3>
+          <h3><Database size={16} aria-hidden />数据识别</h3>
           {inspection.candidates.map((candidate) => (
             <SourceReview
               key={candidate.sourceId || candidate.name}

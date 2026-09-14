@@ -22,8 +22,15 @@
 }
 
 .title b {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   font-size: 19px;
   letter-spacing: -0.025em;
+}
+
+.title b svg {
+  color: var(--color-brand-500);
 }
 
 .title span {
@@ -229,6 +236,18 @@
 .taskPanel p,
 .specification dt {
   color: var(--color-text-secondary);
+}
+
+.taskHeading > span,
+.specification dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.specification dt svg {
+  flex: 0 0 auto;
+  color: var(--color-text-tertiary);
 }
 
 .taskPanel h3 {

@@ -5,6 +5,7 @@
  */
 
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { Sprout } from 'lucide-react';
 
 import type { TaskPlan, WorkflowRun, WorkspaceSnapshot } from '../types';
 import TaskPlanPanel from './TaskPlanPanel';
@@ -58,7 +59,10 @@ export default function WorkbenchPanel(props: WorkbenchPanelProps) {
   return (
     <aside className={`${styles.panel} ${embedded ? styles.embedded : ''}`}>
       <div className={styles.title}>
-        <b>育种台</b>
+        <b>
+          <Sprout size={18} aria-hidden />
+          育种台
+        </b>
         <span>
           {snapshot.overview
             ? `${snapshot.overview.materialCount} 材料 · ${snapshot.overview.executionCount} 次执行`

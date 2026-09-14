@@ -1,6 +1,8 @@
 .card { margin: 12px 0; padding: 12px; border: 1px solid var(--color-border, #ddd); border-radius: var(--radius-lg); min-width: 0; background: var(--color-bg-primary, #fff); }
 .card header, .labels, .card footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .card header { font-size: 12px; margin-bottom: 10px; }
+.card header strong, .card header span, .labels span { display: inline-flex; align-items: center; gap: 5px; }
+.card header strong svg { color: var(--color-brand-500); }
 .card header span { color: var(--color-text-tertiary, #707578); font-size: 11px; }
 .card select { width: 100%; min-width: 0; font-size: 11px; background: transparent; color: inherit; border: 1px solid var(--color-border, #ddd); border-radius: var(--radius-sm); padding: 5px; }
 .stage { position: relative; height: 96px; margin-top: 12px; }

@@ -9,7 +9,7 @@ import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { isYoloDropTarget } from '../hooks/yoloDropTarget';
 import { open } from '@tauri-apps/plugin-dialog';
 import { motion, useReducedMotion } from 'motion/react';
-import { Images, Plus, Pause, Play, RotateCcw, FolderPlus } from 'lucide-react';
+import { CircleAlert, CircleCheck, Clock3, FolderPlus, Images, Pause, Play, Plus, RotateCcw, ScanLine } from 'lucide-react';
 import { isTauriRuntime } from '../../../services/workspace';
 import styles from './YoloTaskCard.module.css';
 
@@ -150,8 +150,15 @@ export default function YoloTaskCard({ task }: { task: ReturnType<typeof useYolo
           : photos.length
             ? '已完成'
             : '等待图片';
+  const StatusIcon = running
+    ? ScanLine
+    : failed.length
+      ? CircleAlert
+      : photos.length
+        ? CircleCheck
+        : Clock3;
   return <section className={styles.card} data-yolo-drop-target data-dragging={task.dragging} aria-label="图片推理任务">
-    <header><strong>图片识别</strong><span role="status">{status}</span></header>
+    <header><strong><ScanLine size={15} aria-hidden />图片识别</strong><span role="status"><StatusIcon size={13} aria-hidden />{status}</span></header>
     <select aria-label="推理模型" value={task.modelId} disabled={Boolean(running) || waiting.length > 0} onChange={(e) => task.setModelId(e.target.value)}>
       {!task.models.length && <option value="">{isTauriRuntime() ? '暂无模型' : '桌面端可用'}</option>}
       {task.models.map((m) => <option key={m.id} value={m.id} disabled={!m.available}>{m.name}</option>)}
@@ -170,7 +177,7 @@ export default function YoloTaskCard({ task }: { task: ReturnType<typeof useYolo
         </motion.div>;
       })}
     </div>
-    <div className={styles.labels}><span>待处理 {queued.length}</span><span>已完成 {done.length}</span>{failed.length > 0 && <span>失败 {failed.length}</span>}</div>
+    <div className={styles.labels}><span><Clock3 size={12} aria-hidden />待处理 {queued.length}</span><span><CircleCheck size={12} aria-hidden />已完成 {done.length}</span>{failed.length > 0 && <span><CircleAlert size={12} aria-hidden />失败 {failed.length}</span>}</div>
     <progress max={Math.max(1, photos.length)} value={done.length + failed.length} aria-label="图片推理进度" aria-valuetext={`已完成 ${done.length} 张，失败 ${failed.length} 张，共 ${photos.length} 张`} />
     <p className={styles.message} title={running?.name}>{task.error || (running ? running.name : failed[0]?.message || done[done.length - 1]?.message || 'YOLO · ONNX')}</p>
     <footer>

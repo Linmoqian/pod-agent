@@ -168,6 +168,10 @@
   font-size: 13px;
 }
 
+.pendingReply svg {
+  color: var(--color-brand-500);
+}
+
 .pendingDot {
   width: 7px;
   height: 7px;
@@ -277,6 +281,17 @@
   border: var(--border-subtle);
   border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--color-surface-default) 92%, transparent);
+}
+
+.inspection h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.inspection h3 svg {
+  color: var(--color-brand-500);
 }
 
 @media (max-width: 640px) {

@@ -7,6 +7,17 @@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  ClipboardList,
+  FlaskConical,
+  Play,
+  RotateCcw,
+  ShieldAlert,
+  SlidersHorizontal,
+  Sparkles,
+  Target,
+  XCircle,
+} from 'lucide-react';
 
 import { statusTone } from '../status';
 import type { TaskPlan, WorkflowRun } from '../types';
@@ -37,7 +48,7 @@ export default function TaskPlanPanel({
   return (
     <div className={styles.taskPanel}>
       <div className={styles.taskHeading}>
-        <span>当前任务</span>
+        <span><ClipboardList size={15} aria-hidden />当前任务</span>
         <Badge
           variant="outline"
           data-tone={statusTone(run?.status ?? plan.status)}
@@ -50,23 +61,23 @@ export default function TaskPlanPanel({
       <p>{plan.planner.summary || '环境固定；材料与材料×环境为随机效应。'}</p>
       <dl className={styles.specification}>
         <div>
-          <dt>目标性状</dt>
+          <dt><Target size={13} aria-hidden />目标性状</dt>
           <dd>{plan.traitId}</dd>
         </div>
         <div>
-          <dt>方法</dt>
+          <dt><FlaskConical size={13} aria-hidden />方法</dt>
           <dd>{String(plan.modelSpec.method ?? '—')}</dd>
         </div>
         <div>
-          <dt>固定效应</dt>
+          <dt><SlidersHorizontal size={13} aria-hidden />固定效应</dt>
           <dd>{listSpec(plan.modelSpec.fixedEffects)}</dd>
         </div>
         <div>
-          <dt>随机效应</dt>
+          <dt><ShieldAlert size={13} aria-hidden />随机效应</dt>
           <dd>{listSpec(plan.modelSpec.randomEffects)}</dd>
         </div>
         <div>
-          <dt>预期结果</dt>
+          <dt><Sparkles size={13} aria-hidden />预期结果</dt>
           <dd>{plan.expectedArtifacts.join('、')}</dd>
         </div>
       </dl>
@@ -94,6 +105,7 @@ export default function TaskPlanPanel({
           onClick={() => onConfirm(plan.id)}
           disabled={busy}
         >
+          {plan.status === 'confirmed' ? <RotateCcw size={15} aria-hidden /> : <Play size={15} aria-hidden />}
           {plan.status === 'confirmed' ? '按相同设置重新运行' : '开始'}
         </Button>
       )}
@@ -103,6 +115,7 @@ export default function TaskPlanPanel({
           className="w-full"
           onClick={() => onCancel(runningId)}
         >
+          <XCircle size={15} aria-hidden />
           取消运行
         </Button>
       )}
