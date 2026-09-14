@@ -50,6 +50,12 @@ export type ArtifactFile = {
   checksum: string;
 };
 
+export type WorkspaceFileNode = {
+  name: string;
+  directory: boolean;
+  children: WorkspaceFileNode[];
+};
+
 export type Artifact = {
   id: string;
   projectId: string;

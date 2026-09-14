@@ -13,6 +13,7 @@ import type {
   Project,
   TaskPlan,
   WorkflowRun,
+  WorkspaceFileNode,
   WorkspaceSnapshot,
 } from '../features/workspace/types';
 
@@ -38,6 +39,29 @@ export function createBrowserPreviewSnapshot(): WorkspaceSnapshot {
     taskPlans: [],
     workflowRuns: [],
     messages: [],
+  };
+}
+
+export function createBrowserPreviewFileTree(): WorkspaceFileNode {
+  return {
+    name: 'pod-agent',
+    directory: true,
+    children: [
+      {
+        name: 'app',
+        directory: true,
+        children: [
+          { name: 'src', directory: true, children: [] },
+          { name: 'src-tauri', directory: true, children: [] },
+          { name: 'README.md', directory: false, children: [] },
+        ],
+      },
+      { name: 'docs', directory: true, children: [] },
+      { name: 'tests', directory: true, children: [] },
+      { name: 'AGENTS.md', directory: false, children: [] },
+      { name: 'README.md', directory: false, children: [] },
+      { name: 'environment.yml', directory: false, children: [] },
+    ],
   };
 }
 
@@ -144,5 +168,8 @@ export const workspaceApi = {
   },
   artifactDetail(artifactId: string) {
     return invoke<ArtifactDetail>('get_artifact_detail', { artifactId });
+  },
+  listWorkspaceFiles() {
+    return invoke<WorkspaceFileNode>('list_workspace_files');
   },
 };

@@ -8,6 +8,7 @@
 import { useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
 
+import { isTauriRuntime } from '../../../services/workspace';
 import type { LifecycleEvent } from '../types';
 import type { AgentReplyDelta } from './useReplyStream';
 
@@ -38,7 +39,7 @@ export default function useWorkspaceLifecycle(
   onReplyDelta: (delta: AgentReplyDelta) => void,
 ) {
   useEffect(() => {
-    if (!conversationId) return undefined;
+    if (!conversationId || !isTauriRuntime()) return undefined;
     let disposed = false;
     const unlisteners: Array<() => void> = [];
     const bind = async () => {
