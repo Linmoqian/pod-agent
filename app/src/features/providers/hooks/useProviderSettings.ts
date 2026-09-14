@@ -8,7 +8,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAppDispatch, useAppSelector } from "../../../store";
 import {
+  addCustomYoloModel,
   addCustomProvider,
+  removeCustomYoloModel,
   removeCustomProvider,
   setCurrentModel,
 } from "../store/providersSlice";
@@ -18,6 +20,7 @@ import {
   generateCustomProviderId,
   getModels,
 } from "../services/registry";
+import type { CustomYoloModelConfig } from "../types";
 import {
   clearProviderKey,
   getKeyPreview,
@@ -87,7 +90,7 @@ function buildModelGroups(
 
 export function useProviderSettings() {
   const dispatch = useAppDispatch();
-  const { customProviders, currentModel } = useAppSelector(
+  const { customProviders, customYoloModels, currentModel } = useAppSelector(
     (state) => state.providers,
   );
 
@@ -126,11 +129,45 @@ export function useProviderSettings() {
     [dispatch],
   );
 
+  const addLlm = useCallback(
+    async (name: string, baseUrl: string, key: string) => {
+      const id = generateCustomProviderId();
+      dispatch(
+        addCustomProvider({
+          id,
+          name,
+          baseUrl: baseUrl.replace(/\/+$/, ""),
+          modelId: name,
+        }),
+      );
+      await saveProviderKey(id, key);
+      setRows(await collectProviderRows());
+    },
+    [dispatch],
+  );
+
+  const addYolo = useCallback(
+    (name: string, weightsPath: string) => {
+      const config: CustomYoloModelConfig = {
+        id: `yolo-${crypto.randomUUID()}`,
+        name,
+        weightsPath,
+      };
+      dispatch(addCustomYoloModel(config));
+    },
+    [dispatch],
+  );
+
   const removeCustom = useCallback(
     (providerId: string) => {
       dispatch(removeCustomProvider(providerId));
       void clearProviderKey(providerId);
     },
+    [dispatch],
+  );
+
+  const removeYolo = useCallback(
+    (modelId: string) => dispatch(removeCustomYoloModel(modelId)),
     [dispatch],
   );
 
@@ -167,7 +204,11 @@ export function useProviderSettings() {
     saveKey,
     clearKey,
     addCustom,
+    addLlm,
+    addYolo,
     removeCustom,
+    removeYolo,
+    customYoloModels,
     refreshCustomModels,
     selectModel,
   };

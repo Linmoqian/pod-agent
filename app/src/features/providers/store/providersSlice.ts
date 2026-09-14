@@ -8,16 +8,19 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import type {
   CustomProviderConfig,
+  CustomYoloModelConfig,
   ModelSelection,
 } from "../types";
 
 type ProvidersState = {
   customProviders: CustomProviderConfig[];
+  customYoloModels: CustomYoloModelConfig[];
   currentModel: ModelSelection | null;
 };
 
 const initialState: ProvidersState = {
   customProviders: [],
+  customYoloModels: [],
   currentModel: null,
 };
 
@@ -36,6 +39,23 @@ export const providersSlice = createSlice({
       action: PayloadAction<CustomProviderConfig>,
     ) {
       state.customProviders.push(action.payload);
+    },
+    setCustomYoloModels(
+      state,
+      action: PayloadAction<CustomYoloModelConfig[]>,
+    ) {
+      state.customYoloModels = action.payload;
+    },
+    addCustomYoloModel(
+      state,
+      action: PayloadAction<CustomYoloModelConfig>,
+    ) {
+      state.customYoloModels.push(action.payload);
+    },
+    removeCustomYoloModel(state, action: PayloadAction<string>) {
+      state.customYoloModels = state.customYoloModels.filter(
+        (config) => config.id !== action.payload,
+      );
     },
     removeCustomProvider(state, action: PayloadAction<string>) {
       state.customProviders = state.customProviders.filter(
@@ -58,6 +78,9 @@ export const providersSlice = createSlice({
 export const {
   setCustomProviders,
   addCustomProvider,
+  setCustomYoloModels,
+  addCustomYoloModel,
+  removeCustomYoloModel,
   removeCustomProvider,
   setCurrentModel,
 } = providersSlice.actions;

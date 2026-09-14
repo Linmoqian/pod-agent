@@ -105,7 +105,9 @@ function createCustomProvider(config: CustomProviderConfig) {
             : { auth: {}, source: "keyless" },
       },
     },
-    models: [],
+    models: config.modelId
+      ? [openAiCompatibleModel(config.id, config.baseUrl, config.modelId)]
+      : [],
     fetchModels: async ({ credential, signal }) => {
       const key = credential?.type === "api_key" ? credential.key : undefined;
       const response = await fetch(joinUrl(config.baseUrl, "models"), {

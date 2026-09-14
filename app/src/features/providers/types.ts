@@ -12,6 +12,15 @@ export type CustomProviderConfig = {
   name: string;
   /** OpenAI 兼容根地址,如 http://localhost:11434/v1 */
   baseUrl: string;
+  /** 直接添加的 LLM 名称;未设置时仍从端点动态发现模型 */
+  modelId?: string;
+};
+
+/** 用户添加的本地 YOLO 配置;权重由桌面端推理服务在执行时解析。 */
+export type CustomYoloModelConfig = {
+  id: string;
+  name: string;
+  weightsPath: string;
 };
 
 /** 当前选中的模型引用;Redux 中不保存 Model 对象,发送时按引用查注册表 */

@@ -21,6 +21,71 @@
   color: var(--color-text-primary);
 }
 
+.addModelForm,
+.modelDetails {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.addModelForm {
+  overflow: hidden;
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.typeChoices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.typeChoices button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 58px;
+  padding: var(--space-3);
+  color: var(--color-text-secondary);
+  text-align: left;
+  background: var(--color-surface-default);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.typeChoices button:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-brand-500);
+  background: color-mix(in srgb, var(--color-brand-500) 7%, var(--color-surface-default));
+}
+
+.typeChoices span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.typeChoices strong { font-size: var(--font-size-label); }
+.typeChoices small { font-size: var(--font-size-caption); color: var(--color-text-tertiary); }
+
+.backButton {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 2px;
+  padding: 2px 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
 .sectionHint {
   margin-left: auto;
   font-size: var(--font-size-caption);
@@ -174,5 +239,9 @@
 
   .customAddForm > :first-child {
     width: 100%;
+  }
+
+  .typeChoices {
+    grid-template-columns: 1fr;
   }
 }
