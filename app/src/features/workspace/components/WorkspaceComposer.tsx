@@ -5,9 +5,9 @@
  * @author: https://github.com/Linmoqian
  */
 
-import { Plus, ArrowUp, Loader2, X, FileUp, FolderOpen, Database } from 'lucide-react';
-import { motion } from 'motion/react';
-import { useLayoutEffect, useRef } from 'react';
+import { Plus, ArrowUp, Loader2, X, FileUp, FolderOpen, Database, Keyboard } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
+import { useLayoutEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -36,6 +36,7 @@ export default function WorkspaceComposer({
 }: WorkspaceComposerProps) {
   const canSubmit = Boolean(intent.trim()) && !busy;
   const input = useRef<HTMLTextAreaElement>(null);
+  const [guidanceVisible, setGuidanceVisible] = useState(true);
   useLayoutEffect(() => {
     if (!input.current) return;
     input.current.style.height = 'auto';
@@ -51,11 +52,14 @@ export default function WorkspaceComposer({
       <textarea
         ref={input}
         aria-label="研究问题"
-        aria-describedby="workspace-composer-hint"
+        aria-describedby={busy ? 'workspace-composer-status' : undefined}
         maxLength={4000}
         value={intent}
         rows={2}
-        onChange={(event) => onIntentChange(event.target.value)}
+        onChange={(event) => {
+          onIntentChange(event.target.value);
+          if (event.target.value) setGuidanceVisible(false);
+        }}
         onKeyDown={(event) => {
           if (
             event.key === 'Enter' &&
@@ -96,9 +100,50 @@ export default function WorkspaceComposer({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <span className={styles.hint} id="workspace-composer-hint">
-          {busy ? 'lian 正在整理思路…' : `${intent.length}/4000 · Enter 发送 · Shift + Enter 换行`}
-        </span>
+        <div className={styles.meta}>
+          {busy ? (
+            <span className={styles.status} id="workspace-composer-status" aria-live="polite">
+              lian 正在整理思路…
+            </span>
+          ) : (
+            <>
+              <span className={styles.counter}>{intent.length}/4000</span>
+              <AnimatePresence initial={false}>
+                {guidanceVisible && (
+                  <motion.span
+                    className={styles.guidance}
+                    initial={{ opacity: 0, width: 0 }}
+                    animate={{ opacity: 1, width: 'auto' }}
+                    exit={{ opacity: 0, width: 0 }}
+                    transition={{ duration: 0.16, ease: 'easeOut' }}
+                  >
+                    <span>Enter 发送 · Shift + Enter 换行</span>
+                    <button
+                      type="button"
+                      className={styles.hideGuidance}
+                      aria-label="隐藏输入提示"
+                      title="隐藏输入提示"
+                      onClick={() => setGuidanceVisible(false)}
+                    >
+                      <X size={12} />
+                    </button>
+                  </motion.span>
+                )}
+              </AnimatePresence>
+              {!guidanceVisible && (
+                <button
+                  type="button"
+                  className={styles.showGuidance}
+                  aria-label="显示输入提示"
+                  title="显示输入提示"
+                  onClick={() => setGuidanceVisible(true)}
+                >
+                  <Keyboard size={14} />
+                </button>
+              )}
+            </>
+          )}
+        </div>
         <button
           aria-label="提交研究问题"
           className={styles.send}
