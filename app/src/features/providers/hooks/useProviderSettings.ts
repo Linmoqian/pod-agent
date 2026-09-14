@@ -199,6 +199,7 @@ export function useProviderSettings() {
 
   return {
     rows,
+    customProviders,
     currentModel,
     modelGroups,
     saveKey,

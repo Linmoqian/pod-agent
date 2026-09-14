@@ -6,7 +6,7 @@
  * @author: https://github.com/Linmoqian
  */
 
-import { BrainCircuit, ChevronLeft, LayoutGrid, Plus, ScanLine, Server, Trash2 } from 'lucide-react';
+import { BrainCircuit, ChevronLeft, LayoutGrid, Plus, ScanLine, Search, Server, Trash2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -27,6 +27,7 @@ import { useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import useProviderSettings from "../hooks/useProviderSettings";
 import type { ModelSelection } from "../types";
@@ -46,6 +47,112 @@ function toSelectionValue(
 }
 
 type AddModelType = "llm" | "yolo";
+
+type ConfiguredModel = {
+  id: string;
+  name: string;
+  type: AddModelType;
+  source: string;
+  detail: string;
+};
+
+type ModelListProps = {
+  models: ConfiguredModel[];
+  onRemoveLlm: (providerId: string) => void;
+  onRemoveYolo: (modelId: string) => void;
+};
+
+function ModelList({ models, onRemoveLlm, onRemoveYolo }: ModelListProps) {
+  const [query, setQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"all" | AddModelType>("all");
+  const filteredModels = models.filter((model) => {
+    const matchesQuery = `${model.name}${model.source}${model.detail}`
+      .toLowerCase()
+      .includes(query.trim().toLowerCase());
+    return matchesQuery && (typeFilter === "all" || model.type === typeFilter);
+  });
+
+  const removeModel = (model: ConfiguredModel) => {
+    if (model.type === "llm") onRemoveLlm(model.id);
+    else onRemoveYolo(model.id);
+  };
+
+  return (
+    <section className={styles.section} aria-label="模型列表">
+      <h4 className={styles.sectionTitle}>
+        <LayoutGrid size={16} strokeWidth={1.75} />
+        模型列表
+        <span className={styles.sectionHint}>已添加 {models.length} 个</span>
+      </h4>
+      <div className={styles.modelFilters}>
+        <label className={styles.modelSearch}>
+          <Search size={15} aria-hidden />
+          <input
+            aria-label="搜索模型"
+            value={query}
+            placeholder="搜索模型"
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+        <select
+          className={styles.typeFilter}
+          aria-label="筛选模型类型"
+          value={typeFilter}
+          onChange={(event) => setTypeFilter(event.target.value as "all" | AddModelType)}
+        >
+          <option value="all">全部类型</option>
+          <option value="llm">LLM</option>
+          <option value="yolo">YOLO</option>
+        </select>
+      </div>
+      <div className={styles.modelTableWrap}>
+        <table className={styles.modelTable}>
+          <thead>
+            <tr>
+              <th scope="col">模型</th>
+              <th scope="col">类型</th>
+              <th scope="col">来源</th>
+              <th scope="col">配置</th>
+              <th scope="col"><span className="sr-only">操作</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredModels.map((model) => (
+              <tr key={model.id}>
+                <td className={styles.modelName}>{model.name}</td>
+                <td>
+                  <Badge variant="outline" className={styles.modelType} data-type={model.type}>
+                    {model.type === "llm" ? "LLM" : "YOLO"}
+                  </Badge>
+                </td>
+                <td>{model.source}</td>
+                <td className={styles.modelDetail} title={model.detail}>{model.detail}</td>
+                <td>
+                  <Button
+                    size="icon-sm"
+                    variant="outline"
+                    aria-label={`删除 ${model.name}`}
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => removeModel(model)}
+                  >
+                    <Trash2 size={14} strokeWidth={1.75} />
+                  </Button>
+                </td>
+              </tr>
+            ))}
+            {!filteredModels.length && (
+              <tr>
+                <td className={styles.emptyModelList} colSpan={5}>
+                  {models.length ? "没有匹配的模型" : "通过“添加模型”创建对话或图片识别模型"}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
 
 function AddModelForm({
   onAddLlm,
@@ -190,6 +297,7 @@ function AddModelForm({
 export function ProviderSettingsPanel() {
   const {
     rows,
+    customProviders,
     currentModel,
     modelGroups,
     saveKey,
@@ -206,6 +314,24 @@ export function ProviderSettingsPanel() {
 
   const builtinRows = rows.filter((row) => !row.custom);
   const customRows = rows.filter((row) => row.custom);
+  const configuredModels: ConfiguredModel[] = [
+    ...customProviders
+      .filter((provider) => Boolean(provider.modelId))
+      .map((provider) => ({
+        id: provider.id,
+        name: provider.modelId ?? provider.name,
+        type: "llm" as const,
+        source: provider.name,
+        detail: provider.baseUrl,
+      })),
+    ...customYoloModels.map((model) => ({
+      id: model.id,
+      name: model.name,
+      type: "yolo" as const,
+      source: "本地权重",
+      detail: model.weightsPath,
+    })),
+  ];
   const totalModels = modelGroups.reduce(
     (sum, group) => sum + group.options.length,
     0,
@@ -226,6 +352,11 @@ export function ProviderSettingsPanel() {
   return (
     <>
       <AddModelForm onAddLlm={addLlm} onAddYolo={addYolo} />
+      <ModelList
+        models={configuredModels}
+        onRemoveLlm={removeCustom}
+        onRemoveYolo={removeYolo}
+      />
       <section className={styles.section}>
         <h4 className={styles.sectionTitle}>
           <LayoutGrid size={16} strokeWidth={1.75} />
@@ -295,25 +426,6 @@ export function ProviderSettingsPanel() {
         />
       </section>
 
-      {customYoloModels.length > 0 && (
-        <section className={styles.section} aria-label="已添加的 YOLO 模型">
-          <h4 className={styles.sectionTitle}>
-            <ScanLine size={16} strokeWidth={1.75} />
-            YOLO 模型
-          </h4>
-          {customYoloModels.map((model) => (
-            <div key={model.id} className={styles.customRow}>
-              <div className={styles.customMeta}>
-                <span className={styles.customName}>{model.name}</span>
-                <span className={styles.customUrl}>{model.weightsPath}</span>
-              </div>
-              <Button size="icon-sm" variant="outline" aria-label={`删除 ${model.name}`} className="text-destructive hover:text-destructive" onClick={() => removeYolo(model.id)}>
-                <Trash2 size={14} strokeWidth={1.75} />
-              </Button>
-            </div>
-          ))}
-        </section>
-      )}
     </>
   );
 }

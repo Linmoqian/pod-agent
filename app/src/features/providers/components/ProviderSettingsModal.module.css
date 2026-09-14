@@ -93,6 +93,113 @@
   color: var(--color-text-secondary);
 }
 
+.modelFilters {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.modelSearch {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: 0 var(--space-3);
+  color: var(--color-text-tertiary);
+  background: var(--color-surface-default);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.modelSearch input,
+.typeFilter {
+  min-height: 34px;
+  color: var(--color-text-primary);
+  font: inherit;
+  background: transparent;
+  border: 0;
+  outline: 0;
+}
+
+.modelSearch input {
+  width: 100%;
+  min-width: 0;
+}
+
+.modelSearch:focus-within,
+.typeFilter:focus-visible {
+  border-color: var(--color-brand-500);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand-500) 16%, transparent);
+}
+
+.typeFilter {
+  min-width: 112px;
+  padding: 0 var(--space-2);
+  background: var(--color-surface-default);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.modelTableWrap {
+  overflow-x: auto;
+  border: var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.modelTable {
+  width: 100%;
+  min-width: 580px;
+  border-collapse: collapse;
+  font-size: var(--font-size-caption);
+}
+
+.modelTable th,
+.modelTable td {
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-text-secondary);
+  text-align: left;
+  border-bottom: var(--border-subtle);
+}
+
+.modelTable th {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-tertiary);
+  background: var(--material-highlight);
+}
+
+.modelTable tr:last-child td { border-bottom: 0; }
+.modelTable th:last-child,
+.modelTable td:last-child { width: 42px; padding-inline: var(--space-2); }
+
+.modelName { font-weight: var(--font-weight-semibold); color: var(--color-text-primary) !important; }
+
+.modelDetail {
+  max-width: 170px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.modelType[data-type="llm"] {
+  color: var(--color-brand-700);
+  background: color-mix(in srgb, var(--color-brand-500) 14%, transparent);
+  border-color: color-mix(in srgb, var(--color-brand-500) 32%, transparent);
+}
+
+.modelType[data-type="yolo"] {
+  color: var(--color-state-info);
+  background: color-mix(in srgb, var(--color-state-info) 13%, transparent);
+  border-color: color-mix(in srgb, var(--color-state-info) 30%, transparent);
+}
+
+.emptyModelList {
+  padding: var(--space-5) !important;
+  color: var(--color-text-tertiary) !important;
+  text-align: center !important;
+}
+
 .providerRow {
   display: flex;
   flex-direction: column;
@@ -243,5 +350,13 @@
 
   .typeChoices {
     grid-template-columns: 1fr;
+  }
+
+  .modelFilters {
+    flex-direction: column;
+  }
+
+  .typeFilter {
+    width: 100%;
   }
 }
