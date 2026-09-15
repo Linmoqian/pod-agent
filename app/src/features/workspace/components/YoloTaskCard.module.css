@@ -103,6 +103,11 @@
   .scan { animation: none; opacity: 0.72; }
 }
 .labels { font-size: 10px; color: var(--color-text-secondary, #727777); }
+.readProgressGroup { display: grid; gap: 5px; margin: 9px 0 8px; }
+.readProgressMeta { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--color-text-tertiary, #707578); font-size: 10px; }
+.readProgressMeta span { display: inline-flex; align-items: center; gap: 4px; }
+.readProgressMeta svg { color: var(--color-brand-500, #29967c); }
+.card .readProgress { width: 100%; height: 4px; margin: 0; accent-color: var(--color-brand-500, #29967c); }
 .card progress { width: 100%; height: 4px; accent-color: #29967c; display: block; margin: 10px 0; }
 .message { font-size: 11px; line-height: 1.5; height: 33px; overflow: auto; overflow-wrap: anywhere; color: var(--color-text-secondary, #727777); margin: 0 0 8px; }
 .card footer { justify-content: flex-start; }
