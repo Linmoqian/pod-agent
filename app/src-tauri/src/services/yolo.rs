@@ -9,12 +9,13 @@ use serde_json::{json, Value};
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
-    sync::{mpsc, Mutex, OnceLock},
+    sync::{mpsc, Arc, Mutex, OnceLock},
     sync::atomic::{AtomicUsize, Ordering},
 };
 
 static ENDPOINT: OnceLock<Result<(String, String), String>> = OnceLock::new();
 static CACHE: Mutex<Option<(String, Session)>> = Mutex::new(None);
+static BATCH_CACHE: Mutex<Option<(String, Vec<Session>)>> = Mutex::new(None);
 const MAX_BATCH_IMAGES: usize = 32;
 const PREP_QUEUE_CAPACITY: usize = 4;
 const MAX_PREP_WORKERS: usize = 4;
@@ -83,8 +84,7 @@ pub async fn yolo_detect_images(model_id: String, image_paths: Vec<String>) -> R
     }
     tauri::async_runtime::spawn_blocking(move || {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap();
-        let mut cache = CACHE.lock().map_err(|_| "推理服务不可用")?;
-        infer_batch(root, &model_id, &image_paths, &mut cache)
+        infer_batch(root, &model_id, &image_paths)
     }).await.map_err(|_| "批量推理任务中断".to_string())?
 }
 
@@ -342,15 +342,52 @@ fn inference_thread_count() -> usize {
         .unwrap_or(2)
 }
 
+fn batch_session_count() -> usize {
+    std::thread::available_parallelism()
+        .map(|parallelism| if parallelism.get() >= 4 { 2 } else { 1 })
+        .unwrap_or(1)
+}
+
+fn build_session(path: &Path, intra_threads: usize) -> Result<Session, String> {
+    Session::builder().map_err(|_| "ONNX Runtime 初始化失败")?
+        .with_intra_threads(intra_threads).map_err(|_| "线程配置失败")?
+        .commit_from_file(path).map_err(|_| "ONNX 模型加载失败".into())
+}
+
 fn ensure_session(model: &ModelConfig, cache: &mut Option<(String, Session)>) -> Result<bool, String> {
     let reused = cache.as_ref().is_some_and(|(key, _)| key == &model.cache_key);
     if !reused {
-        let session = Session::builder().map_err(|_| "ONNX Runtime 初始化失败")?
-            .with_intra_threads(inference_thread_count()).map_err(|_| "线程配置失败")?
-            .commit_from_file(&model.path).map_err(|_| "ONNX 模型加载失败")?;
+        let session = build_session(&model.path, inference_thread_count())?;
         *cache = Some((model.cache_key.clone(), session));
     }
     Ok(reused)
+}
+
+fn take_batch_sessions(model: &ModelConfig, requested: usize) -> Result<(bool, Vec<Session>), String> {
+    let mut cache = BATCH_CACHE.lock().map_err(|_| "推理服务不可用")?;
+    let reused = cache.as_ref().is_some_and(|(key, sessions)| {
+        key == &model.cache_key && sessions.len() >= requested
+    });
+    if !reused {
+        let sessions = (0..requested)
+            .map(|_| build_session(&model.path, if requested > 1 { 1 } else { inference_thread_count() }))
+            .collect::<Result<Vec<_>, _>>()?;
+        *cache = Some((model.cache_key.clone(), sessions));
+    }
+    let sessions = cache.as_mut().ok_or("推理服务不可用")?.1.drain(..).collect();
+    Ok((reused, sessions))
+}
+
+fn return_batch_sessions(model: &ModelConfig, mut sessions: Vec<Session>) {
+    if let Ok(mut cache) = BATCH_CACHE.lock() {
+        if let Some((key, cached)) = cache.as_mut() {
+            if key == &model.cache_key {
+                cached.append(&mut sessions);
+                return;
+            }
+        }
+        *cache = Some((model.cache_key.clone(), sessions));
+    }
 }
 
 fn error_result(message: String) -> Value {
@@ -447,17 +484,19 @@ fn infer_batch(
     root: &Path,
     model_id: &str,
     image_paths: &[String],
-    cache: &mut Option<(String, Session)>,
 ) -> Result<Vec<Value>, String> {
     let model = load_model(root, model_id, None)?;
-    let session_reused = ensure_session(&model, cache)?;
+    let requested_sessions = batch_session_count();
+    let (session_reused, sessions) = take_batch_sessions(&model, requested_sessions)?;
     let worker_count = image_paths.len()
         .min(MAX_PREP_WORKERS)
         .min(std::thread::available_parallelism().map(|value| value.get()).unwrap_or(1).max(1));
     let next_index = AtomicUsize::new(0);
     let (sender, receiver) = mpsc::sync_channel(PREP_QUEUE_CAPACITY);
+    let (result_sender, result_receiver) = mpsc::channel();
+    let prepared_receiver = Arc::new(Mutex::new(receiver));
+    let returned_sessions = Arc::new(Mutex::new(Vec::with_capacity(sessions.len())));
     let mut results = vec![Value::Null; image_paths.len()];
-    let session = &mut cache.as_mut().ok_or("推理服务不可用")?.1;
     let size = model.size;
 
     std::thread::scope(|scope| {
@@ -477,20 +516,48 @@ fn infer_batch(
             });
         }
         drop(sender);
-        for (index, prepared) in receiver {
-            results[index] = match prepared {
-                Ok(prepared) => infer_prepared(
-                    &model,
-                    prepared,
-                    None,
-                    0.25,
-                    session,
-                    session_reused,
-                ).unwrap_or_else(error_result),
-                Err(message) => error_result(message),
-            };
+        for mut session in sessions {
+            let prepared_receiver = Arc::clone(&prepared_receiver);
+            let result_sender = result_sender.clone();
+            let returned_sessions = Arc::clone(&returned_sessions);
+            let model = &model;
+            scope.spawn(move || {
+                loop {
+                    let job = match prepared_receiver.lock() {
+                        Ok(receiver) => receiver.recv(),
+                        Err(_) => break,
+                    };
+                    let Ok((index, prepared)) = job else { break; };
+                    let result = match prepared {
+                        Ok(prepared) => infer_prepared(
+                            model,
+                            prepared,
+                            None,
+                            0.25,
+                            &mut session,
+                            session_reused,
+                        ).unwrap_or_else(error_result),
+                        Err(message) => error_result(message),
+                    };
+                    if result_sender.send((index, result)).is_err() {
+                        break;
+                    }
+                }
+                if let Ok(mut sessions) = returned_sessions.lock() {
+                    sessions.push(session);
+                }
+            });
+        }
+        drop(result_sender);
+        for (index, result) in result_receiver {
+            results[index] = result;
         }
     });
+    let sessions = returned_sessions
+        .lock()
+        .map(|mut sessions| std::mem::take(&mut *sessions))
+        .unwrap_or_default();
+    return_batch_sessions(&model, sessions);
     Ok(results)
 }
 
