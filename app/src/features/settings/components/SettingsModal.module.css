@@ -227,6 +227,24 @@
   object-fit: contain;
 }
 
+.supportLogoLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: opacity var(--duration-fast) var(--easing-standard), transform var(--duration-fast) var(--easing-standard);
+}
+
+.supportLogoLink:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 3px;
+}
+
+.supportLogoLink:active {
+  transform: scale(0.97);
+}
+
 .supportLogoDivider {
   color: var(--color-text-disabled);
   font-size: 18px;
@@ -310,6 +328,10 @@
 @media (hover: hover) and (pointer: fine) {
   .aboutLink:hover {
     color: var(--color-brand-600);
+  }
+
+  .supportLogoLink:hover {
+    opacity: 0.82;
   }
 }
 

@@ -58,6 +58,21 @@ describe("SettingsModal", () => {
     expect(screen.getByText("生命科学学院")).toBeInTheDocument();
   });
 
+  it("支持单位徽标链接到对应官网", async () => {
+    const user = userEvent.setup();
+    renderSettings();
+    await user.click(screen.getByRole("button", { name: /关于/ }));
+
+    expect(screen.getByRole("link", { name: "访问华南农业大学官网" })).toHaveAttribute(
+      "href",
+      "https://scau.edu.cn/",
+    );
+    expect(screen.getByRole("link", { name: "访问生命科学学院官网" })).toHaveAttribute(
+      "href",
+      "https://life.scau.edu.cn/",
+    );
+  });
+
   it("默认浅色主题与新手模式,选中卡片以 aria-pressed 标记", async () => {
     const user = userEvent.setup();
     renderSettings();

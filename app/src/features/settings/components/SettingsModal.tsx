@@ -3,7 +3,7 @@
  * 选项卡片为同组互斥单选,以 aria-pressed 表达选中态;
  * 主题/模式状态读写走 SettingsContext,由其负责持久化与 <html data-theme>。
  * Created on 2026-09-08
- * Updated on 2026-09-14
+ * Updated on 2026-09-15
  * @author: https://github.com/Linmoqian
  */
 
@@ -210,13 +210,29 @@ function AboutSection() {
         aria-label="支持单位：华南农业大学 生命科学学院"
       >
         <div className={styles.supportLogos}>
-          <img className={styles.supportLogo} src={scauLogo} alt="华南农业大学校徽" />
+          <a
+            className={styles.supportLogoLink}
+            href="https://scau.edu.cn/"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="访问华南农业大学官网"
+          >
+            <img className={styles.supportLogo} src={scauLogo} alt="华南农业大学校徽" />
+          </a>
           <span className={styles.supportLogoDivider} aria-hidden>·</span>
-          <img
-            className={styles.supportLogo}
-            src={lifeSciencesCollegeLogo}
-            alt="生命科学学院校徽"
-          />
+          <a
+            className={styles.supportLogoLink}
+            href="https://life.scau.edu.cn/"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="访问生命科学学院官网"
+          >
+            <img
+              className={styles.supportLogo}
+              src={lifeSciencesCollegeLogo}
+              alt="生命科学学院校徽"
+            />
+          </a>
         </div>
         <div className={styles.supportText}>
           <span className={styles.supportLabel}>支持单位</span>
