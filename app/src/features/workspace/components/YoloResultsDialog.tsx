@@ -2,7 +2,7 @@
  * Created on 2026-09-15
  * @author: https://github.com/Linmoqian
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import {
   Download,
@@ -24,8 +24,9 @@ type YoloResultsPanelProps = Pick<
   initialPhotoId?: string;
 };
 
-const THUMBNAIL_SIZES = ['small', 'medium', 'large'] as const;
-type ThumbnailSize = typeof THUMBNAIL_SIZES[number];
+const THUMBNAIL_MIN = 108;
+const THUMBNAIL_MAX = 240;
+const THUMBNAIL_DEFAULT = 142;
 
 function statusLabel(photo: YoloPhoto) {
   if (photo.status === 'done') return '完成';
@@ -66,7 +67,7 @@ export default function YoloResultsPanel({
   const [query, setQuery] = useState('');
   const [activePhotoId, setActivePhotoId] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
-  const [thumbnailScale, setThumbnailScale] = useState(1);
+  const [thumbnailSize, setThumbnailSize] = useState(THUMBNAIL_DEFAULT);
   const [loadingImages, setLoadingImages] = useState<string[]>([]);
   const [loadingResults, setLoadingResults] = useState<string[]>([]);
   const [error, setError] = useState('');
@@ -79,7 +80,6 @@ export default function YoloResultsPanel({
   const completed = photos.filter((photo) => photo.status === 'done');
   const failed = photos.filter((photo) => photo.status === 'error');
   const activePhoto = photos.find((photo) => photo.id === activePhotoId);
-  const thumbnailSize: ThumbnailSize = THUMBNAIL_SIZES[thumbnailScale];
 
   useEffect(() => {
     const receivedNewInitialPhoto = initialPhotoId && initialPhotoId !== lastInitialPhotoId.current;
@@ -166,7 +166,12 @@ export default function YoloResultsPanel({
     </div>
     {error && <p className={styles.error} role="alert">{error}</p>}
     <div className={styles.body}>
-      <aside className={styles.list} data-view={viewMode} data-thumb-size={thumbnailSize} aria-label="图片结果列表">
+      <aside
+        className={styles.list}
+        data-view={viewMode}
+        style={{ '--thumbnail-size': `${thumbnailSize}px` } as CSSProperties}
+        aria-label="图片结果列表"
+      >
         <div className={styles.listHeading}>
           <div className={styles.listHeadingCopy}><strong>图片</strong><span>{filtered.length} 项</span></div>
           <div className={styles.viewControls} aria-label="图片排列方式">
@@ -176,7 +181,16 @@ export default function YoloResultsPanel({
         </div>
         <label className={styles.sizeControl}>
           <ZoomOut size={14} aria-hidden />
-          <input type="range" min="0" max="2" step="1" value={thumbnailScale} aria-label="缩略图大小" onChange={(event) => setThumbnailScale(Number(event.target.value))} />
+          <input
+            type="range"
+            min={THUMBNAIL_MIN}
+            max={THUMBNAIL_MAX}
+            step="1"
+            value={thumbnailSize}
+            aria-label="缩略图大小"
+            aria-valuetext={`${thumbnailSize}px`}
+            onChange={(event) => setThumbnailSize(Number(event.target.value))}
+          />
           <ZoomIn size={14} aria-hidden />
         </label>
         {!filtered.length && <p className={styles.empty}>没有匹配的图片</p>}

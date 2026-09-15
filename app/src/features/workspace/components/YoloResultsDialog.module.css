@@ -297,20 +297,12 @@
   object-fit: cover;
 }
 
-.list[data-thumb-size='small'] .row {
-  grid-template-columns: 44px minmax(0, 1fr) auto;
+.list[data-view='list'] .row {
+  grid-template-columns: clamp(44px, calc(var(--thumbnail-size) * 0.4), 96px) minmax(0, 1fr) auto;
 }
 
-.list[data-thumb-size='small'] .rowThumb {
-  height: 34px;
-}
-
-.list[data-thumb-size='large'] .row {
-  grid-template-columns: 76px minmax(0, 1fr) auto;
-}
-
-.list[data-thumb-size='large'] .rowThumb {
-  height: 58px;
+.list[data-view='list'] .rowThumb {
+  height: clamp(34px, calc(var(--thumbnail-size) * 0.31), 74px);
 }
 
 .rowCopy {
@@ -357,16 +349,8 @@
 }
 
 .list[data-view='grid'] .listItems {
-  grid-template-columns: repeat(auto-fill, minmax(142px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--thumbnail-size), 1fr));
   gap: var(--space-2);
-}
-
-.list[data-view='grid'][data-thumb-size='small'] .listItems {
-  grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
-}
-
-.list[data-view='grid'][data-thumb-size='large'] .listItems {
-  grid-template-columns: repeat(auto-fill, minmax(172px, 1fr));
 }
 
 .list[data-view='grid'] .row {
@@ -647,14 +631,6 @@
 
   .exportButton {
     flex: 1;
-  }
-
-  .row {
-    grid-template-columns: 48px minmax(0, 1fr) auto;
-  }
-
-  .rowThumb {
-    height: 38px;
   }
 
   .imagePair,
