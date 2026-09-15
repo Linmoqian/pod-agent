@@ -52,8 +52,17 @@ export type ArtifactFile = {
 
 export type WorkspaceFileNode = {
   name: string;
+  relativePath: string;
   directory: boolean;
   children: WorkspaceFileNode[];
+};
+
+export type WorkspaceFilePreview = {
+  name: string;
+  relativePath: string;
+  kind: 'markdown' | 'code';
+  language: string;
+  content: string;
 };
 
 export type Artifact = {

@@ -66,7 +66,8 @@ pub fn run() {
             commands::research::list_environments,
             commands::research::get_execution_detail,
             commands::research::get_lineage_subgraph,
-            commands::workspace::list_workspace_files
+            commands::workspace::list_workspace_files,
+            commands::workspace::read_workspace_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -6,8 +6,8 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 接口标识 | `ensure_draft_project`、`inspect_data_sources`、`register_datasets`、`submit_agent_intent`、`confirm_task_plan`、`cancel_workflow`、`get_workspace_snapshot`、`get_artifact_detail` |
-| 用途 | 从数据导入到混合模型 Artifact 血缘的唯一前端业务边界 |
+| 接口标识 | `ensure_draft_project`、`inspect_data_sources`、`register_datasets`、`submit_agent_intent`、`confirm_task_plan`、`cancel_workflow`、`get_workspace_snapshot`、`get_artifact_detail`、`list_workspace_files`、`read_workspace_file` |
+| 用途 | 从工作区文件查看、数据导入到混合模型 Artifact 血缘的唯一前端业务边界 |
 | 调用方 | `app/src/features/workspace/` |
 | 提供方 | Tauri Rust 后端 |
 | 稳定性 | V1 实验性 |
@@ -29,6 +29,7 @@
 | 语义查询 | `list_materials`、`get_material_context`、`list_traits`、`list_environments` | 只返回当前 Project 内实体；材料上下文包含关联 DatasetVersion |
 | 科研计划 | `submit_research_intent`、`start_task_plan_run` | 输入为 `EntityRef[]`；每次启动创建新的 TaskPlanRun 与 Execution |
 | 执行与血缘 | `get_execution_detail`、`get_lineage_subgraph` | 血缘方向为 `upstream/downstream/both`，深度自动限制为 1–5，默认 2 |
+| 工作区文件 | `list_workspace_files`、`read_workspace_file` | 只读列出受限文件树，并读取 Markdown/代码文件供中央预览；相对路径由 Rust 校验 |
 
 `ensure_draft_project`、`register_datasets`、`submit_agent_intent`、`confirm_task_plan` 与 `get_artifact_detail` 在 M2 保留为兼容入口，内部仍落入同一 SQLite 权威层；M3 前不得删除。
 
@@ -44,6 +45,8 @@
 | `cancel_workflow` | 同步 | `runId: string` | 仅运行中的进程内任务可取消 |
 | `get_workspace_snapshot` | 同步 | `projectId: string` | 返回该项目的持久化工作区快照 |
 | `get_artifact_detail` | 同步 | `artifactId: string` | 返回 Artifact、直接上游、来源 Dataset 与同一 WorkflowRun 的 ToolRun |
+| `list_workspace_files` | 同步 | 无 | 仅返回工作区内非隐藏目录项，最多 4 层递归、500 个条目；节点包含 `relativePath` |
+| `read_workspace_file` | 同步 | `relativePath: string` | 仅允许工作区内、文件树可达的 Markdown/代码文件；单文件最多 1 MiB |
 
 所有时间字段均为 UTC RFC 3339 字符串。ID 为不透明字符串，调用方不得解析或自行生成业务含义。
 
@@ -61,8 +64,10 @@
 | `cancel_workflow` | `null` | 是 | 只表示取消标记已设置，不表示子进程已经退出 |
 | `get_workspace_snapshot` | `WorkspaceSnapshot` | 是 | 兼容字段外增加 `overview/schemas/materials/traits/environments/taskPlanRuns/executions` |
 | `get_artifact_detail` | `ArtifactDetail` | 是 | `artifact/upstream/dataset/toolRuns` |
+| `list_workspace_files` | `WorkspaceFileNode` | 是 | 根节点与子节点包含 `name/relativePath/directory/children`；不返回文件内容 |
+| `read_workspace_file` | `WorkspaceFilePreview` | 是 | 返回 `name/relativePath/kind/language/content`；`kind` 为 `markdown` 或 `code` |
 
-`Dataset.source` 对前端仅暴露 `sourceId/name/format/checksum/size`，不暴露受管目录绝对路径。`Artifact.files[]` 包含 `name/contentType/size/checksum`；文件内容 V1 不通过 IPC 直接返回。
+`Dataset.source` 对前端仅暴露 `sourceId/name/format/checksum/size`，不暴露受管目录绝对路径。`Artifact.files[]` 包含 `name/contentType/size/checksum`；除受限的 `read_workspace_file` 预览外，文件内容不通过 IPC 直接返回。
 
 错误统一序列化为：
 
@@ -87,6 +92,8 @@
 | `ANALYSIS_NOT_IDENTIFIABLE` | 重复不足、奇异、不收敛或统计输出不成立 | 否 | 补充数据或改做描述分析 |
 | `TASK_PLAN_STATE_INVALID` | 当前计划状态不可开始 | 否 | 刷新后按最新状态操作 |
 | `WORKFLOW_NOT_RUNNING`、`WORKFLOW_CANCELLED` | 任务已结束或已经取消 | 否 | 查询快照确认终态 |
+| `WORKSPACE_UNAVAILABLE`、`WORKSPACE_FILE_UNAVAILABLE` | 工作区或目标文件不可读取 | 是 | 刷新文件树后重试 |
+| `WORKSPACE_FILE_UNSUPPORTED`、`WORKSPACE_FILE_TOO_LARGE` | 文件类型不支持或超过 1 MiB | 否 | 使用 Markdown/代码文件，或缩小文件后重试 |
 | `AGENT_UNAVAILABLE`、`AGENT_TIMEOUT`、`AGENT_PROTOCOL_ERROR`、`AGENT_OUTPUT_INVALID` | Pi 计划器不可用、超时或输出非法 | 是 | 系统自动使用确定性计划；需要模型计划时检查 sidecar 配置 |
 | `DB_BUSY`、`WORKFLOW_BUSY`、`IMPORT_TASK_FAILED`、`REGISTER_TASK_FAILED`、`WORKFLOW_TASK_FAILED` | 暂时性执行边界失败 | 是 | 刷新状态后有限次数重试 |
 | `ARTIFACT_PATH_INVALID`、`UNKNOWN_TOOL` | 工具返回越界路径或工具未注册 | 否 | 拒绝结果并检查工具版本，不绕过安全门 |
@@ -95,6 +102,7 @@
 
 - 前端仅调用上述 command；不得直接访问 SQLite、受管目录或 Python/Node 进程。
 - Rust 校验项目 ID 与统计输出文件名，所有科研元数据、状态和校验和以 SQLite 为准。
+- 工作区预览只接受非空相对路径；拒绝绝对路径、`..`、符号链接、隐藏/受管目录与超出文件树深度的路径，单文件读取上限为 1 MiB。
 - 原始文件复制到 `projects/{projectId}/sources`，按 SHA-256 去重并设为只读；不覆盖仓库旧 `data/`。
 - Pi 不注册文件、Shell 或数据库工具。Python 只读取 Rust 写入配置中的受管输入并输出到指定运行目录。
 - 错误和事件不得包含密钥、模型提供商凭证或受管文件绝对路径。

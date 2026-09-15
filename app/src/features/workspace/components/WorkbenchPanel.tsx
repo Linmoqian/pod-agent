@@ -7,7 +7,12 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Sprout } from 'lucide-react';
 
-import type { TaskPlan, WorkflowRun, WorkspaceSnapshot } from '../types';
+import type {
+  TaskPlan,
+  WorkflowRun,
+  WorkspaceFileNode,
+  WorkspaceSnapshot,
+} from '../types';
 import type { WorkbenchTask } from '../workbenchTasks';
 import TaskPlanPanel from './TaskPlanPanel';
 import WorkbenchFileTree from './WorkbenchFileTree';
@@ -25,6 +30,7 @@ export type WorkbenchPanelProps = {
   busy: boolean;
   onConfirm: (planId: string) => void;
   onCancel: (runId: string) => void;
+  onOpenFile: (node: WorkspaceFileNode) => void;
   embedded?: boolean;
 };
 
@@ -33,7 +39,8 @@ function EmptyHint({ description }: { description: string }) {
 }
 
 export default function WorkbenchPanel(props: WorkbenchPanelProps) {
-  const { snapshot, latestPlan, latestRun, tasks, activeRunId, embedded } = props;
+  const { snapshot, latestPlan, latestRun, tasks, activeRunId, embedded } =
+    props;
   const reduced = useReducedMotion();
   const {
     activeTabId,
@@ -97,7 +104,7 @@ export default function WorkbenchPanel(props: WorkbenchPanelProps) {
           transition={{ duration: 0.16, ease: [0.23, 1, 0.32, 1] }}
         >
           {tabs.find((tab) => tab.id === activeTabId)?.kind === 'files' ? (
-            <WorkbenchFileTree />
+            <WorkbenchFileTree onOpenFile={props.onOpenFile} />
           ) : (
             task
           )}

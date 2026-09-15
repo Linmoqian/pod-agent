@@ -14,16 +14,19 @@ import {
 } from '../../../services/workspace';
 import type { WorkspaceFileNode } from '../types';
 import styles from './WorkbenchPanel.module.css';
-import { TreeNodeIcon } from './WorkbenchFileTreeIcons';
+import { getFilePreviewKind, TreeNodeIcon } from './WorkbenchFileTreeIcons';
 
 function TreeBranch({
   node,
   depth = 0,
+  onOpenFile,
 }: {
   node: WorkspaceFileNode;
   depth?: number;
+  onOpenFile: (node: WorkspaceFileNode) => void;
 }) {
   const folder = node.directory;
+  const previewKind = folder ? null : getFilePreviewKind(node.name);
   return (
     <li
       className={styles.treeItem}
@@ -35,14 +38,33 @@ function TreeBranch({
         ) : (
           <span className={styles.treeSpacer} />
         )}
-        <TreeNodeIcon node={node} />
-        <span>{node.name}</span>
+        {previewKind ? (
+          <button
+            type="button"
+            className={styles.treeFileButton}
+            title={`在中央查看${previewKind === 'markdown' ? ' Markdown' : '代码'}文件`}
+            onClick={() => onOpenFile(node)}
+          >
+            <TreeNodeIcon node={node} />
+            <span>{node.name}</span>
+          </button>
+        ) : (
+          <>
+            <TreeNodeIcon node={node} />
+            <span>{node.name}</span>
+          </>
+        )}
       </div>
       {folder && (
         <ul className={styles.tree}>
           {node.children.length ? (
             node.children.map((child) => (
-              <TreeBranch key={child.name} node={child} depth={depth + 1} />
+              <TreeBranch
+                key={child.name}
+                node={child}
+                depth={depth + 1}
+                onOpenFile={onOpenFile}
+              />
             ))
           ) : (
             <li
@@ -58,7 +80,11 @@ function TreeBranch({
   );
 }
 
-export default function WorkbenchFileTree() {
+export default function WorkbenchFileTree({
+  onOpenFile,
+}: {
+  onOpenFile: (node: WorkspaceFileNode) => void;
+}) {
   const [tree, setTree] = useState<WorkspaceFileNode | null>(null);
   const [error, setError] = useState(false);
 
@@ -83,7 +109,7 @@ export default function WorkbenchFileTree() {
   if (!tree) return <p className={styles.empty}>正在列出工作区文件</p>;
   return (
     <ul className={styles.tree}>
-      <TreeBranch node={tree} />
+      <TreeBranch node={tree} onOpenFile={onOpenFile} />
     </ul>
   );
 }

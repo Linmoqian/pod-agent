@@ -406,6 +406,30 @@
   color: var(--color-accent-gold);
 }
 
+.treeFileButton {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.treeFileButton:hover {
+  color: var(--color-text-primary);
+}
+
+.treeFileButton:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+}
+
 .treeLabel[data-folder] > svg:first-child {
   transform: rotate(90deg);
 }

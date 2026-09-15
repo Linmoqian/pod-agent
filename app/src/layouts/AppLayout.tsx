@@ -9,6 +9,8 @@ import {
   ChevronRight,
   Circle,
   Copy,
+  FileCode2,
+  FileText,
   FolderOpen,
   Images,
   MessageSquare,
@@ -60,9 +62,16 @@ import {
 import WorkbenchPanel from '../features/workspace/components/WorkbenchPanel';
 import WorkspaceComposer from '../features/workspace/components/WorkspaceComposer';
 import WorkspaceTimeline from '../features/workspace/components/WorkspaceTimeline';
+import WorkspaceFilePreviewPanel from '../features/workspace/components/WorkspaceFilePreview';
 import YoloResultsPanel from '../features/workspace/components/YoloResultsDialog';
 import { useYoloTask } from '../features/workspace/components/YoloTaskCard';
+import { getFilePreviewKind } from '../features/workspace/components/WorkbenchFileTreeIcons';
 import { createWorkbenchTasks } from '../features/workspace/workbenchTasks';
+import { workspaceApi } from '../services/workspace';
+import type {
+  WorkspaceFileNode,
+  WorkspaceFilePreview,
+} from '../features/workspace/types';
 import useWorkspaceController, {
   type WorkspaceTab,
 } from '../features/workspace/hooks/useWorkspaceController';
@@ -75,7 +84,7 @@ import useWorkspaceTabLayout, {
 } from './useWorkspaceTabLayout';
 
 type ContextHeaderProps = {
-  activeView: 'conversation' | 'yolo-results';
+  activeView: 'conversation' | 'yolo-results' | 'file-preview';
   tabs: WorkspaceTab[];
   tabGroups: WorkspaceTabGroup[];
   activeTabId: string;
@@ -107,6 +116,14 @@ type ContextHeaderProps = {
   yoloResultsOpen: boolean;
   onOpenYoloResults: (photoId?: string) => void;
   onCloseYoloResults: () => void;
+  filePreview: WorkspaceFilePreview | null;
+  onOpenFilePreview: () => void;
+  onCloseFilePreview: () => void;
+};
+
+type FilePreviewState = WorkspaceFilePreview & {
+  status: 'loading' | 'ready' | 'error';
+  error?: string;
 };
 
 type DragPreviewState = {
@@ -715,6 +732,44 @@ function ContextHeader(props: ContextHeaderProps) {
             </button>
           </motion.div>
         )}
+        {props.filePreview && (
+          <motion.div
+            layout="position"
+            className={`${styles.tab} ${styles.utilityTab}`}
+            data-active={
+              props.activeView === 'file-preview' ? 'true' : undefined
+            }
+            transition={{
+              type: 'spring',
+              stiffness: 460,
+              damping: 36,
+              mass: 0.7,
+            }}
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={props.activeView === 'file-preview'}
+              className={styles.tabLabel}
+              onClick={props.onOpenFilePreview}
+            >
+              {props.filePreview.kind === 'markdown' ? (
+                <FileText size={14} aria-hidden />
+              ) : (
+                <FileCode2 size={14} aria-hidden />
+              )}
+              <span>{props.filePreview.name}</span>
+            </button>
+            <button
+              type="button"
+              className={styles.closeTab}
+              aria-label={`关闭文件${props.filePreview.name}`}
+              onClick={props.onCloseFilePreview}
+            >
+              <X size={14} />
+            </button>
+          </motion.div>
+        )}
         {(!lastTemporaryTabId || !tabBlocks.some((block) =>
           block.tabs.some((tab) => tab.id === lastTemporaryTabId),
         )) && newConversationButton}
@@ -1177,9 +1232,11 @@ export default function AppLayout() {
     () => createWorkbenchTasks(yoloTask.photos),
     [yoloTask.photos],
   );
-  const [activeView, setActiveView] = useState<'conversation' | 'yolo-results'>('conversation');
+  const [activeView, setActiveView] = useState<'conversation' | 'yolo-results' | 'file-preview'>('conversation');
   const [yoloResultsOpen, setYoloResultsOpen] = useState(false);
   const [yoloResultsFocusId, setYoloResultsFocusId] = useState<string>();
+  const [filePreview, setFilePreview] = useState<FilePreviewState | null>(null);
+  const filePreviewRequestRef = useRef(0);
   const [importName, setImportName] = useState('');
 
   const openYoloResults = (photoId?: string) => {
@@ -1190,6 +1247,46 @@ export default function AppLayout() {
   const closeYoloResults = () => {
     setYoloResultsOpen(false);
     setYoloResultsFocusId(undefined);
+    setActiveView('conversation');
+  };
+  const openFilePreview = (node: WorkspaceFileNode) => {
+    const kind = getFilePreviewKind(node.name);
+    if (!kind || !node.relativePath) return;
+    const requestId = filePreviewRequestRef.current + 1;
+    filePreviewRequestRef.current = requestId;
+    setActiveView('file-preview');
+    setFilePreview({
+      name: node.name,
+      relativePath: node.relativePath,
+      kind,
+      language: kind === 'markdown' ? 'markdown' : 'plaintext',
+      content: '',
+      status: 'loading',
+    });
+    void workspaceApi.readWorkspaceFile(node.relativePath)
+      .then((preview) => {
+        if (filePreviewRequestRef.current !== requestId) return;
+        setFilePreview({ ...preview, status: 'ready' });
+      })
+      .catch(() => {
+        if (filePreviewRequestRef.current !== requestId) return;
+        setFilePreview((current) =>
+          current
+            ? {
+                ...current,
+                status: 'error',
+                error: '文件读取失败，请稍后重试。',
+              }
+            : current,
+        );
+      });
+  };
+  const activateFilePreview = () => {
+    if (filePreview) setActiveView('file-preview');
+  };
+  const closeFilePreview = () => {
+    filePreviewRequestRef.current += 1;
+    setFilePreview(null);
     setActiveView('conversation');
   };
   const activateConversation = (id: string) => {
@@ -1246,6 +1343,7 @@ export default function AppLayout() {
           busy={controller.busy}
           onConfirm={(id) => void controller.confirmPlan(id)}
           onCancel={(id) => void controller.cancelWorkflow(id)}
+          onOpenFile={openFilePreview}
         />
       }
     >
@@ -1283,6 +1381,9 @@ export default function AppLayout() {
           yoloResultsOpen={yoloResultsOpen}
           onOpenYoloResults={openYoloResults}
           onCloseYoloResults={closeYoloResults}
+          filePreview={filePreview}
+          onOpenFilePreview={activateFilePreview}
+          onCloseFilePreview={closeFilePreview}
         />
         <section className={styles.workspace}>
           {activeView === 'yolo-results' ? (
@@ -1294,6 +1395,8 @@ export default function AppLayout() {
               loadResultPreview={yoloTask.loadResultPreview}
               exportCsv={yoloTask.exportCsv}
             />
+          ) : activeView === 'file-preview' && filePreview ? (
+            <WorkspaceFilePreviewPanel preview={filePreview} />
           ) : (
             <>
               <WorkspaceTimeline

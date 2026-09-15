@@ -70,15 +70,20 @@ const FILE_EXTENSION_KINDS: Record<string, FileKind> = {
   '.bash': 'script',
   '.bmp': 'image',
   '.c': 'code',
+  '.cjs': 'code',
   '.cpp': 'code',
   '.css': 'code',
+  '.cts': 'code',
+  '.cxx': 'code',
   '.csv': 'data',
   '.doc': 'document',
   '.docx': 'document',
+  '.fish': 'script',
   '.gif': 'image',
   '.go': 'code',
   '.gz': 'archive',
   '.h': 'code',
+  '.hh': 'code',
   '.hpp': 'code',
   '.html': 'code',
   '.ico': 'image',
@@ -89,12 +94,19 @@ const FILE_EXTENSION_KINDS: Record<string, FileKind> = {
   '.js': 'code',
   '.jsx': 'code',
   '.json': 'json',
+  '.kt': 'code',
+  '.kts': 'code',
   '.lock': 'package',
+  '.markdown': 'document',
   '.md': 'document',
+  '.mjs': 'code',
+  '.mts': 'code',
   '.pdf': 'document',
+  '.php': 'code',
   '.png': 'image',
   '.py': 'code',
   '.rar': 'archive',
+  '.rb': 'code',
   '.rs': 'code',
   '.rst': 'document',
   '.scss': 'code',
@@ -129,6 +141,24 @@ function getFileKind(name: string): FileKind {
   const extension =
     extensionStart >= 0 ? normalizedName.slice(extensionStart) : '';
   return FILE_EXTENSION_KINDS[extension] || 'generic';
+}
+
+export type WorkspacePreviewKind = 'markdown' | 'code';
+
+const PREVIEW_CODE_KINDS = new Set<FileKind>([
+  'code',
+  'config',
+  'json',
+  'package',
+  'script',
+]);
+
+export function getFilePreviewKind(name: string): WorkspacePreviewKind | null {
+  const normalizedName = name.toLowerCase();
+  if (normalizedName.endsWith('.md') || normalizedName.endsWith('.markdown')) {
+    return 'markdown';
+  }
+  return PREVIEW_CODE_KINDS.has(getFileKind(name)) ? 'code' : null;
 }
 
 export function TreeNodeIcon({ node }: { node: WorkspaceFileNode }) {
