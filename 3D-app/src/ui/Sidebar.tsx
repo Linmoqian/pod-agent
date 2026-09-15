@@ -1,7 +1,10 @@
 // 左侧控制面板：文件加载、着色模式、点大小、显示开关、背景、Reset
 
 import type { ColorMode } from "../core/types";
+import type { ExampleEntry } from "../core/examples";
 import styles from "./ui.module.css";
+
+export const DEMO_LABEL = "示例 · 模拟大豆";
 
 export const BG_PRESETS = [
   { name: "深空", bg: "#101014", grid: "#33333d", section: "#4d4d5c" },
@@ -32,6 +35,9 @@ interface Props {
   onBg: (i: number) => void;
   onFile: (f: File) => void;
   onDemo: () => void;
+  examples: ExampleEntry[];
+  activeLabel: string | null;
+  onExample: (e: ExampleEntry) => void;
   onReset: () => void;
 }
 
@@ -39,28 +45,26 @@ export function Sidebar(props: Props) {
   return (
     <aside className={styles.sidebar}>
       <section className={styles.section}>
-        <h3 className={styles.sectionTitle}>数据</h3>
-        <label className={`${styles.button} ${props.loading ? styles.disabled : ""}`}>
-          打开 PLY / PCD
-          <input
-            type="file"
-            accept=".ply,.pcd"
-            disabled={props.loading}
-            style={{ display: "none" }}
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) props.onFile(f);
-              e.target.value = "";
-            }}
-          />
-        </label>
+        <h3 className={styles.sectionTitle}>示例</h3>
         <button
-          className={styles.button}
+          className={`${styles.button} ${props.activeLabel === DEMO_LABEL ? styles.active : ""}`}
           disabled={props.loading}
           onClick={props.onDemo}
         >
-          载入示例（模拟大豆）
+          模拟大豆
+          <span className={styles.buttonHint}>程序生成 · 600k</span>
         </button>
+        {props.examples.map((ex) => (
+          <button
+            key={ex.id}
+            className={`${styles.button} ${props.activeLabel === ex.label ? styles.active : ""}`}
+            disabled={props.loading}
+            onClick={() => props.onExample(ex)}
+          >
+            {ex.label}
+            <span className={styles.buttonHint}>{ex.detail}</span>
+          </button>
+        ))}
       </section>
 
       <section className={styles.section}>
@@ -124,6 +128,24 @@ export function Sidebar(props: Props) {
             onChange={(e) => props.onToggle("axes", e.target.checked)}
           />
           坐标轴
+        </label>
+      </section>
+
+      <section className={styles.section}>
+        <h3 className={styles.sectionTitle}>数据</h3>
+        <label className={`${styles.button} ${props.loading ? styles.disabled : ""}`}>
+          打开 PLY / PCD
+          <input
+            type="file"
+            accept=".ply,.pcd"
+            disabled={props.loading}
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) props.onFile(f);
+              e.target.value = "";
+            }}
+          />
         </label>
       </section>
 

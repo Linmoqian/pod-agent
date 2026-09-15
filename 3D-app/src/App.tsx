@@ -6,8 +6,10 @@ import { loadPointCloud } from "./core/loaders";
 import { generateSoybeanDemo } from "./core/demo-soybean";
 import { boundsRadius } from "./core/bounds";
 import { Viewer } from "./viewer/Viewer";
-import { BG_PRESETS, Sidebar } from "./ui/Sidebar";
+import { BG_PRESETS, DEMO_LABEL, Sidebar } from "./ui/Sidebar";
 import { StatusBar, TopBar } from "./ui/Hud";
+import { EXAMPLES } from "./core/examples";
+import type { ExampleEntry } from "./core/examples";
 import styles from "./ui/ui.module.css";
 
 type ToggleKey = "points" | "grid" | "axes";
@@ -98,11 +100,30 @@ export default function App() {
     setLoading(true);
     setError(null);
     try {
-      applyData(generateSoybeanDemo(600_000), "示例 · 模拟大豆 (600k)");
+      applyData(generateSoybeanDemo(600_000), DEMO_LABEL);
     } finally {
       setLoading(false);
     }
   }, [applyData]);
+
+  // 内置示例：构建期已随包打包，fetch 资源 URL 后走统一加载管线
+  const examples = EXAMPLES;
+  const handleExample = useCallback(
+    async (ex: ExampleEntry) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(ex.url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        applyData(loadPointCloud(await res.arrayBuffer(), `${ex.id}.ply`), ex.label);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [applyData]
+  );
 
   const handleToggle = useCallback((key: ToggleKey, v: boolean) => {
     if (key === "points") setShowPoints(v);
@@ -151,6 +172,9 @@ export default function App() {
           onBg={setBgIndex}
           onFile={handleFile}
           onDemo={handleDemo}
+          examples={examples}
+          activeLabel={fileName}
+          onExample={handleExample}
           onReset={() => setFitNonce((n) => n + 1)}
         />
         <div className={styles.viewport}>

@@ -123,6 +123,26 @@
   cursor: pointer;
   text-align: center;
   transition: background 0.15s ease, border-color 0.15s ease;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.buttonHint {
+  font-size: 10.5px;
+  color: #7c7f8a;
+}
+
+.active {
+  border-color: #3d7a54;
+  background: #1d2c22;
+  color: #8fd9a8;
+}
+
+.active .buttonHint {
+  color: #6da982;
 }
 
 .button:hover:not(:disabled) {

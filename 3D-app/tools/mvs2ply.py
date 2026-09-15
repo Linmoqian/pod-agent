@@ -26,7 +26,7 @@ def shade(rgb: tuple[int, int, int], factor: float) -> tuple[int, int, int]:
     return tuple(min(255, max(0, int(c * factor))) for c in rgb)
 
 
-def convert(plant_dir: Path, out_path: Path, color_by: str) -> None:
+def convert(plant_dir: Path, out_path: Path, color_by: str, sample: int) -> None:
     ann_dir = plant_dir / "Annotations"
     txt_files = sorted(ann_dir.glob("*.txt"))
     if not txt_files:
@@ -73,6 +73,11 @@ def convert(plant_dir: Path, out_path: Path, color_by: str) -> None:
         np.concatenate(label2_list),
         np.concatenate(label3_list),
     )
+    # 合并后均匀采样（固定种子），保持形态密度
+    n = vertex.shape[0]
+    if sample and n > sample:
+        keep = np.random.default_rng(0).choice(n, sample, replace=False)
+        vertex = vertex[keep]
     write_binary_ply(out_path, vertex)
     stats = " ".join(f"{k}:{v}" for k, v in organ_stats.items())
     print(f"{plant_dir.name} -> {out_path}  {vertex.shape[0]} 点  着色={color_by}  [{stats}]")
@@ -86,9 +91,10 @@ if __name__ == "__main__":
         "--color-by", choices=["organ", "rgb", "instance"], default="organ",
         help="organ=器官类别色（默认），rgb=原始纹理色，instance=实例彩虹色",
     )
+    parser.add_argument("--sample", type=int, default=0, help="随机采样点数上限，0=全量")
     args = parser.parse_args()
 
     for plant in args.plants:
         plant_dir = Path(plant)
         out = Path(args.out_dir) / f"mvs-{plant_dir.name}.ply"
-        convert(plant_dir, out, args.color_by)
+        convert(plant_dir, out, args.color_by, args.sample)

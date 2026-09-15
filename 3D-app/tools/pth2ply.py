@@ -17,7 +17,7 @@ LABEL2_PALETTE = [
 ]
 
 
-def convert(pth_path: Path, out_path: Path, color_by: str) -> None:
+def convert(pth_path: Path, out_path: Path, color_by: str, sample: int) -> None:
     data = torch.load(pth_path, map_location="cpu", weights_only=False)
     xyz = data[0].astype(np.float32)
     normal = data[1].astype(np.float32)
@@ -25,6 +25,12 @@ def convert(pth_path: Path, out_path: Path, color_by: str) -> None:
     label3 = data[3].astype(np.uint8)
 
     n = xyz.shape[0]
+    # 均匀随机采样（固定种子），保持形态密度
+    if sample and n > sample:
+        idx = np.random.default_rng(0).choice(n, sample, replace=False)
+        xyz, normal = xyz[idx], normal[idx]
+        label2, label3 = label2[idx], label3[idx]
+        n = sample
     colors = np.zeros((n, 3), dtype=np.uint8)
     if color_by == "label2":
         for i, rgb in enumerate(LABEL2_PALETTE, start=1):
@@ -43,9 +49,10 @@ if __name__ == "__main__":
     parser.add_argument("inputs", nargs="+", help=".pth 文件路径")
     parser.add_argument("-o", "--out-dir", default="public/ply", help="输出目录")
     parser.add_argument("--color-by", choices=["label2", "label3", "none"], default="label2")
+    parser.add_argument("--sample", type=int, default=0, help="随机采样点数上限，0=全量")
     args = parser.parse_args()
 
     for src in args.inputs:
         src_path = Path(src)
         out = Path(args.out_dir) / f"pth-{src_path.stem}.ply"
-        convert(src_path, out, args.color_by)
+        convert(src_path, out, args.color_by, args.sample)
