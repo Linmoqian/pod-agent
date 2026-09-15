@@ -13,6 +13,9 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { version } from "../../../../package.json";
 import developerOnePortrait from "@/assets/developer-1.jpg";
 import developerTwoPortrait from "@/assets/developer-2.jpg";
+import developerThreePortrait from "@/assets/developer-3.png";
+import scauLogo from "@/assets/scau-logo.png";
+import lifeSciencesCollegeLogo from "@/assets/life-sciences-college-logo.png";
 import {
   Dialog,
   DialogContent,
@@ -165,6 +168,7 @@ function ModeSection() {
 const DEVELOPERS = [
   { name: "linmoqian", portrait: developerOnePortrait, accent: "purple" },
   { name: "qcl", portrait: developerTwoPortrait, accent: "blue" },
+  { name: "牛学长", portrait: developerThreePortrait, accent: "orange" },
 ] as const;
 
 function AboutSection() {
@@ -200,7 +204,27 @@ function AboutSection() {
           </p>
         </div>
       </div>
-      <div className={styles.developerGrid} aria-label="开发成员">
+      <div
+        className={styles.supportCard}
+        role="group"
+        aria-label="支持单位：华南农业大学 生命科学学院"
+      >
+        <div className={styles.supportLogos}>
+          <img className={styles.supportLogo} src={scauLogo} alt="华南农业大学校徽" />
+          <span className={styles.supportLogoDivider} aria-hidden>·</span>
+          <img
+            className={styles.supportLogo}
+            src={lifeSciencesCollegeLogo}
+            alt="生命科学学院校徽"
+          />
+        </div>
+        <div className={styles.supportText}>
+          <span className={styles.supportLabel}>支持单位</span>
+          <strong className={styles.supportName}>华南农业大学</strong>
+          <span className={styles.supportDepartment}>生命科学学院</span>
+        </div>
+      </div>
+      <div className={styles.developerGrid} aria-label="开发人员">
         {DEVELOPERS.map(({ name, portrait, accent }, index) => (
           <motion.div
             key={name}
@@ -211,8 +235,8 @@ function AboutSection() {
             transition={reduceMotion ? { duration: 0 } : { duration: 0.24, delay: index * 0.08 }}
             whileHover={reduceMotion ? undefined : { y: -3 }}
           >
-            <img className={styles.developerPortrait} src={portrait} alt={`${name} 的开发成员肖像`} />
-            <span className={styles.developerRole}>开发成员</span>
+            <img className={styles.developerPortrait} src={portrait} alt={`${name} 的开发人员肖像`} />
+            <span className={styles.developerRole}>开发人员</span>
             <strong className={styles.developerName}>{name}</strong>
           </motion.div>
         ))}

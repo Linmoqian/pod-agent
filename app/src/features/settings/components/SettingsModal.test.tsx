@@ -42,14 +42,20 @@ describe("SettingsModal", () => {
     expect(screen.getByText(`v${version}`)).toBeInTheDocument();
   });
 
-  it("在关于页展示两位开发成员肖像与名称", async () => {
+  it("在关于页展示三位开发人员肖像与名称", async () => {
     const user = userEvent.setup();
     renderSettings();
     await user.click(screen.getByRole("button", { name: /关于/ }));
-    expect(screen.getByRole("img", { name: "linmoqian 的开发成员肖像" })).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "qcl 的开发成员肖像" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "linmoqian 的开发人员肖像" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "qcl 的开发人员肖像" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "牛学长 的开发人员肖像" })).toBeInTheDocument();
     expect(screen.getByText("linmoqian")).toBeInTheDocument();
     expect(screen.getByText("qcl")).toBeInTheDocument();
+    expect(screen.getByText("牛学长")).toBeInTheDocument();
+    expect(screen.getByLabelText("支持单位：华南农业大学 生命科学学院")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "华南农业大学校徽" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "生命科学学院校徽" })).toBeInTheDocument();
+    expect(screen.getByText("生命科学学院")).toBeInTheDocument();
   });
 
   it("默认浅色主题与新手模式,选中卡片以 aria-pressed 标记", async () => {
