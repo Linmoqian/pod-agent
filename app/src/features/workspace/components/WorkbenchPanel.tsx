@@ -8,8 +8,10 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Sprout } from 'lucide-react';
 
 import type { TaskPlan, WorkflowRun, WorkspaceSnapshot } from '../types';
+import type { WorkbenchTask } from '../workbenchTasks';
 import TaskPlanPanel from './TaskPlanPanel';
 import WorkbenchFileTree from './WorkbenchFileTree';
+import WorkbenchTaskList from './WorkbenchTaskList';
 import styles from './WorkbenchPanel.module.css';
 import WorkbenchTabBar from './WorkbenchTabBar';
 import useWorkbenchTabs from './useWorkbenchTabs';
@@ -18,6 +20,7 @@ export type WorkbenchPanelProps = {
   snapshot: WorkspaceSnapshot;
   latestPlan?: TaskPlan;
   latestRun?: WorkflowRun;
+  tasks: readonly WorkbenchTask[];
   activeRunId: string | null;
   busy: boolean;
   onConfirm: (planId: string) => void;
@@ -30,7 +33,7 @@ function EmptyHint({ description }: { description: string }) {
 }
 
 export default function WorkbenchPanel(props: WorkbenchPanelProps) {
-  const { snapshot, latestPlan, latestRun, activeRunId, embedded } = props;
+  const { snapshot, latestPlan, latestRun, tasks, activeRunId, embedded } = props;
   const reduced = useReducedMotion();
   const {
     activeTabId,
@@ -44,17 +47,22 @@ export default function WorkbenchPanel(props: WorkbenchPanelProps) {
   } = useWorkbenchTabs(latestPlan);
   const runningId =
     activeRunId ?? (latestRun?.status === 'running' ? latestRun.id : null);
-  const task = latestPlan ? (
-    <TaskPlanPanel
-      plan={latestPlan}
-      run={latestRun}
-      runningId={runningId}
-      busy={props.busy}
-      onConfirm={props.onConfirm}
-      onCancel={props.onCancel}
-    />
-  ) : (
-    <EmptyHint description="提出问题后，任务计划会出现在这里" />
+  const task = (
+    <div className={styles.taskStack}>
+      {tasks.length > 0 && <WorkbenchTaskList tasks={tasks} />}
+      {latestPlan ? (
+        <TaskPlanPanel
+          plan={latestPlan}
+          run={latestRun}
+          runningId={runningId}
+          busy={props.busy}
+          onConfirm={props.onConfirm}
+          onCancel={props.onCancel}
+        />
+      ) : tasks.length === 0 ? (
+        <EmptyHint description="提出问题后，任务计划会出现在这里" />
+      ) : null}
+    </div>
   );
   return (
     <aside className={`${styles.panel} ${embedded ? styles.embedded : ''}`}>

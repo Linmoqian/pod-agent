@@ -39,6 +39,8 @@ export type YoloPhoto = {
   external?: boolean;
   modelId?: string;
   status: 'loading' | 'waiting' | 'running' | 'done' | 'error';
+  startedAt?: number;
+  finishedAt?: number;
   message?: string;
   count?: number;
   counts?: Record<string, number>;
@@ -235,7 +237,7 @@ export function useYoloTask() {
       const path = event.imagePath;
       setPhotos((list) => list.some((p) => p.id === event.id) ? list : [...list, {
         id: event.id, path, name: path.split(/[/\\]/).pop() ?? path,
-        status: 'running', external: true, modelId: event.modelId,
+        status: 'running', startedAt: Date.now(), external: true, modelId: event.modelId,
       }]);
       registerReadJobs(1);
       enqueueThumbnailReads([{ id: event.id, path, external: true }]);
@@ -243,6 +245,7 @@ export function useYoloTask() {
       setPhotos((list) => list.map((p) => p.id === event.id ? {
         ...p,
         status: event.status,
+        finishedAt: event.status === 'done' || event.status === 'error' ? Date.now() : p.finishedAt,
         message: event.message,
         count: event.count,
         counts: event.counts,
@@ -284,19 +287,30 @@ export function useYoloTask() {
     const next = photos.find((photo) => !photo.external && photo.status === 'waiting');
     if (!next) return;
     active.current = true;
-    setPhotos((list) => list.map((p) => p.id === next.id ? { ...p, status: 'running' } : p));
+    setPhotos((list) => list.map((p) => p.id === next.id ? {
+      ...p,
+      status: 'running',
+      startedAt: Date.now(),
+      finishedAt: undefined,
+    } : p));
     void invoke<YoloResponse>('yolo_detect_image', { modelId: next.modelId ?? modelId, imagePath: next.path }).then((result) => {
       if (!result.ok) throw new Error(result.message);
       if (mounted.current) setPhotos((list) => list.map((p) => p.id === next.id ? {
         ...p,
         status: 'done',
+        finishedAt: Date.now(),
         message: result.message,
         count: result.count,
         counts: result.counts,
         detections: result.detections,
       } : p));
     }).catch((reason) => {
-      if (mounted.current) setPhotos((list) => list.map((p) => p.id === next.id ? { ...p, status: 'error', message: String(reason) } : p));
+      if (mounted.current) setPhotos((list) => list.map((p) => p.id === next.id ? {
+        ...p,
+        status: 'error',
+        finishedAt: Date.now(),
+        message: String(reason),
+      } : p));
     }).finally(() => { active.current = false; if (mounted.current) setRevision((value) => value + 1); });
   }, [photos, paused, modelId, revision]);
   const add = async (folder = false, dropped?: string[]) => {
@@ -392,6 +406,8 @@ export function useYoloTask() {
     retry: () => setPhotos((list) => list.map((p) => !p.external && p.status === 'error' ? {
       ...p,
       status: 'waiting',
+      startedAt: undefined,
+      finishedAt: undefined,
       message: undefined,
       count: undefined,
       counts: undefined,

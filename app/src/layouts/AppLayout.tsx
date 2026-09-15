@@ -62,6 +62,7 @@ import WorkspaceComposer from '../features/workspace/components/WorkspaceCompose
 import WorkspaceTimeline from '../features/workspace/components/WorkspaceTimeline';
 import YoloResultsPanel from '../features/workspace/components/YoloResultsDialog';
 import { useYoloTask } from '../features/workspace/components/YoloTaskCard';
+import { createWorkbenchTasks } from '../features/workspace/workbenchTasks';
 import useWorkspaceController, {
   type WorkspaceTab,
 } from '../features/workspace/hooks/useWorkspaceController';
@@ -1165,6 +1166,10 @@ export default function AppLayout() {
   const { snapshot } = controller;
   const tabLayout = useWorkspaceTabLayout(controller.tabs);
   const yoloTask = useYoloTask();
+  const workbenchTasks = useMemo(
+    () => createWorkbenchTasks(yoloTask.photos),
+    [yoloTask.photos],
+  );
   const [activeView, setActiveView] = useState<'conversation' | 'yolo-results'>('conversation');
   const [yoloResultsOpen, setYoloResultsOpen] = useState(false);
   const [yoloResultsFocusId, setYoloResultsFocusId] = useState<string>();
@@ -1229,6 +1234,7 @@ export default function AppLayout() {
           snapshot={snapshot}
           latestPlan={latestPlan}
           latestRun={latestRun}
+          tasks={workbenchTasks}
           activeRunId={controller.activeRunId}
           busy={controller.busy}
           onConfirm={(id) => void controller.confirmPlan(id)}
