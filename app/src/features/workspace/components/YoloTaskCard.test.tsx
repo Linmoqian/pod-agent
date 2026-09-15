@@ -1,18 +1,21 @@
 /* 验证真实响应驱动队列，不把失败图片归档。
- * Created on 2026-09-14
+ * Created on 2026-09-15
  * @author: https://github.com/Linmoqian
  */
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { expect, test, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { open } from '@tauri-apps/plugin-dialog';
+import { confirm, open } from '@tauri-apps/plugin-dialog';
 import { useYoloTask } from './YoloTaskCard';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async () => vi.fn()) }));
 vi.mock('@tauri-apps/api/webview', () => ({ getCurrentWebview: () => ({ onDragDropEvent: vi.fn(async () => vi.fn()) }) }));
-vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(async () => ['/a.png', '/b.png', '/c.png']) }));
+vi.mock('@tauri-apps/plugin-dialog', () => ({
+  open: vi.fn(async () => ['/a.png', '/b.png', '/c.png']),
+  confirm: vi.fn(async () => true),
+}));
 vi.mock('../../../services/workspace', () => ({ isTauriRuntime: () => true }));
 
 test('逐张推理，失败保留且重试后归档', async () => {
@@ -22,6 +25,7 @@ test('逐张推理，失败保留且重试后归档', async () => {
   const order: string[] = [];
   vi.mocked(invoke).mockImplementation(async (command, args) => {
     if (command === 'yolo_models') return [{ id: 'test', name: 'test', available: true }];
+    if (command === 'yolo_memory_gb') return 4;
     if (command === 'yolo_thumbnail') return [1, 2];
     const path = (args as { imagePath: string }).imagePath;
     order.push(path);
@@ -41,6 +45,7 @@ test('文件夹扫描后跳过坏图并推理其他图片', async () => {
   vi.mocked(open).mockResolvedValueOnce('/photos');
   vi.mocked(invoke).mockImplementation(async (command, args) => {
     if (command === 'yolo_models') return [{ id: 'test', name: 'test', available: true }];
+    if (command === 'yolo_memory_gb') return 4;
     if (command === 'yolo_folder_images') return ['/photos/bad.png', '/photos/sub/good.JPG'];
     if (command === 'yolo_thumbnail') {
       if ((args as { imagePath: string }).imagePath.includes('bad')) throw new Error('坏图');
@@ -55,11 +60,16 @@ test('文件夹扫描后跳过坏图并推理其他图片', async () => {
   expect(result.current.photos).toHaveLength(1);
   expect(result.current.error).toContain('已跳过');
   expect(open).toHaveBeenLastCalledWith({ directory: true, multiple: false });
+  expect(confirm).toHaveBeenCalledWith(
+    '发现 2 张图片，是否加入图片识别队列？',
+    expect.objectContaining({ title: '添加图片', okLabel: '加入', cancelLabel: '取消' }),
+  );
 });
 
 test('Finder 混合路径通过原生扫描进入推理队列', async () => {
   vi.mocked(invoke).mockImplementation(async (command) => {
     if (command === 'yolo_models') return [{ id: 'test', name: 'test', available: true }];
+    if (command === 'yolo_memory_gb') return 4;
     if (command === 'yolo_drop_images') return ['/folder/a.png', '/b.JPG'];
     if (command === 'yolo_thumbnail') return [1];
     return { ok: true, message: '检测到 0 个对象' };

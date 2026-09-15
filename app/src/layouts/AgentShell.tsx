@@ -19,7 +19,7 @@ import {
   PanelLeft,
   PanelRight,
   Plus,
-  RotateCcw,
+  RefreshCw,
   Search,
   Settings,
   X,
@@ -27,7 +27,7 @@ import {
 import SettingsModal from '../features/settings/components/SettingsModal';
 import type { Project } from '../features/workspace/types';
 import styles from './AgentShell.module.css';
-import YoloTaskCard, { useYoloTask } from '../features/workspace/components/YoloTaskCard';
+import YoloTaskCard, { type YoloTask } from '../features/workspace/components/YoloTaskCard';
 
 type PanelId = 'navigation' | 'workbench';
 type Layout = { reversed: boolean; navigation: number; workbench: number };
@@ -84,6 +84,8 @@ export default function AgentShell({
   busy,
   onNewConversation,
   onSwitchProject,
+  onOpenYoloResults,
+  yoloTask,
 }: {
   children: ReactNode;
   workbench: ReactNode;
@@ -94,19 +96,21 @@ export default function AgentShell({
   busy: boolean;
   onNewConversation: () => void;
   onSwitchProject: (id: string) => void;
+  onOpenYoloResults: (photoId?: string) => void;
+  yoloTask: YoloTask;
 }) {
   const [layout, setLayout] = useState(readLayout);
   const nativeWindow = isTauri();
   const mac = /Mac/i.test(navigator.platform);
-  const yoloTask = useYoloTask();
   const shownYolo = useRef(new Set<string>());
   useEffect(() => {
     const incoming = yoloTask.photos.filter((photo) => photo.external && !shownYolo.current.has(photo.id));
     if (!incoming.length) return;
     incoming.forEach((photo) => shownYolo.current.add(photo.id));
+    onOpenYoloResults();
     if (!workbenchOpen) onToggleWorkbench();
     if (window.matchMedia(COMPACT_LAYOUT_QUERY).matches) setMobilePanel('workbench');
-  }, [yoloTask.photos, workbenchOpen, onToggleWorkbench]);
+  }, [yoloTask.photos, workbenchOpen, onOpenYoloResults, onToggleWorkbench]);
   const [navigationOpen, setNavigationOpen] = useState(true);
   const [narrow, setNarrow] = useState(
     () => window.matchMedia(COMPACT_LAYOUT_QUERY).matches,
@@ -149,6 +153,9 @@ export default function AgentShell({
     } catch {
       /* 内存布局仍可使用。 */
     }
+  };
+  const reloadApplication = () => {
+    window.location.reload();
   };
   const cancelDragDelay = () => {
     if (dragDelay.current === null) return;
@@ -556,7 +563,7 @@ export default function AgentShell({
             </div>
           </nav>
         ) : (
-          <div className={styles.panelBody}><YoloTaskCard task={yoloTask} />{workbench}</div>
+          <div className={styles.panelBody}><YoloTaskCard task={yoloTask} onOpenResults={onOpenYoloResults} />{workbench}</div>
         )}
         <div
           className={styles.resize}
@@ -659,16 +666,11 @@ export default function AgentShell({
             <PanelRight size={17} />
           </button>
           <button
-            aria-label="重置布局"
-            title="恢复默认布局"
-            onClick={() => {
-              updateLayout(() => DEFAULT_LAYOUT, true);
-              setNavigationOpen(true);
-              setMobilePanel(null);
-              if (!workbenchOpen) onToggleWorkbench();
-            }}
+            aria-label="刷新应用"
+            title="重新载入应用窗口"
+            onClick={reloadApplication}
           >
-            <RotateCcw size={15} />
+            <RefreshCw size={15} />
           </button>
         </div>
       </header>
@@ -747,7 +749,7 @@ export default function AgentShell({
           <li><button role="menuitem" onClick={() => { toggleNavigation(); setContextMenu(null); }}><PanelLeft size={15} />切换会话侧栏</button></li>
           <li><button role="menuitem" onClick={() => { toggleWorkbench(); setContextMenu(null); }}><PanelRight size={15} />切换育种台</button></li>
           <li className={styles.menuDivider} />
-          <li><button role="menuitem" onClick={() => { updateLayout(() => DEFAULT_LAYOUT, true); setContextMenu(null); }}><RotateCcw size={15} />恢复默认布局</button></li>
+          <li><button role="menuitem" onClick={() => { setContextMenu(null); reloadApplication(); }}><RefreshCw size={15} />刷新应用</button></li>
       </motion.menu>
       )}
       <SettingsModal

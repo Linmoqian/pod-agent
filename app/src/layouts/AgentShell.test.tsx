@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import AgentShell from './AgentShell';
 import { isTauri } from '@tauri-apps/api/core';
+import type { YoloTask } from '../features/workspace/components/YoloTaskCard';
 
 vi.mock('@tauri-apps/api/core', async (importOriginal) => ({
   ...await importOriginal<typeof import('@tauri-apps/api/core')>(),
@@ -21,6 +22,23 @@ const props = {
   busy: false,
   onNewConversation: vi.fn(),
   onSwitchProject: vi.fn(),
+  onOpenYoloResults: vi.fn(),
+  yoloTask: {
+    photos: [],
+    models: [],
+    modelId: '',
+    setModelId: vi.fn(),
+    paused: false,
+    setPaused: vi.fn(),
+    adding: false,
+    dragging: false,
+    error: '',
+    add: vi.fn(),
+    loadResultPreview: vi.fn(),
+    loadImagePreview: vi.fn(),
+    exportCsv: vi.fn(),
+    retry: vi.fn(),
+  } as unknown as YoloTask,
 };
 const shell = () => (
   <AgentShell
@@ -71,7 +89,7 @@ it('换位保留对话和上下文的 DOM 与输入状态', () => {
   expect(screen.getByLabelText('上下文草稿')).toBe(context);
 });
 
-it('键盘调宽遵循左右方向、上下限并可重置', () => {
+it('键盘调宽遵循左右方向、上下限并提供刷新应用入口', () => {
   render(shell());
   const separator = screen.getByRole('separator', { name: '调整会话侧栏宽度' });
   fireEvent.keyDown(separator, { key: 'ArrowRight' });
@@ -82,8 +100,7 @@ it('键盘调宽遵循左右方向、上下限并可重置', () => {
   fireEvent.click(screen.getByLabelText('移动会话侧栏到右侧'));
   fireEvent.keyDown(separator, { key: 'ArrowRight' });
   expect(separator).toHaveAttribute('aria-valuenow', '404');
-  fireEvent.click(screen.getByLabelText('重置布局'));
-  expect(separator).toHaveAttribute('aria-valuenow', '248');
+  expect(screen.getByLabelText('刷新应用')).toBeInTheDocument();
 });
 
 it('指针拖动可换位和调宽，取消拖动不改变停靠位置', () => {

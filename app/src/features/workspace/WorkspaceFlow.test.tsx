@@ -10,10 +10,10 @@ import { beforeEach, expect, it, vi } from 'vitest';
 
 import Root from '../../Root';
 
-const mocks = vi.hoisted(() => ({ invoke: vi.fn(), open: vi.fn() }));
+const mocks = vi.hoisted(() => ({ invoke: vi.fn(), open: vi.fn(), confirm: vi.fn(async () => true) }));
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mocks.invoke }));
-vi.mock('@tauri-apps/plugin-dialog', () => ({ open: mocks.open }));
+vi.mock('@tauri-apps/plugin-dialog', () => ({ open: mocks.open, confirm: mocks.confirm }));
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(async () => () => undefined),
 }));

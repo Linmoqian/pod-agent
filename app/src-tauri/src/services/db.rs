@@ -1013,6 +1013,32 @@ pub fn conversation_messages(
         .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))
 }
 
+/// 复制会话消息，不复制任务归属，供临时会话克隆使用。
+pub fn copy_conversation_messages(
+    connection: &Connection,
+    source_conversation_id: &str,
+    target_conversation_id: &str,
+) -> AppResult<()> {
+    let messages = conversation_messages(connection, source_conversation_id)?;
+    for message in messages {
+        connection
+            .execute(
+                "INSERT INTO messages(id,conversation_id,task_plan_id,role,content,reasoning,created_at) VALUES(?1,?2,NULL,?3,?4,?5,?6)",
+                params![
+                    uuid::Uuid::new_v4().to_string(),
+                    target_conversation_id,
+                    message.role,
+                    message.content,
+                    message.reasoning,
+                    message.created_at
+                ],
+            )
+            .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    }
+    touch_conversation(connection, target_conversation_id)?;
+    Ok(())
+}
+
 /// 项目内全部会话的消息（兼容旧 project 维度快照）。
 pub fn messages(connection: &Connection, project_id: &str) -> AppResult<Vec<Message>> {
     let mut statement = connection
@@ -1067,6 +1093,16 @@ pub fn conversation(connection: &Connection, conversation_id: &str) -> AppResult
         .optional()
         .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?
         .ok_or_else(|| AppError::new("CONVERSATION_NOT_FOUND", "会话不存在"))
+}
+
+pub fn conversation_title_exists(connection: &Connection, title: &str) -> AppResult<bool> {
+    connection
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM conversations WHERE title=?1)",
+            [title],
+            |row| row.get(0),
+        )
+        .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))
 }
 
 /// 最近一次活跃的会话（任意归属）；没有则返回 None。

@@ -40,6 +40,24 @@ function tabFromSnapshot(snapshot: WorkspaceSnapshot): WorkspaceTab {
   };
 }
 
+function nextCloneTitle(sourceTitle: string, usedTitles: string[]) {
+  const title = sourceTitle.trim() || '临时会话';
+  const used = new Set(usedTitles);
+  let suffixStart = title.length;
+  for (let index = title.length - 1; index >= 0; index -= 1) {
+    if (/\d/.test(title[index])) suffixStart = index;
+    else break;
+  }
+  const prefix = title.slice(0, suffixStart);
+  const suffix = title.slice(suffixStart);
+  let number = Number.parseInt(suffix, 10);
+  if (!Number.isSafeInteger(number)) number = 2;
+  else number += 1;
+  const base = prefix.trim() ? prefix : title;
+  while (used.has(`${base}${number}`)) number += 1;
+  return `${base}${number}`;
+}
+
 function useConversationBootstrap(
   reportError: (error: unknown) => void,
   setSnapshot: (snapshot: WorkspaceSnapshot) => void,
@@ -357,14 +375,61 @@ export default function useWorkspaceController() {
       setBusy(false);
     }
   };
-  const startNewConversation = async () => {
+  const startNewConversation = async (): Promise<string | null> => {
     setBusy(true);
     try {
       if (!isTauriRuntime()) {
-        activateSnapshot(createPreviewConversation());
+        const next = createPreviewConversation();
+        activateSnapshot(next);
+        return next.conversation.id;
+      }
+      const next = await workspaceApi.newTemporaryConversation();
+      activateSnapshot(next);
+      return next.conversation.id;
+    } catch (error) {
+      reportError(error);
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  };
+  const cloneConversation = async (targetConversationId: string) => {
+    if (!targetConversationId) return;
+    setBusy(true);
+    try {
+      if (!isTauriRuntime()) {
+        const source = previewSnapshots.current.get(targetConversationId);
+        if (!source) throw new Error('会话不存在');
+        previewTabCount.current += 1;
+        const id = `browser-preview-${previewTabCount.current}`;
+        const now = new Date().toISOString();
+        const preview = createBrowserPreviewSnapshot();
+        const cloned: WorkspaceSnapshot = {
+          ...preview,
+          conversation: {
+            ...preview.conversation,
+            id,
+            title: nextCloneTitle(
+              source.conversation.title,
+              tabs.map((tab) => tab.label),
+            ),
+            createdAt: now,
+            updatedAt: now,
+          },
+          messages: source.messages.map((message, index) => ({
+            id: `${id}:message:${index}`,
+            conversationId: id,
+            taskPlanId: null,
+            role: message.role,
+            content: message.content,
+            reasoning: message.reasoning ?? null,
+            createdAt: message.createdAt,
+          })),
+        };
+        activateSnapshot(cloned);
         return;
       }
-      activateSnapshot(await workspaceApi.newTemporaryConversation());
+      activateSnapshot(await workspaceApi.cloneConversation(targetConversationId));
     } catch (error) {
       reportError(error);
     } finally {
@@ -483,6 +548,7 @@ export default function useWorkspaceController() {
     createProject,
     archiveProject,
     startNewConversation,
+    cloneConversation,
     activateTab,
     closeTab,
     promoteConversation,

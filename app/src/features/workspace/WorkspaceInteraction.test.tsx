@@ -14,13 +14,14 @@ const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
   listen: vi.fn(async () => () => undefined),
   open: vi.fn(),
+  confirm: vi.fn(async () => true),
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: mocks.invoke,
   isTauri: () => '__TAURI_INTERNALS__' in window,
 }));
-vi.mock('@tauri-apps/plugin-dialog', () => ({ open: mocks.open }));
+vi.mock('@tauri-apps/plugin-dialog', () => ({ open: mocks.open, confirm: mocks.confirm }));
 vi.mock('@tauri-apps/api/event', () => ({
   listen: mocks.listen,
 }));

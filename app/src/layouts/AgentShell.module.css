@@ -1,4 +1,4 @@
-/* Agent 工作空间视觉系统。Created on 2026-09-14 @author: https://github.com/Linmoqian */
+/* Agent 工作空间视觉系统。Created on 2026-09-15 @author: https://github.com/Linmoqian */
 .shell {
   height: 100dvh;
   display: flex;
@@ -112,7 +112,7 @@
   background: var(--color-surface-default);
 }
 .panel {
-  flex-shrink: 1;
+  flex-shrink: 0;
   min-width: 52px;
   min-height: 0;
   position: relative;
@@ -391,10 +391,13 @@
 }
 @media (hover: hover) and (pointer: fine) {
   .titlebar button:hover,
-  .panelHeader button:hover,
   .navigation button:hover,
   .contextMenu button:hover {
     background: var(--color-surface-disabled);
+    color: var(--color-text-primary);
+  }
+  .panelHeader button:hover {
+    background: transparent;
     color: var(--color-text-primary);
   }
 }

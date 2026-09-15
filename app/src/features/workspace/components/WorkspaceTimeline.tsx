@@ -71,6 +71,7 @@ function WelcomeWorkspace({
           type="button"
           className={styles.welcomeMascotButton}
           aria-label="lian Agent 吉祥物"
+          onPointerDown={(event) => event.stopPropagation()}
           whileTap={{ scale: 0.9 }}
           transition={{ type: 'spring', stiffness: 460, damping: 24 }}
         >
@@ -95,7 +96,7 @@ function WelcomeWorkspace({
           </button>
         ))}
       </div>
-      <small className={styles.welcomeTip}>lian 会帮你拆解问题、解释方法，并把结果留在当前工作空间。</small>
+      <small className={styles.welcomeTip}>Ctrl+S 保存临时会话为项目会话。</small>
     </motion.div>
   );
 }
@@ -148,6 +149,14 @@ function supportedCandidates(inspection: ImportInspection | null) {
   );
 }
 
+function scrollToLatest(area: HTMLDivElement, behavior: ScrollBehavior) {
+  if (typeof area.scrollTo === 'function') {
+    area.scrollTo({ top: area.scrollHeight, behavior });
+  } else {
+    area.scrollTop = area.scrollHeight;
+  }
+}
+
 function PendingReply() {
   const reduced = useReducedMotion();
   return (
@@ -167,9 +176,9 @@ function PendingReply() {
 function StreamingReply({ content }: { content: string }) {
   const reduced = useReducedMotion();
   return (
-    <div aria-busy>
+    <div className={styles.streamingReply} aria-busy="true">
       <span className={styles.streamStatus} role="status">正在生成回复</span>
-      <div className={styles.streamingText}>{content}</div>
+      {content ? <MarkdownContent content={content} /> : null}
       <motion.span
         className={styles.typingCursor}
         aria-hidden
@@ -239,11 +248,14 @@ export default function WorkspaceTimeline({
 }: WorkspaceTimelineProps) {
   const scrollArea = useRef<HTMLDivElement>(null);
   const follow = useRef(true);
+  const smoothScrolling = useRef(false);
   const [away, setAway] = useState(false);
   const reduced = useReducedMotion();
   useEffect(() => {
     const area = scrollArea.current;
-    if (area && follow.current) area.scrollTop = area.scrollHeight;
+    if (area && follow.current) {
+      scrollToLatest(area, smoothScrolling.current ? 'smooth' : 'auto');
+    }
   }, [messages, inspection]);
   const supported = supportedCandidates(inspection);
   const suggestions = supported.flatMap(
@@ -258,11 +270,21 @@ export default function WorkspaceTimeline({
       ref={scrollArea}
       onScroll={(event) => {
         const area = event.currentTarget;
-        follow.current =
+        const atLatest =
           area.scrollHeight - area.scrollTop - area.clientHeight < 80;
-        setAway((current) => current === !follow.current ? current : !follow.current);
+        if (smoothScrolling.current && !atLatest) return;
+        smoothScrolling.current = false;
+        follow.current = atLatest;
+        setAway(!atLatest);
+      }}
+      onWheel={() => {
+        smoothScrolling.current = false;
+      }}
+      onTouchMove={() => {
+        smoothScrolling.current = false;
       }}
       onPointerDown={(event) => {
+        smoothScrolling.current = false;
         if ((event.target as HTMLElement).closest('button, a, input, textarea, select, pre, code')) {
           follow.current = false;
           setAway(true);
@@ -344,8 +366,14 @@ export default function WorkspaceTimeline({
           onClick={() => {
             const area = scrollArea.current;
             if (area) {
+              const isStreaming = messages.some(
+                (item) => item.status === 'pending' || item.status === 'streaming',
+              );
+              const behavior = reduced || isStreaming ? 'auto' : 'smooth';
+              smoothScrolling.current =
+                behavior === 'smooth' && typeof area.scrollTo === 'function';
               follow.current = true;
-              area.scrollTop = area.scrollHeight;
+              scrollToLatest(area, behavior);
               setAway(false);
             }
           }}

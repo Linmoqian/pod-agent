@@ -92,6 +92,9 @@ export const workspaceApi = {
   newTemporaryConversation() {
     return invoke<WorkspaceSnapshot>('new_temporary_conversation');
   },
+  cloneConversation(conversationId: string) {
+    return invoke<WorkspaceSnapshot>('clone_conversation', { conversationId });
+  },
   sendMessage(conversationId: string, content: string) {
     return invoke<WorkspaceSnapshot>('send_message', {
       conversationId,

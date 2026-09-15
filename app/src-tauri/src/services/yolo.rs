@@ -1,5 +1,5 @@
 // 常驻 ONNX 推理服务：本机鉴权、会话复用与分类计数。
-// Created on 2026-09-14
+// Created on 2026-09-15
 // @author: https://github.com/Linmoqian
 
 use image::{imageops, Rgb, RgbImage};
@@ -127,6 +127,38 @@ pub fn yolo_models() -> Result<Value, String> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap();
     let entries: Vec<Value> = serde_json::from_slice(&std::fs::read(root.join("app/agent/tools/yolo-models.json")).map_err(|_| "模型清单不可读")?).map_err(|_| "模型清单无效")?;
     Ok(Value::Array(entries.into_iter().map(|entry| json!({"id":entry["id"], "name":entry["name"], "available":entry["onnxPath"].as_str().is_some_and(|path| root.join(path).is_file())})).collect()))
+}
+
+fn system_memory_gb() -> Result<f64, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let output = std::process::Command::new("/usr/sbin/sysctl")
+            .args(["-n", "hw.memsize"])
+            .output()
+            .map_err(|_| "系统内存不可读".to_string())?;
+        let bytes = String::from_utf8_lossy(&output.stdout)
+            .trim()
+            .parse::<u64>()
+            .map_err(|_| "系统内存格式无效".to_string())?;
+        return Ok(bytes as f64 / 1024_f64.powi(3));
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let contents = std::fs::read_to_string("/proc/meminfo").map_err(|_| "系统内存不可读".to_string())?;
+        let kib = contents
+            .lines()
+            .find_map(|line| line.strip_prefix("MemTotal:")?.split_whitespace().next()?.parse::<u64>().ok())
+            .ok_or_else(|| "系统内存格式无效".to_string())?;
+        return Ok(kib as f64 / 1024_f64.powi(2));
+    }
+    #[allow(unreachable_code)]
+    Err("当前平台不提供系统内存信息".to_string())
+}
+
+#[tauri::command]
+pub async fn yolo_memory_gb() -> Result<f64, String> {
+    tauri::async_runtime::spawn_blocking(system_memory_gb)
+        .await.map_err(|_| "系统内存查询中断".to_string())?
 }
 
 #[tauri::command]

@@ -4,13 +4,91 @@
 .card header strong, .card header span, .labels span { display: inline-flex; align-items: center; gap: 5px; }
 .card header strong svg { color: var(--color-brand-500); }
 .card header span { color: var(--color-text-tertiary, #707578); font-size: 11px; }
-.card select { width: 100%; min-width: 0; font-size: 11px; background: transparent; color: inherit; border: 1px solid var(--color-border, #ddd); border-radius: var(--radius-sm); padding: 5px; }
+.resultStatus { display: inline-flex; align-items: center; gap: 5px; padding: 3px 4px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--color-text-tertiary, #707578); font-size: 11px; cursor: pointer; transition: color var(--duration-fast) var(--easing-standard), transform var(--duration-press) var(--easing-standard); }
+.resultStatus:hover { color: var(--color-brand-600, #435c4f); }
+.resultStatus:active { transform: scale(var(--press-scale, .97)); }
+.resultStatus:focus-visible { outline: 2px solid var(--color-brand-500, #29967c); outline-offset: 2px; }
+.modelSelect {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  border-color: var(--color-border-default, var(--color-border, #ddd));
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-subtle, #f7f7f5);
+  color: var(--color-text-secondary, #333);
+  box-shadow: none;
+  font-size: 11px;
+}
+.modelSelect:hover {
+  border-color: color-mix(in srgb, var(--color-brand-500) 34%, var(--color-border-default, #ddd));
+  background: var(--color-surface-default, #fff);
+}
+.modelSelect[data-state='open'],
+.modelSelect:focus-visible {
+  border-color: var(--color-brand-500);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand-500) 14%, transparent);
+}
+.modelSelectContent {
+  width: var(--radix-select-trigger-width);
+  min-width: var(--radix-select-trigger-width);
+  max-width: min(320px, calc(100vw - 24px));
+  padding: 5px;
+  border-color: var(--color-border-default, var(--color-border, #ddd));
+  border-radius: var(--radius-md);
+  background: var(--material-modal, var(--color-surface-default, #fff));
+  color: var(--color-text-primary, #1d1d1f);
+  box-shadow: var(--shadow-elevated, 0 12px 30px rgb(15 23 42 / 14%));
+  -webkit-backdrop-filter: blur(var(--blur-modal, 18px));
+  backdrop-filter: blur(var(--blur-modal, 18px));
+}
+.modelSelectContent [data-slot='select-item'] {
+  min-height: 32px;
+  border-radius: var(--radius-sm);
+  padding: 0 30px 0 9px;
+  color: var(--color-text-secondary, #333);
+  font-size: 11px;
+}
+.modelSelectContent [data-slot='select-item'][data-highlighted] {
+  background: color-mix(in srgb, var(--color-brand-500) 10%, transparent);
+  color: var(--color-text-primary, #1d1d1f);
+}
+.modelSelectContent [data-slot='select-item'][data-state='checked'] {
+  font-weight: var(--font-weight-semibold, 600);
+}
+.modelSelectContent [data-slot='select-item'][data-disabled] {
+  opacity: 0.45;
+}
+.modelSelectContent [data-slot='select-item-indicator'] {
+  right: 8px;
+  color: var(--color-brand-500);
+}
 .stage { position: relative; height: 96px; margin-top: 12px; }
 .placeholder { position: absolute; left: 8px; top: 14px; width: 68px; height: 64px; border: 1px dashed var(--color-border, #ccc); border-radius: var(--radius-md); display: grid; place-items: center; color: #92999c; }
 .right { left: auto; right: 8px; }
 .photo { position: absolute; top: 16px; width: 72px; height: 66px; padding: 3px; background: white; border: 1px solid #d6dadd; border-radius: var(--radius-md); box-shadow: 0 3px 8px #00000018; overflow: hidden; }
+.photo.completed { cursor: pointer; }
+.photo.completed:focus-visible { outline: 2px solid var(--color-brand-500, #29967c); outline-offset: 3px; }
 .photo img { width: 100%; height: 100%; object-fit: contain; display: block; }
-.scan { position: absolute; top: 2px; left: 2px; right: 2px; height: 2px; background: #29967c; box-shadow: 0 -7px 14px 5px #40c6a94d; }
+.scan {
+  position: absolute;
+  z-index: 2;
+  top: 2px;
+  left: 2px;
+  right: 2px;
+  height: 2px;
+  pointer-events: none;
+  background: #29967c;
+  box-shadow: 0 -7px 14px 5px #40c6a94d;
+  animation: yoloScan 1.6s linear infinite;
+  will-change: transform, opacity;
+}
+@keyframes yoloScan {
+  0%, 100% { opacity: 0.62; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(58px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scan { animation: none; opacity: 0.72; }
+}
 .labels { font-size: 10px; color: var(--color-text-secondary, #727777); }
 .card progress { width: 100%; height: 4px; accent-color: #29967c; display: block; margin: 10px 0; }
 .message { font-size: 11px; line-height: 1.5; height: 33px; overflow: auto; overflow-wrap: anywhere; color: var(--color-text-secondary, #727777); margin: 0 0 8px; }

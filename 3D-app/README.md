@@ -17,3 +17,7 @@ dev:frontend
 dev:server
 
 3D太吃算力了，需要不断的迭代算法
+
+采用库：Spark
+
+参考：https://sparkjs.dev/docs/

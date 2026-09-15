@@ -29,6 +29,45 @@ fn new_conversation(project_id: Option<&str>, title: &str) -> Conversation {
     }
 }
 
+fn cloned_conversation_title(
+    connection: &rusqlite::Connection,
+    source_title: &str,
+) -> AppResult<String> {
+    let title = source_title.trim();
+    let title = if title.is_empty() {
+        TEMPORARY_TITLE
+    } else {
+        title
+    };
+    let mut suffix_start = title.len();
+    for (index, character) in title.char_indices().rev() {
+        if character.is_ascii_digit() {
+            suffix_start = index;
+        } else {
+            break;
+        }
+    }
+    let prefix = &title[..suffix_start];
+    let suffix = &title[suffix_start..];
+    let mut number = suffix
+        .parse::<u64>()
+        .ok()
+        .and_then(|value| value.checked_add(1))
+        .unwrap_or(2);
+    let base = if prefix.trim().is_empty() {
+        title
+    } else {
+        prefix
+    };
+    loop {
+        let candidate = format!("{base}{number}");
+        if !db::conversation_title_exists(connection, &candidate)? {
+            return Ok(candidate);
+        }
+        number = number.saturating_add(1);
+    }
+}
+
 /// 组装渐进式上下文：conversation 永远存在，project 为空时其余字段全部为空。
 fn build_context(
     connection: &rusqlite::Connection,
@@ -134,6 +173,30 @@ pub fn new_temporary_conversation(state: State<'_, AppState>) -> AppResult<Conve
     let conversation = new_conversation(None, TEMPORARY_TITLE);
     db::insert_conversation(&connection, &conversation)?;
     build_context(&connection, &conversation)
+}
+
+/// 克隆当前会话的消息上下文，并生成一个独立的临时会话。
+#[tauri::command]
+pub fn clone_conversation(
+    conversation_id: String,
+    state: State<'_, AppState>,
+) -> AppResult<ConversationContext> {
+    let mut connection = state
+        .connection
+        .lock()
+        .map_err(|_| AppError::retryable("DB_BUSY", "数据库暂时不可用"))?;
+    let source = db::conversation(&connection, &conversation_id)?;
+    let title = cloned_conversation_title(&connection, &source.title)?;
+    let cloned = new_conversation(None, &title);
+    let transaction = connection
+        .transaction()
+        .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    db::insert_conversation(&transaction, &cloned)?;
+    db::copy_conversation_messages(&transaction, &source.id, &cloned.id)?;
+    transaction
+        .commit()
+        .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    build_context(&connection, &cloned)
 }
 
 /// 讨论模式的上下文摘要：明确告知 Agent 当前拥有什么、没有什么。
