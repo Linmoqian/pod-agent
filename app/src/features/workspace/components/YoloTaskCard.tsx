@@ -397,9 +397,10 @@ export function useYoloTask() {
       return;
     }
     if (event.status === 'queued') return;
+    const status = event.status === 'done' || event.status === 'error' ? event.status : 'running';
     setPhotos((list) => list.map((p) => p.id === event.id ? {
       ...p,
-      status: event.status,
+      status,
       finishedAt: event.status === 'done' || event.status === 'error' ? Date.now() : p.finishedAt,
       message: event.message ?? p.message,
       count: event.count ?? p.count,
