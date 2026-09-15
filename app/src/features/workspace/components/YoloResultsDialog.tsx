@@ -2,10 +2,20 @@
  * Created on 2026-09-15
  * @author: https://github.com/Linmoqian
  */
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import {
   Download,
+  ChevronLeft,
+  ChevronRight,
   LayoutGrid,
   ImageIcon,
   List,
@@ -27,6 +37,10 @@ type YoloResultsPanelProps = Pick<
 const THUMBNAIL_MIN = 108;
 const THUMBNAIL_MAX = 240;
 const THUMBNAIL_DEFAULT = 142;
+const RESULTS_LIST_DEFAULT_PERCENT = 31;
+const RESULTS_LIST_MAX_PERCENT = 72;
+const RESULTS_COMPARISON_MIN_WIDTH = 320;
+const RESULTS_DIVIDER_WIDTH = 16;
 
 function statusLabel(photo: YoloPhoto) {
   if (photo.status === 'done') return '完成';
@@ -57,6 +71,12 @@ function LoadingIcon() {
   </motion.span>;
 }
 
+function maxResultsListPercent(bodyWidth: number) {
+  if (!bodyWidth) return RESULTS_LIST_MAX_PERCENT;
+  const available = bodyWidth - RESULTS_COMPARISON_MIN_WIDTH - RESULTS_DIVIDER_WIDTH;
+  return Math.max(0, Math.min(RESULTS_LIST_MAX_PERCENT, (available / bodyWidth) * 100));
+}
+
 export default function YoloResultsPanel({
   photos,
   initialPhotoId,
@@ -68,10 +88,21 @@ export default function YoloResultsPanel({
   const [activePhotoId, setActivePhotoId] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [thumbnailSize, setThumbnailSize] = useState(THUMBNAIL_DEFAULT);
+  const [listWidthPercent, setListWidthPercent] = useState(RESULTS_LIST_DEFAULT_PERCENT);
   const [loadingImages, setLoadingImages] = useState<string[]>([]);
   const [loadingResults, setLoadingResults] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const resizeRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startWidthPercent: number;
+    bodyWidth: number;
+  } | null>(null);
+  const expandedListWidthRef = useRef(RESULTS_LIST_DEFAULT_PERCENT);
+  const listWidthPercentRef = useRef(RESULTS_LIST_DEFAULT_PERCENT);
+  const [resizing, setResizing] = useState(false);
   const lastInitialPhotoId = useRef<string | undefined>(undefined);
   const filtered = useMemo(() => photos.filter((photo) => {
     const needle = query.trim().toLocaleLowerCase();
@@ -146,6 +177,96 @@ export default function YoloResultsPanel({
     }
   };
 
+  const handleResizeStart = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!event.isPrimary || event.button !== 0 || resizeRef.current) return;
+    const bodyWidth = bodyRef.current?.getBoundingClientRect().width ?? 0;
+    if (!bodyWidth) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    resizeRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidthPercent: listWidthPercentRef.current,
+      bodyWidth,
+    };
+    setResizing(true);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  const handleResizeMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const resize = resizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId || !event.isPrimary) return;
+    event.preventDefault();
+    const deltaPercent = ((event.clientX - resize.startX) / resize.bodyWidth) * 100;
+    const next = Math.min(
+      maxResultsListPercent(resize.bodyWidth),
+      Math.max(0, resize.startWidthPercent + deltaPercent),
+    );
+    listWidthPercentRef.current = next;
+    setListWidthPercent(next);
+  };
+
+  const handleResizeEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const resize = resizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId || !event.isPrimary) return;
+    resizeRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    const finalWidth = listWidthPercentRef.current;
+    if (finalWidth > 0) expandedListWidthRef.current = finalWidth;
+    else if (resize.startWidthPercent > 0) expandedListWidthRef.current = resize.startWidthPercent;
+    setResizing(false);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  };
+
+  useEffect(() => {
+    return () => {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, []);
+
+  const toggleList = () => {
+    if (listWidthPercentRef.current === 0) {
+      const bodyWidth = bodyRef.current?.getBoundingClientRect().width ?? 0;
+      const max = maxResultsListPercent(bodyWidth);
+      const next = Math.min(expandedListWidthRef.current, max || RESULTS_LIST_MAX_PERCENT);
+      listWidthPercentRef.current = next || RESULTS_LIST_DEFAULT_PERCENT;
+      setListWidthPercent(next || RESULTS_LIST_DEFAULT_PERCENT);
+      return;
+    }
+    expandedListWidthRef.current = listWidthPercentRef.current;
+    listWidthPercentRef.current = 0;
+    setListWidthPercent(0);
+  };
+
+  const handleResizeKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const bodyWidth = bodyRef.current?.getBoundingClientRect().width ?? 0;
+    const max = maxResultsListPercent(bodyWidth);
+    const step = event.shiftKey ? 8 : 2;
+    const currentWidth = listWidthPercentRef.current;
+    const next = event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? max
+        : Math.min(
+          max,
+          Math.max(0, currentWidth + (event.key === 'ArrowLeft' ? -step : step)),
+        );
+    if (next > 0) expandedListWidthRef.current = next;
+    else if (currentWidth > 0) expandedListWidthRef.current = currentWidth;
+    listWidthPercentRef.current = next;
+    setListWidthPercent(next);
+  };
+
+  const listCollapsed = listWidthPercent === 0;
+  const maxListPercent = maxResultsListPercent(bodyRef.current?.getBoundingClientRect().width ?? 0);
+
   return <section className={styles.panel} aria-labelledby="yolo-results-title">
     <header className={styles.header}>
       <div className={styles.headerCopy}>
@@ -165,10 +286,15 @@ export default function YoloResultsPanel({
       </button>
     </div>
     {error && <p className={styles.error} role="alert">{error}</p>}
-    <div className={styles.body}>
+    <div
+      ref={bodyRef}
+      className={styles.body}
+      style={{ '--results-list-width': `${listWidthPercent}%` } as CSSProperties}
+    >
       <aside
         className={styles.list}
         data-view={viewMode}
+        data-collapsed={listCollapsed}
         style={{ '--thumbnail-size': `${thumbnailSize}px` } as CSSProperties}
         aria-label="图片结果列表"
       >
@@ -202,6 +328,36 @@ export default function YoloResultsPanel({
           </button>)}
         </div>
       </aside>
+      <div
+        className={styles.resizeHandle}
+        data-collapsed={listCollapsed}
+        data-resizing={resizing}
+        role="separator"
+        aria-label="调整图片列表宽度"
+        aria-orientation="vertical"
+        aria-valuemin={0}
+        aria-valuemax={Math.round(maxListPercent)}
+        aria-valuenow={Math.round(listWidthPercent)}
+        aria-valuetext={listCollapsed ? '图片列表已收起' : `${Math.round(listWidthPercent)}%`}
+        tabIndex={0}
+        onPointerDown={handleResizeStart}
+        onPointerMove={handleResizeMove}
+        onPointerUp={handleResizeEnd}
+        onPointerCancel={handleResizeEnd}
+        onKeyDown={handleResizeKeyDown}
+      >
+        <span className={styles.resizeGrip} aria-hidden="true" />
+      </div>
+      <button
+        type="button"
+        className={styles.resizeToggle}
+        data-collapsed={listCollapsed}
+        aria-label={listCollapsed ? '展开图片列表' : '收起图片列表'}
+        title={listCollapsed ? '展开图片列表' : '收起图片列表'}
+        onClick={toggleList}
+      >
+        {listCollapsed ? <ChevronRight size={13} aria-hidden /> : <ChevronLeft size={13} aria-hidden />}
+      </button>
       <section className={styles.comparison} aria-label="图片预览与识别结果">
         {!activePhoto && <div className={styles.emptyComparison}><ImageIcon size={24} /><p>{photos.length ? '没有匹配的图片' : '添加图片后，在这里查看原图和推理结果'}</p></div>}
         {activePhoto && <article className={styles.detail}>
