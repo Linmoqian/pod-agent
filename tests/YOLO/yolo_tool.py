@@ -1,5 +1,6 @@
 # YOLO 指定模型推理与过滤计数，原始检测结果不进入模型上下文。
 # Created on 2026-09-14
+# Updated on 2026-09-15
 # @author: https://github.com/Linmoqian
 
 import argparse
@@ -17,16 +18,19 @@ def summarize_detections(detections, classes, target, threshold):
     if target is not None and target not in classes:
         return {"ok": False, "message": "指定模型不支持该类别，不能据此计数"}
     counts = Counter()
+    filtered = []
     for item in detections:
         label, confidence = item["class_name"], item["confidence"]
         if label not in classes or not math.isfinite(confidence):
             raise ValueError("检测结果无效")
         if confidence >= threshold and (target is None or label == target):
             counts[label] += 1
+            filtered.append(item)
     if target is not None:
         counts.setdefault(target, 0)
     text = "、".join(f"{key} {value} 个" for key, value in sorted(counts.items()))
-    return {"ok": True, "count": sum(counts.values()),
+    return {"ok": True, "count": sum(counts.values()), "counts": dict(counts),
+            "detections": filtered,
             "message": f"这张照片检测到{text}" if text else "未检测到达到阈值的对象"}
 
 
@@ -57,7 +61,12 @@ def main():
             )[0]
             detections = [
                 {"class_name": result.names[int(box.cls[0])],
-                 "confidence": float(box.conf[0])}
+                 "confidence": float(box.conf[0]),
+                 "score": float(box.conf[0]),
+                 "x": round(float(box.xyxy[0][0])),
+                 "y": round(float(box.xyxy[0][1])),
+                 "width": round(float(box.xyxy[0][2] - box.xyxy[0][0])),
+                 "height": round(float(box.xyxy[0][3] - box.xyxy[0][1]))}
                 for box in result.boxes
             ] if result.boxes is not None else []
             summary = summarize_detections(

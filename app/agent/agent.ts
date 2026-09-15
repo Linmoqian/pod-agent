@@ -150,12 +150,24 @@ async function runPrompt(
       onYolo?.({ id: event.toolCallId, status: 'running', imagePath: event.args.imagePath, modelId: event.args.modelId });
     }
     if (event.type === 'tool_execution_end' && event.toolName === 'run_yolo_detection') {
-      let summary;
+      let summary: { ok?: boolean; message?: string } | undefined;
       try {
         const text = event.result.content.find((item: { type: string }) => item.type === 'text');
         summary = JSON.parse(text?.text ?? '{}');
       } catch { /* 工具异常不是计数结果。 */ }
-      onYolo?.({ id: event.toolCallId, status: event.isError || summary?.ok !== true ? 'error' : 'done', message: summary?.message ?? 'YOLO 推理失败或已取消' });
+      const details = event.result.details as {
+        count?: unknown;
+        counts?: unknown;
+        detections?: unknown;
+      };
+      onYolo?.({
+        id: event.toolCallId,
+        status: event.isError || summary?.ok !== true ? 'error' : 'done',
+        message: summary?.message ?? 'YOLO 推理失败或已取消',
+        count: details?.count,
+        counts: details?.counts,
+        detections: details?.detections,
+      });
     }
     if (event.type === 'message_update') {
       if (event.assistantMessageEvent.type === 'text_delta') {

@@ -7,15 +7,55 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { isYoloDropTarget } from '../hooks/yoloDropTarget';
-import { open } from '@tauri-apps/plugin-dialog';
+import { open, save } from '@tauri-apps/plugin-dialog';
 import { motion, useReducedMotion } from 'motion/react';
 import { CircleAlert, CircleCheck, Clock3, FolderPlus, Images, Pause, Play, Plus, RotateCcw, ScanLine } from 'lucide-react';
 import { isTauriRuntime } from '../../../services/workspace';
 import styles from './YoloTaskCard.module.css';
+import YoloResultsDialog from './YoloResultsDialog';
 
-type Photo = { id: string; path: string; name: string; url?: string; external?: boolean; modelId?: string; status: 'waiting' | 'running' | 'done' | 'error'; message?: string };
+export type YoloDetection = {
+  className: string;
+  score: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export type YoloPhoto = {
+  id: string;
+  path: string;
+  name: string;
+  url?: string;
+  previewUrl?: string;
+  resultUrl?: string;
+  external?: boolean;
+  modelId?: string;
+  status: 'waiting' | 'running' | 'done' | 'error';
+  message?: string;
+  count?: number;
+  counts?: Record<string, number>;
+  detections?: YoloDetection[];
+};
 type Model = { id: string; name: string; available: boolean };
-type YoloEvent = { id: string; status: 'running' | 'done' | 'error'; imagePath?: string; modelId?: string; message?: string };
+type YoloEvent = {
+  id: string;
+  status: 'running' | 'done' | 'error';
+  imagePath?: string;
+  modelId?: string;
+  message?: string;
+  count?: number;
+  counts?: Record<string, number>;
+  detections?: YoloDetection[];
+};
+type YoloResponse = {
+  ok: boolean;
+  message: string;
+  count?: number;
+  counts?: Record<string, number>;
+  detections?: YoloDetection[];
+};
 
 export function useYoloToolEvents(onEvent: (event: YoloEvent) => void) {
   const callback = useRef(onEvent);
@@ -32,7 +72,7 @@ export function useYoloToolEvents(onEvent: (event: YoloEvent) => void) {
 }
 
 export function useYoloTask() {
-  const [photos, setPhotos] = useState<Photo[]>([]);
+  const [photos, setPhotos] = useState<YoloPhoto[]>([]);
   const [models, setModels] = useState<Model[]>([]);
   const [modelId, setModelId] = useState('');
   const [paused, setPaused] = useState(false);
@@ -58,7 +98,14 @@ export function useYoloTask() {
         setPhotos((list) => list.map((p) => p.id === event.id ? { ...p, url } : p));
       }).catch(() => {});
     } else {
-      setPhotos((list) => list.map((p) => p.id === event.id ? { ...p, status: event.status, message: event.message } : p));
+      setPhotos((list) => list.map((p) => p.id === event.id ? {
+        ...p,
+        status: event.status,
+        message: event.message,
+        count: event.count,
+        counts: event.counts,
+        detections: event.detections,
+      } : p));
     }
   });
   useEffect(() => {
@@ -79,9 +126,16 @@ export function useYoloTask() {
     if (!next) return;
     active.current = true;
     setPhotos((list) => list.map((p) => p.id === next.id ? { ...p, status: 'running' } : p));
-    void invoke<{ ok: boolean; message: string }>('yolo_detect_image', { modelId: next.modelId ?? modelId, imagePath: next.path }).then((result) => {
+    void invoke<YoloResponse>('yolo_detect_image', { modelId: next.modelId ?? modelId, imagePath: next.path }).then((result) => {
       if (!result.ok) throw new Error(result.message);
-      if (mounted.current) setPhotos((list) => list.map((p) => p.id === next.id ? { ...p, status: 'done', message: result.message } : p));
+      if (mounted.current) setPhotos((list) => list.map((p) => p.id === next.id ? {
+        ...p,
+        status: 'done',
+        message: result.message,
+        count: result.count,
+        counts: result.counts,
+        detections: result.detections,
+      } : p));
     }).catch((reason) => {
       if (mounted.current) setPhotos((list) => list.map((p) => p.id === next.id ? { ...p, status: 'error', message: String(reason) } : p));
     }).finally(() => { active.current = false; if (mounted.current) setRevision((value) => value + 1); });
@@ -96,7 +150,7 @@ export function useYoloTask() {
       if (!selected) return;
       const paths = dropped ? await invoke<string[]>('yolo_drop_images', { paths: dropped }) : folder ? await invoke<string[]>('yolo_folder_images', { folderPath: selected }) : Array.isArray(selected) ? selected : [selected];
       if (!paths.length) { setError('文件夹中没有 JPG、JPEG 或 PNG 图片'); return; }
-      const batch: Photo[] = [];
+      const batch: YoloPhoto[] = [];
       for (const path of paths) {
         try {
         const bytes = await invoke<number[]>('yolo_thumbnail', { imagePath: path });
@@ -125,12 +179,62 @@ export function useYoloTask() {
     }).then((stop) => { if (disposed) stop(); else unlisten = stop; }).catch(() => setError('拖放监听失败，请使用添加按钮'));
     return () => { disposed = true; unlisten?.(); };
   }, []);
+  const loadResultPreview = async (photo: YoloPhoto) => {
+    if (photo.resultUrl) return photo.resultUrl;
+    if (!isTauriRuntime()) throw new Error('浏览器预览不读取本机图片，请在 Tauri 桌面端查看结果图');
+    const bytes = await invoke<number[]>('yolo_result_preview', {
+      imagePath: photo.path,
+      detections: photo.detections ?? [],
+    });
+    const resultUrl = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'image/png' }));
+    urls.current.push(resultUrl);
+    setPhotos((list) => list.map((item) => item.id === photo.id ? { ...item, resultUrl } : item));
+    return resultUrl;
+  };
+  const loadImagePreview = async (photo: YoloPhoto) => {
+    if (photo.previewUrl) return photo.previewUrl;
+    if (!isTauriRuntime()) throw new Error('浏览器预览不读取本机图片，请在 Tauri 桌面端查看原图');
+    const bytes = await invoke<number[]>('yolo_image_preview', { imagePath: photo.path });
+    const previewUrl = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'image/png' }));
+    urls.current.push(previewUrl);
+    setPhotos((list) => list.map((item) => item.id === photo.id ? { ...item, previewUrl } : item));
+    return previewUrl;
+  };
+  const exportCsv = async (rows: YoloPhoto[]) => {
+    if (!isTauriRuntime()) throw new Error('浏览器预览不写入本机文件，请在 Tauri 桌面端导出 CSV');
+    const outputPath = await save({
+      defaultPath: '图片识别结果.csv',
+      filters: [{ name: 'CSV', extensions: ['csv'] }],
+    });
+    if (!outputPath) return;
+    await invoke('yolo_export_csv', {
+      outputPath,
+      rows: rows.map((photo) => ({
+        name: photo.name,
+        path: photo.path,
+        model: models.find((model) => model.id === photo.modelId)?.name ?? photo.modelId ?? '',
+        status: photo.status,
+        count: photo.count,
+        counts: photo.counts ?? {},
+        summary: photo.message ?? '',
+      })),
+    });
+  };
   return { photos, models, modelId, setModelId, paused, setPaused, adding, dragging, error, add,
-    retry: () => setPhotos((list) => list.map((p) => !p.external && p.status === 'error' ? { ...p, status: 'waiting', message: undefined } : p)) };
+    loadResultPreview, loadImagePreview, exportCsv,
+    retry: () => setPhotos((list) => list.map((p) => !p.external && p.status === 'error' ? {
+      ...p,
+      status: 'waiting',
+      message: undefined,
+      count: undefined,
+      counts: undefined,
+      detections: undefined,
+    } : p)) };
 }
 
 export default function YoloTaskCard({ task }: { task: ReturnType<typeof useYoloTask> }) {
   const reduced = useReducedMotion();
+  const [resultsOpen, setResultsOpen] = useState(false);
   const { photos, paused } = task;
   const done = photos.filter((p) => p.status === 'done');
   const waiting = photos.filter((p) => p.status === 'waiting');
@@ -185,6 +289,15 @@ export default function YoloTaskCard({ task }: { task: ReturnType<typeof useYolo
       <button title="添加图片文件夹（包含子文件夹）" aria-label="添加图片文件夹" disabled={!isTauriRuntime() || !task.modelId || task.adding} onClick={() => void task.add(true)}><FolderPlus size={15} /></button>
       <button title={paused ? '继续处理' : '当前图片完成后暂停'} aria-label={paused ? '继续处理' : '暂停处理'} disabled={!queued.length} onClick={() => task.setPaused(!paused)}>{paused ? <Play size={15} /> : <Pause size={15} />}</button>
       {failed.some((p) => !p.external) && <button title="重试失败图片" aria-label="重试失败图片" onClick={task.retry}><RotateCcw size={15} /></button>}
+      <button title="查看图片识别结果" aria-label="查看图片识别结果" disabled={!photos.length} onClick={() => setResultsOpen(true)}><Images size={15} />查看结果</button>
     </footer>
+    <YoloResultsDialog
+      open={resultsOpen}
+      photos={photos}
+      onClose={() => setResultsOpen(false)}
+      onLoadResult={task.loadResultPreview}
+      onLoadImage={task.loadImagePreview}
+      onExport={task.exportCsv}
+    />
   </section>;
 }

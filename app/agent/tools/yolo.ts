@@ -14,6 +14,21 @@ import { resolveEnvironment } from './conda-environments.ts';
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const SCRIPT = resolve(ROOT, 'tests/YOLO/yolo_tool.py');
 type ModelEntry = { id: string; name: string; path: string; description: string; onnxPath?: string; classes?: string[]; inputSize?: number };
+type Detection = {
+  className: string;
+  score: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+type InferenceSummary = {
+  ok: boolean;
+  message: string;
+  count?: number;
+  counts?: Record<string, number>;
+  detections?: Detection[];
+};
 
 function modelList(): ModelEntry[] {
   const entries = JSON.parse(readFileSync(new URL('./yolo-models.json', import.meta.url), 'utf8'));
@@ -81,12 +96,17 @@ export const yoloDetectTool: AgentTool<typeof parameters> = {
         signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(60_000)]) : AbortSignal.timeout(60_000),
       });
       if (!response.ok) throw new Error('ONNX 服务请求失败');
-      const summary = await response.json();
+      const summary = await response.json() as InferenceSummary;
       if (typeof summary.ok !== 'boolean' || typeof summary.message !== 'string') throw new Error('ONNX 返回格式无效');
       return {
         content: [{ type: 'text', text: JSON.stringify({ modelId: entry.id, backend: 'onnx',
           minConfidence: confidence, ok: summary.ok, message: summary.message }) }],
-        details: {},
+        // 仅由桌面事件消费标注数据，避免框坐标进入 Agent 对话上下文。
+        details: {
+          count: summary.count,
+          counts: summary.counts,
+          detections: summary.detections,
+        },
       };
     }
     const args = [SCRIPT, '--image', params.imagePath, '--model', resolve(ROOT, entry.path),
@@ -103,7 +123,7 @@ export const yoloDetectTool: AgentTool<typeof parameters> = {
           else accept(stdout);
         });
     });
-    const summary = JSON.parse(output);
+    const summary = JSON.parse(output) as InferenceSummary;
     // 白名单重建结果，阻止检测框、图片路径和日志进入上下文。
     if (typeof summary.ok !== 'boolean' || typeof summary.message !== 'string') {
       throw new Error('YOLO 返回格式无效');
@@ -113,7 +133,11 @@ export const yoloDetectTool: AgentTool<typeof parameters> = {
         modelId: entry.id, minConfidence: confidence, ok: summary.ok,
         message: summary.message,
       }) }],
-      details: {},
+      details: {
+        count: summary.count,
+        counts: summary.counts,
+        detections: summary.detections,
+      },
     };
   },
 };

@@ -4,9 +4,9 @@
 
 use image::{imageops, Rgb, RgbImage};
 use ort::{session::Session, value::Tensor};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::{collections::BTreeMap, path::Path, sync::{OnceLock, Mutex}};
+use std::{collections::BTreeMap, path::{Path, PathBuf}, sync::{OnceLock, Mutex}};
 
 static ENDPOINT: OnceLock<Result<(String, String), String>> = OnceLock::new();
 static CACHE: Mutex<Option<(String, Session)>> = Mutex::new(None);
@@ -66,6 +66,63 @@ pub async fn yolo_detect_image(model_id: String, image_path: String) -> Result<V
 }
 
 #[tauri::command]
+pub async fn yolo_result_preview(image_path: String, detections: Vec<PreviewDetection>) -> Result<Vec<u8>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        annotated_thumbnail(Path::new(&image_path), &detections)
+    }).await.map_err(|_| "结果预览任务中断".to_string())?
+}
+
+#[tauri::command]
+pub async fn yolo_image_preview(image_path: String) -> Result<Vec<u8>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        image_preview(Path::new(&image_path))
+    }).await.map_err(|_| "原图预览任务中断".to_string())?
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportRow {
+    name: String,
+    path: String,
+    model: String,
+    status: String,
+    count: Option<usize>,
+    counts: BTreeMap<String, usize>,
+    summary: String,
+}
+
+#[tauri::command]
+pub async fn yolo_export_csv(output_path: String, rows: Vec<ExportRow>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = PathBuf::from(output_path);
+        if !path.is_absolute() || path.extension().and_then(|value| value.to_str()) != Some("csv") {
+            return Err("请保存为绝对路径的 CSV 文件".to_string());
+        }
+        let mut writer = csv::WriterBuilder::new()
+            .from_path(path)
+            .map_err(|_| "CSV 文件无法写入")?;
+        writer.write_record(["图片名称", "图片路径", "模型", "状态", "对象总数", "类别计数", "推理摘要"])
+            .map_err(|_| "CSV 表头写入失败")?;
+        for row in rows {
+            let counts = row.counts.iter()
+                .map(|(name, count)| format!("{name}:{count}"))
+                .collect::<Vec<_>>()
+                .join("; ");
+            writer.write_record([
+                row.name,
+                row.path,
+                row.model,
+                row.status,
+                row.count.map(|value| value.to_string()).unwrap_or_default(),
+                counts,
+                row.summary,
+            ]).map_err(|_| "CSV 记录写入失败")?;
+        }
+        writer.flush().map_err(|_| "CSV 保存失败".to_string())
+    }).await.map_err(|_| "CSV 导出任务中断".to_string())?
+}
+
+#[tauri::command]
 pub fn yolo_models() -> Result<Value, String> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap();
     let entries: Vec<Value> = serde_json::from_slice(&std::fs::read(root.join("app/agent/tools/yolo-models.json")).map_err(|_| "模型清单不可读")?).map_err(|_| "模型清单无效")?;
@@ -102,6 +159,17 @@ struct Model {
 
 #[derive(Clone)]
 struct Detection { class: usize, score: f32, rect: [f32; 4] }
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewDetection {
+    class_name: String,
+    score: f32,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+}
 
 fn iou(a: &[f32; 4], b: &[f32; 4]) -> f32 {
     let area = |r: &[f32; 4]| (r[2] - r[0]).max(0.) * (r[3] - r[1]).max(0.);
@@ -182,18 +250,88 @@ fn infer(root: &Path, request: Request, cache: &mut Option<(String, Session)>) -
     }
     let detections = decode(data, shape[1] as usize, shape[2] as usize, request.min_confidence);
     let mut counts = BTreeMap::<String, usize>::new();
+    let mut preview_detections = Vec::new();
     if let Some(target) = &request.target_class { counts.insert(target.clone(), 0); }
     for detection in detections {
         let name = &classes[detection.class];
         if request.target_class.as_ref().is_none_or(|target| target == name) {
             *counts.entry(name.clone()).or_default() += 1;
+            let left = ((detection.rect[0] - (size - nw) as f32 / 2.) / ratio as f32).clamp(0., w as f32);
+            let top = ((detection.rect[1] - (size - nh) as f32 / 2.) / ratio as f32).clamp(0., h as f32);
+            let right = ((detection.rect[2] - (size - nw) as f32 / 2.) / ratio as f32).clamp(left, w as f32);
+            let bottom = ((detection.rect[3] - (size - nh) as f32 / 2.) / ratio as f32).clamp(top, h as f32);
+            preview_detections.push(PreviewDetection {
+                class_name: name.clone(), score: detection.score,
+                x: left.round() as u32, y: top.round() as u32,
+                width: (right - left).round() as u32, height: (bottom - top).round() as u32,
+            });
         }
     }
     let count: usize = counts.values().sum();
     let message = if counts.is_empty() { "未检测到达到阈值的对象".into() } else {
         format!("这张照片检测到{}", counts.iter().map(|(name, count)| format!("{name} {count} 个")).collect::<Vec<_>>().join("、"))
     };
-    Ok(json!({"ok":true,"count":count,"message":message,"sessionReused":reused}))
+    Ok(json!({
+        "ok": true,
+        "count": count,
+        "counts": counts,
+        "detections": preview_detections,
+        "message": message,
+        "sessionReused": reused
+    }))
+}
+
+fn draw_rect(image: &mut RgbImage, x: u32, y: u32, width: u32, height: u32) {
+    if image.width() == 0 || image.height() == 0 { return; }
+    let x = x.min(image.width().saturating_sub(1));
+    let y = y.min(image.height().saturating_sub(1));
+    let right = x.saturating_add(width).min(image.width().saturating_sub(1));
+    let bottom = y.saturating_add(height).min(image.height().saturating_sub(1));
+    let color = Rgb([41, 150, 124]);
+    for offset in 0..3 {
+        let left = x.saturating_sub(offset);
+        let top = y.saturating_sub(offset);
+        let right = right.saturating_add(offset).min(image.width().saturating_sub(1));
+        let bottom = bottom.saturating_add(offset).min(image.height().saturating_sub(1));
+        for horizontal in left..=right {
+            image.put_pixel(horizontal, top, color);
+            image.put_pixel(horizontal, bottom, color);
+        }
+        for vertical in top..=bottom {
+            image.put_pixel(left, vertical, color);
+            image.put_pixel(right, vertical, color);
+        }
+    }
+}
+
+fn annotated_thumbnail(path: &Path, detections: &[PreviewDetection]) -> Result<Vec<u8>, String> {
+    let (mut image, source_width, source_height) = result_canvas(path)?;
+    let scale_x = image.width() as f32 / source_width as f32;
+    let scale_y = image.height() as f32 / source_height as f32;
+    for detection in detections {
+        draw_rect(&mut image,
+            (detection.x as f32 * scale_x).round() as u32,
+            (detection.y as f32 * scale_y).round() as u32,
+            (detection.width as f32 * scale_x).round() as u32,
+            (detection.height as f32 * scale_y).round() as u32);
+    }
+    let mut bytes = std::io::Cursor::new(Vec::new());
+    image.write_to(&mut bytes, image::ImageFormat::Png).map_err(|_| "结果图生成失败")?;
+    Ok(bytes.into_inner())
+}
+
+fn image_preview(path: &Path) -> Result<Vec<u8>, String> {
+    let (image, _, _) = result_canvas(path)?;
+    let mut bytes = std::io::Cursor::new(Vec::new());
+    image.write_to(&mut bytes, image::ImageFormat::Png).map_err(|_| "原图预览生成失败")?;
+    Ok(bytes.into_inner())
+}
+
+fn result_canvas(path: &Path) -> Result<(RgbImage, u32, u32), String> {
+    let original = image::ImageReader::open(path).map_err(|_| "图片不可读")?
+        .decode().map_err(|_| "图片解码失败")?.to_rgb8();
+    let (source_width, source_height) = original.dimensions();
+    Ok((imageops::thumbnail(&original, 1200, 900), source_width, source_height))
 }
 
 pub fn endpoint(root: &Path) -> Result<(String, String), String> {
