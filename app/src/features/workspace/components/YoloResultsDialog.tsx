@@ -2,15 +2,17 @@
  * Created on 2026-09-15
  * @author: https://github.com/Linmoqian
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import {
-  CheckSquare,
   Download,
+  LayoutGrid,
   ImageIcon,
+  List,
   LoaderCircle,
   Search,
-  Square,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 import type { YoloPhoto, YoloTask } from './YoloTaskCard';
 import styles from './YoloResultsDialog.module.css';
@@ -21,6 +23,9 @@ type YoloResultsPanelProps = Pick<
 > & {
   initialPhotoId?: string;
 };
+
+const THUMBNAIL_SIZES = ['small', 'medium', 'large'] as const;
+type ThumbnailSize = typeof THUMBNAIL_SIZES[number];
 
 function statusLabel(photo: YoloPhoto) {
   if (photo.status === 'done') return '完成';
@@ -59,28 +64,39 @@ export default function YoloResultsPanel({
   exportCsv,
 }: YoloResultsPanelProps) {
   const [query, setQuery] = useState('');
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [activePhotoId, setActivePhotoId] = useState('');
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [thumbnailScale, setThumbnailScale] = useState(1);
   const [loadingImages, setLoadingImages] = useState<string[]>([]);
   const [loadingResults, setLoadingResults] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
+  const lastInitialPhotoId = useRef<string | undefined>(undefined);
   const filtered = useMemo(() => photos.filter((photo) => {
     const needle = query.trim().toLocaleLowerCase();
     return !needle || `${photo.name} ${photo.message ?? ''}`.toLocaleLowerCase().includes(needle);
   }), [photos, query]);
   const completed = photos.filter((photo) => photo.status === 'done');
-  const filteredCompleted = filtered.filter((photo) => photo.status === 'done');
-  const selected = photos.filter((photo) => selectedIds.includes(photo.id));
-  const hasInitialPhoto = Boolean(initialPhotoId && photos.some((photo) => photo.id === initialPhotoId));
+  const failed = photos.filter((photo) => photo.status === 'error');
+  const activePhoto = photos.find((photo) => photo.id === activePhotoId);
+  const thumbnailSize: ThumbnailSize = THUMBNAIL_SIZES[thumbnailScale];
 
   useEffect(() => {
-    setSelectedIds((current) => current.filter((id) => photos.some((photo) => photo.id === id)));
-  }, [photos]);
-  useEffect(() => {
-    if (initialPhotoId && hasInitialPhoto) {
-      setSelectedIds([initialPhotoId]);
+    const receivedNewInitialPhoto = initialPhotoId && initialPhotoId !== lastInitialPhotoId.current;
+    if (receivedNewInitialPhoto) {
+      lastInitialPhotoId.current = initialPhotoId;
+      if (photos.some((photo) => photo.id === initialPhotoId)) {
+        setActivePhotoId(initialPhotoId);
+        return;
+      }
+    } else if (!initialPhotoId) {
+      lastInitialPhotoId.current = undefined;
     }
-  }, [hasInitialPhoto, initialPhotoId]);
+    setActivePhotoId((current) => {
+      if (current && filtered.some((photo) => photo.id === current)) return current;
+      return filtered[0]?.id ?? (query.trim() ? '' : photos[0]?.id ?? '');
+    });
+  }, [filtered, initialPhotoId, photos, query]);
 
   const loadImage = async (photo: YoloPhoto) => {
     if (photo.previewUrl || loadingImages.includes(photo.id)) return;
@@ -106,30 +122,18 @@ export default function YoloResultsPanel({
       setLoadingResults((current) => current.filter((id) => id !== photo.id));
     }
   };
-  const toggle = (photo: YoloPhoto) => {
-    setSelectedIds((current) =>
-      current.includes(photo.id)
-        ? current.filter((item) => item !== photo.id)
-        : [...current, photo.id],
-    );
-    if (!selectedIds.includes(photo.id)) {
-      void loadImage(photo);
-      if (photo.status === 'done') void loadResult(photo);
-    }
-  };
-  const toggleAll = () => {
-    const ids = filteredCompleted.map((photo) => photo.id);
-    const selectAll = !ids.every((id) => selectedIds.includes(id));
-    setSelectedIds((current) => selectAll
-      ? [...new Set([...current, ...ids])]
-      : current.filter((id) => !ids.includes(id)));
-    if (selectAll) filteredCompleted.forEach((photo) => {
-      void loadImage(photo);
-      void loadResult(photo);
-    });
+  useEffect(() => {
+    if (!activePhoto) return;
+    void loadImage(activePhoto);
+    if (activePhoto.status === 'done') void loadResult(activePhoto);
+  }, [activePhoto?.id, activePhoto?.status]);
+
+  const activatePhoto = (photo: YoloPhoto) => {
+    setError('');
+    setActivePhotoId(photo.id);
   };
   const exportResults = async () => {
-    const rows = selected.length ? selected : filtered;
+    const rows = filtered;
     if (!rows.length) return;
     setExporting(true);
     setError('');
@@ -147,52 +151,78 @@ export default function YoloResultsPanel({
       <div className={styles.headerCopy}>
         <span className={styles.eyebrow}>图片识别</span>
         <h2 id="yolo-results-title">图片识别结果</h2>
-        <p>{photos.length} 张图片，完成 {photos.filter((photo) => photo.status === 'done').length} 张</p>
+        <p>{photos.length} 张图片，完成 {completed.length} 张</p>
       </div>
       <div className={styles.summary} aria-label="识别结果概览">
         <span><b>{completed.length}</b> 已完成</span>
-        <span><b>{photos.filter((photo) => photo.status === 'error').length}</b> 失败</span>
+        <span><b>{failed.length}</b> 失败</span>
       </div>
     </header>
     <div className={styles.toolbar}>
       <label className={styles.search}><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="筛选图片或结果" aria-label="筛选图片或结果" /></label>
-      <button type="button" className={styles.selectButton} disabled={!filteredCompleted.length} onClick={toggleAll}>
-        {filteredCompleted.length > 0 && filteredCompleted.every((photo) => selectedIds.includes(photo.id)) ? <CheckSquare size={15} /> : <Square size={15} />}
-        全选完成项
-      </button>
       <button type="button" className={styles.exportButton} disabled={!filtered.length || exporting} onClick={() => void exportResults()}>
-        {exporting ? <LoadingIcon /> : <Download size={15} />}
-        导出 {selected.length || filtered.length} 项
+        {exporting ? <LoadingIcon /> : <Download size={15} />} 导出 {filtered.length} 项
       </button>
     </div>
     {error && <p className={styles.error} role="alert">{error}</p>}
     <div className={styles.body}>
-      <aside className={styles.list} aria-label="图片结果列表">
-        <div className={styles.listHeading}><span>图片</span><span>{filtered.length} 项</span></div>
-        {!filtered.length && <p className={styles.empty}>没有匹配的图片</p>}
-        {filtered.map((photo) => <button type="button" key={photo.id} className={styles.row} data-selected={selectedIds.includes(photo.id)} aria-pressed={selectedIds.includes(photo.id)} onClick={() => toggle(photo)}>
-          <span className={styles.checkbox}>{selectedIds.includes(photo.id) ? <CheckSquare size={16} /> : <Square size={16} />}</span>
-          {photo.url ? <img src={photo.url} alt="" /> : <span className={styles.imageFallback}><ImageIcon size={16} /></span>}
-          <span className={styles.rowCopy}><strong title={photo.name}>{photo.name}</strong><small>{countLabel(photo)}</small></span>
-          <span className={styles.status} data-status={photo.status}>{statusLabel(photo)}</span>
-        </button>)}
-      </aside>
-      <section className={styles.comparison} aria-label="批量图片对比">
-        {selected.length === 0 && <div className={styles.emptyComparison}><ImageIcon size={24} /><p>勾选图片以查看原图与推理结果</p></div>}
-        {selected.map((photo) => <article key={photo.id} className={styles.comparisonItem}>
-          <header><strong title={photo.name}>{photo.name}</strong><span>{countLabel(photo)}</span></header>
-          <div className={styles.imagePair}>
-            <figure><button type="button" disabled={loadingImages.includes(photo.id)} onClick={() => void loadImage(photo)} title="生成原图预览">
-              {photo.previewUrl ? <img src={photo.previewUrl} alt={`${photo.name} 原图`} /> : loadingImages.includes(photo.id) ? <LoadingIcon /> : <ImageIcon size={22} />}
-            </button><figcaption>原图</figcaption></figure>
-            <figure><button type="button" disabled={photo.status !== 'done' || loadingResults.includes(photo.id)} onClick={() => void loadResult(photo)} title={photo.status === 'done' ? '生成标注结果图' : resultLabel(photo)}>
-              {photo.resultUrl ? <img src={photo.resultUrl} alt={`${photo.name} 推理结果`} /> : loadingResults.includes(photo.id) ? <LoadingIcon /> : photo.status === 'done' ? <ImageIcon size={22} /> : <span>{resultLabel(photo)}</span>}
-            </button><figcaption>{resultLabel(photo)}</figcaption></figure>
+      <aside className={styles.list} data-view={viewMode} data-thumb-size={thumbnailSize} aria-label="图片结果列表">
+        <div className={styles.listHeading}>
+          <div className={styles.listHeadingCopy}><strong>图片</strong><span>{filtered.length} 项</span></div>
+          <div className={styles.viewControls} aria-label="图片排列方式">
+            <button type="button" className={styles.iconButton} data-active={viewMode === 'list'} aria-label="列表视图" aria-pressed={viewMode === 'list'} title="列表视图" onClick={() => setViewMode('list')}><List size={15} /></button>
+            <button type="button" className={styles.iconButton} data-active={viewMode === 'grid'} aria-label="图标视图" aria-pressed={viewMode === 'grid'} title="图标视图" onClick={() => setViewMode('grid')}><LayoutGrid size={15} /></button>
           </div>
-          <p>{photo.message || '尚未返回推理摘要'}</p>
-          {photo.counts && Object.keys(photo.counts).length > 0 && <div className={styles.counts}>{Object.entries(photo.counts).map(([name, count]) => <span key={name}>{name} <b>{count}</b></span>)}</div>}
-        </article>)}
+        </div>
+        <label className={styles.sizeControl}>
+          <ZoomOut size={14} aria-hidden />
+          <input type="range" min="0" max="2" step="1" value={thumbnailScale} aria-label="缩略图大小" onChange={(event) => setThumbnailScale(Number(event.target.value))} />
+          <ZoomIn size={14} aria-hidden />
+        </label>
+        {!filtered.length && <p className={styles.empty}>没有匹配的图片</p>}
+        <div className={styles.listItems} role="listbox" aria-label="选择图片查看详情">
+          {filtered.map((photo) => <button type="button" key={photo.id} className={styles.row} data-active={activePhoto?.id === photo.id} role="option" aria-selected={activePhoto?.id === photo.id} onClick={() => activatePhoto(photo)}>
+            {photo.url ? <img className={styles.rowThumb} src={photo.url} alt="" /> : <span className={`${styles.rowThumb} ${styles.imageFallback}`}><ImageIcon size={16} /></span>}
+            <span className={styles.rowCopy}><strong title={photo.name}>{photo.name}</strong><small>{countLabel(photo)}</small></span>
+            <span className={styles.status} data-status={photo.status}>{statusLabel(photo)}</span>
+          </button>)}
+        </div>
+      </aside>
+      <section className={styles.comparison} aria-label="图片预览与识别结果">
+        {!activePhoto && <div className={styles.emptyComparison}><ImageIcon size={24} /><p>{photos.length ? '没有匹配的图片' : '添加图片后，在这里查看原图和推理结果'}</p></div>}
+        {activePhoto && <article className={styles.detail}>
+          <header className={styles.detailHeader}>
+            <div className={styles.detailTitle}><span className={styles.eyebrow}>当前图片 · {activePhotoIndex(activePhoto, photos)} / {photos.length}</span><h3 title={activePhoto.name}>{activePhoto.name}</h3></div>
+            <div className={styles.detailState}><span className={styles.status} data-status={activePhoto.status}>{statusLabel(activePhoto)}</span><strong>{countLabel(activePhoto)}</strong></div>
+          </header>
+          <div className={styles.imagePair}>
+            <figure className={styles.previewCard}>
+              <div className={styles.previewFrame}>
+                {(activePhoto.previewUrl || activePhoto.url) ? <img src={activePhoto.previewUrl || activePhoto.url} alt={`${activePhoto.name} 原图`} /> : loadingImages.includes(activePhoto.id) ? <LoadingIcon /> : <button type="button" onClick={() => void loadImage(activePhoto)} title="加载原图"><ImageIcon size={24} /><span>加载原图</span></button>}
+              </div>
+              <figcaption><strong>原图</strong><span>源文件预览</span></figcaption>
+            </figure>
+            <figure className={styles.previewCard}>
+              <div className={`${styles.previewFrame} ${!activePhoto.resultUrl ? styles.previewPlaceholder : ''}`}>
+                {activePhoto.resultUrl ? <img src={activePhoto.resultUrl} alt={`${activePhoto.name} 推理结果`} /> : loadingResults.includes(activePhoto.id) ? <LoadingIcon /> : activePhoto.status === 'done' ? <button type="button" onClick={() => void loadResult(activePhoto)} title="生成标注结果图"><ImageIcon size={24} /><span>加载推理结果</span></button> : <span>{resultLabel(activePhoto)}</span>}
+              </div>
+              <figcaption><strong>推理结果</strong><span>{resultLabel(activePhoto)}</span></figcaption>
+            </figure>
+          </div>
+          <div className={styles.detailSummary} aria-label="当前图片识别信息">
+            <div><span>处理状态</span><strong>{statusLabel(activePhoto)}</strong></div>
+            <div><span>识别数量</span><strong>{countLabel(activePhoto)}</strong></div>
+            <div><span>推理模型</span><strong title={activePhoto.modelId}>{activePhoto.modelId || 'YOLO · ONNX'}</strong></div>
+          </div>
+          <p className={styles.detailMessage}>{activePhoto.message || '尚未返回推理摘要'}</p>
+          {activePhoto.counts && Object.keys(activePhoto.counts).length > 0 && <div className={styles.counts}>{Object.entries(activePhoto.counts).map(([name, count]) => <span key={name}>{name} <b>{count}</b></span>)}</div>}
+        </article>}
       </section>
     </div>
   </section>;
+}
+
+function activePhotoIndex(photo: YoloPhoto, photos: YoloPhoto[]) {
+  const index = photos.findIndex((item) => item.id === photo.id);
+  return index >= 0 ? index + 1 : 1;
 }
