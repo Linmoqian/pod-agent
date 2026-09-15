@@ -153,6 +153,7 @@ export function useYoloTask() {
   const thumbnailQueue = useRef<ThumbnailJob[]>([]);
   const activeThumbnailReads = useRef(0);
   const retainedPreviewCount = useRef(0);
+  const reservedPreviewCount = useRef(0);
   const runtimeMemoryGb = useRef<number | undefined>(undefined);
 
   const registerReadJobs = (count: number) => {
@@ -178,7 +179,7 @@ export function useYoloTask() {
       const bytes = await invoke<number[]>('yolo_thumbnail', { imagePath: job.path });
       if (!mounted.current) return;
       let url: string | undefined;
-      // 大批量只保留少量缩略图；原图由 Rust 推理逐张读取，避免 WebView 持有整批 Blob。
+      // 只为预览槽位生成少量缩略图；推理不依赖这个可选的预览任务。
       if (retainedPreviewCount.current < getImageReadPlan(runtimeMemoryGb.current).previewLimit) {
         url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'image/png' }));
         urls.current.push(url);
@@ -187,15 +188,15 @@ export function useYoloTask() {
       setPhotos((list) => list.map((photo) => {
         if (photo.id !== job.id) return photo;
         const preview = url ? { url } : {};
-        if (job.external || photo.status !== 'loading') return { ...photo, ...preview };
-        return { ...photo, ...preview, status: 'waiting' };
+        return { ...photo, ...preview };
       }));
     } catch {
-      if (!mounted.current || job.external) return;
-      setPhotos((list) => list.filter((photo) => photo.id !== job.id));
-      setError('部分图片不可读，已跳过；其余图片继续处理');
+      // 缩略图只是展示层资源；即使它失败，也不能阻塞或移除真实推理任务。
     } finally {
-      if (mounted.current) completeReadJob();
+      if (mounted.current) {
+        reservedPreviewCount.current = Math.max(0, reservedPreviewCount.current - 1);
+        completeReadJob();
+      }
     }
   };
 
@@ -216,7 +217,16 @@ export function useYoloTask() {
 
   const enqueueThumbnailReads = (jobs: ThumbnailJob[]) => {
     if (!jobs.length) return;
-    thumbnailQueue.current.push(...jobs);
+    const previewLimit = getImageReadPlan(runtimeMemoryGb.current).previewLimit;
+    const available = Math.max(
+      0,
+      previewLimit - retainedPreviewCount.current - reservedPreviewCount.current,
+    );
+    const selected = jobs.slice(0, available);
+    if (!selected.length) return;
+    reservedPreviewCount.current += selected.length;
+    registerReadJobs(selected.length);
+    thumbnailQueue.current.push(...selected);
     pumpThumbnailReads();
   };
 
@@ -263,12 +273,12 @@ export function useYoloTask() {
     return () => {
       mounted.current = false;
       thumbnailQueue.current = [];
+      reservedPreviewCount.current = 0;
       objectUrls.forEach((url) => URL.revokeObjectURL(url));
     };
   }, []);
 
   const appendBatch = (batch: YoloPhoto[]) => {
-    registerReadJobs(batch.length);
     const { appendChunkSize } = getImageReadPlan(runtimeMemoryGb.current);
     let offset = 0;
     const appendNext = () => {
@@ -276,6 +286,7 @@ export function useYoloTask() {
       const chunk = batch.slice(offset, offset + appendChunkSize);
       offset += chunk.length;
       setPhotos((list) => [...list, ...chunk]);
+      // 预览只读取当前队列最前面的有限数量，其余图片直接进入推理队列。
       enqueueThumbnailReads(chunk.map((photo) => ({ id: photo.id, path: photo.path, external: false })));
       if (offset < batch.length) void yieldToUi().then(appendNext);
     };
@@ -337,7 +348,7 @@ export function useYoloTask() {
         id: crypto.randomUUID(),
         path,
         name: path.split(/[/\\]/).pop() ?? path,
-        status: 'loading',
+        status: 'waiting',
         modelId,
       }));
       appendBatch(batch);
@@ -499,21 +510,21 @@ export default function YoloTaskCard({
     <div className={styles.labels}><span><Clock3 size={12} aria-hidden />待处理 {queued.length}</span><span><CircleCheck size={12} aria-hidden />已完成 {done.length}</span>{failed.length > 0 && <span><CircleAlert size={12} aria-hidden />失败 {failed.length}</span>}</div>
     {reading && <div className={styles.readProgressGroup} aria-live="polite">
       <div className={styles.readProgressMeta}>
-        <span><Images size={12} aria-hidden />文件读取</span>
+        <span><Images size={12} aria-hidden />预览读取</span>
         <span>{task.readProgress.total ? `${task.readProgress.completed} / ${task.readProgress.total}` : '扫描中…'}</span>
       </div>
       <progress
         className={styles.readProgress}
         max={Math.max(1, task.readProgress.total)}
         value={task.readProgress.total ? task.readProgress.completed : undefined}
-        aria-label="文件读取进度"
+        aria-label="预览读取进度"
         aria-valuetext={task.readProgress.total
-          ? `已读取 ${task.readProgress.completed} 张，共 ${task.readProgress.total} 张`
-          : '正在扫描图片'}
+          ? `已生成 ${task.readProgress.completed} 张预览，共 ${task.readProgress.total} 张`
+          : '正在生成预览'}
       />
     </div>}
     <progress max={Math.max(1, photos.length)} value={done.length + failed.length} aria-label="图片推理进度" aria-valuetext={`已完成 ${done.length} 张，失败 ${failed.length} 张，共 ${photos.length} 张`} />
-    <p className={styles.message} title={running?.name}>{task.error || (running ? running.name : reading ? (task.readProgress.total ? `正在读取 ${task.readProgress.completed} / ${task.readProgress.total} 张图片` : '正在扫描图片') : failed[0]?.message || done[done.length - 1]?.message || 'YOLO · ONNX')}</p>
+    <p className={styles.message} title={running?.name}>{task.error || (running ? running.name : reading ? (task.readProgress.total ? `正在生成预览 ${task.readProgress.completed} / ${task.readProgress.total}` : '正在生成预览') : failed[0]?.message || done[done.length - 1]?.message || 'YOLO · ONNX')}</p>
     <footer>
       <button title="添加图片" aria-label="添加推理图片" disabled={!isTauriRuntime() || !task.modelId} onClick={() => void task.add()}><Plus size={15} />添加图片</button>
       <button title="添加图片文件夹（包含子文件夹）" aria-label="添加图片文件夹" disabled={!isTauriRuntime() || !task.modelId} onClick={() => void task.add(true)}><FolderPlus size={15} /></button>
