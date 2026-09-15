@@ -17,7 +17,7 @@ static ENDPOINT: OnceLock<Result<(String, String), String>> = OnceLock::new();
 static CACHE: Mutex<Option<(String, Session)>> = Mutex::new(None);
 static BATCH_CACHE: Mutex<Option<(String, Vec<Session>)>> = Mutex::new(None);
 static BATCH_SUPPORT_CACHE: Mutex<Option<(String, bool)>> = Mutex::new(None);
-const MAX_BATCH_IMAGES: usize = 32;
+const MAX_BATCH_IMAGES: usize = 64;
 const PREP_QUEUE_CAPACITY: usize = 4;
 const MAX_PREP_WORKERS: usize = 4;
 
@@ -414,6 +414,9 @@ fn build_session(path: &Path, intra_threads: usize) -> Result<Session, String> {
                 ort::execution_providers::TensorRTExecutionProvider::default()
                     .with_fp16(true)
                     .with_min_subgraph_size(5)
+                    .with_profile_min_shapes("images:1x3x640x640")
+                    .with_profile_opt_shapes("images:16x3x640x640")
+                    .with_profile_max_shapes("images:64x3x640x640")
                     .build(),
                 ort::execution_providers::CUDAExecutionProvider::default()
                     .with_conv_algorithm_search(ort::execution_providers::CuDNNConvAlgorithmSearch::Heuristic)

@@ -11,6 +11,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
+    "tauri:dev:cuda": "tauri dev --features cuda",
+    "tauri:dev:tensorrt": "tauri dev --features tensorrt",
     "tauri:build": "tauri build",
     "test": "vitest",
     "test:run": "vitest run",
