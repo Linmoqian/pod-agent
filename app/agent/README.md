@@ -5,7 +5,7 @@
 - `plan`：结构化计划建议（同 V1）；
 - `discuss`：自由讨论，回复 Markdown；上下文里明确声明当前拥有/没有的数据，禁止虚构。
 
-`plan` 不加载工具；`discuss` 提供 `list_yolo_models` 与 `run_yolo_detection`，没有通用命令或数据库工具。
+`plan` 不加载工具；`discuss` 提供 `list_yolo_models`、`run_yolo_detection` 与 `run_yolo_batch_detection`，没有通用命令或数据库工具。
 
 ## YOLO 模型清单
 
@@ -14,6 +14,8 @@
 桌面 Rust 进程首次调用 Agent 时启动本机推理服务，使用随机端口和随机凭据，不对外网监听。Agent 从父进程接收连接信息，不将凭据写入工具输出。服务随桌面进程退出，不额外启动 Python 或 Rust 子进程。
 
 `run_yolo_detection` 默认 `backend: "onnx"`；Python 调用必须显式传 `backend: "python"`，不自动降级。清单 `backends.onnx` 表示已连接服务且权重存在，不代表模型已验证。
+
+当用户明确提供一批图片或图片文件夹时，Agent 使用 `run_yolo_batch_detection`，递归读取用户给出的绝对路径，并按最多 64 张一批调用常驻 ONNX 服务。每张图片的排队、运行、完成或失败事件会同步到育种台任务列表；工具回复只包含汇总计数，不把图片路径和检测框带入模型上下文。单次最多读取 10,000 张图片；空文件夹和无效路径会明确报错。
 
 ONNX 清单额外要求 `onnxPath`、`inputSize`、按训练类别 ID 排序的 `classes`。当前支持单图 RGB、float32、YOLOv8 detect 的 `[1, 4+C, N]` 原始输出（`nms=False`），不支持分割、姿态或端到端 NMS 模型。先 letterbox，再归一化为 NCHW，分类 NMS 阈值 0.45、最多 300 个检测；数量是检测估计。
 
@@ -40,6 +42,12 @@ cargo test --lib services::yolo::tests::real_model_reuses_session -- --ignored -
 ```
 
 `modelId` 必填，未知 ID 拒绝执行，不回退默认模型。`targetClass` 使用权重原始类别名；省略则按类别计数。内置 COCO 模型不支持豆荚，需登记真实豆荚专用权重后使用。
+
+批量调用示例：
+
+```json
+{"folderPath":"/path/to/images","modelId":"yolov8n-coco","targetClass":"person","minConfidence":0.5}
+```
 
 设置 `YOLO_PYTHON` 为已安装 ultralytics 的 conda 环境解释器，默认使用 PATH 中的 `python`。模型清单中的 `available` 只表示权重存在，不代表 Python 依赖已就绪。
 

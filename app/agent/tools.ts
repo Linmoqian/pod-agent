@@ -4,7 +4,7 @@
  * @author: https://github.com/Linmoqian
  */
 
-import { listYoloModelsTool, yoloDetectTool } from './tools/yolo.ts';
+import { listYoloModelsTool, yoloBatchDetectTool, yoloDetectTool } from './tools/yolo.ts';
 import { checkPythonEnvironmentTool } from './tools/python-environment.ts';
 
-export const discussionTools = [checkPythonEnvironmentTool, listYoloModelsTool, yoloDetectTool];
+export const discussionTools = [checkPythonEnvironmentTool, listYoloModelsTool, yoloDetectTool, yoloBatchDetectTool];

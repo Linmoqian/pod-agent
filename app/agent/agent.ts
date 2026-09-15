@@ -2,7 +2,7 @@
  * lian 受控 Agent 进程：plan（结构化计划）与 discuss（自由讨论）两种请求。
  * 讨论模式可对用户指定图片调用 YOLO；计划模式不加载工具，禁止虚构数据。
  * Created on 2026-09-12
- * Updated on 2026-09-14
+ * Updated on 2026-09-16
  * @author: https://github.com/Linmoqian
  */
 
@@ -66,7 +66,7 @@ function discussSystemPrompt(context: DiscussRequest['context']) {
     '',
     '能力边界：',
     '- 默认使用 onnx 常驻后端，无需 Python。选择 python 后端时，先调用 check_python_environment 并指定可用 environmentName；环境缺失时不擅自安装依赖。',
-    '- 可调用 YOLO：先查询模型清单，再按 modelId 使用指定权重。仅使用用户提供的图片路径，不猜测路径或数量；不支持的类别应说明限制。工具计数是检测估计。',
+    '- 可调用 YOLO：先查询模型清单，再按 modelId 使用指定权重。用户提供单张图片时调用 run_yolo_detection；用户明确说有一批图片或给出文件夹位置时必须调用 run_yolo_batch_detection，并把文件夹绝对路径传给 folderPath，不要逐张调用单图工具。仅使用用户提供的图片路径，不猜测路径或数量；不支持的类别应说明限制。工具计数是检测估计。',
     '- 可以：讨论、解释方法（如 BLUP/BLUE/GWAS）、设计实验、规划分析流程、写代码、给出去噪与统计建议。',
     '- 不可以：假装拥有上面未列出的数据、虚构统计结果（如「你的数据中有 N 个异常值」）、执行任何工作流或修改数据。',
     hasData
@@ -168,6 +168,22 @@ async function runPrompt(
         counts: details?.counts,
         detections: details?.detections,
       });
+    }
+    if (event.type === 'tool_execution_update' && event.toolName === 'run_yolo_batch_detection') {
+      const details = (event.partialResult as { details?: Record<string, unknown> } | undefined)?.details;
+      const statuses = new Set(['queued', 'running', 'done', 'error']);
+      if (details?.eventType === 'image' && typeof details.id === 'string' && typeof details.imagePath === 'string' && statuses.has(String(details.status))) {
+        onYolo?.({
+          id: details.id,
+          status: details.status,
+          imagePath: details.imagePath,
+          modelId: details.modelId,
+          message: details.message,
+          count: details.count,
+          counts: details.counts,
+          detections: details.detections,
+        });
+      }
     }
     if (event.type === 'message_update') {
       if (event.assistantMessageEvent.type === 'text_delta') {
