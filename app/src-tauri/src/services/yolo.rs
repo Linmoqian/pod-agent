@@ -86,7 +86,7 @@ pub async fn yolo_detect_images(model_id: String, image_paths: Vec<String>) -> R
     }
     tauri::async_runtime::spawn_blocking(move || {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap();
-        infer_batch(root, &model_id, &image_paths)
+        infer_batch(root, &model_id, &image_paths, None, 0.25)
     }).await.map_err(|_| "批量推理任务中断".to_string())?
 }
 
@@ -223,6 +223,15 @@ pub async fn yolo_thumbnail(image_path: String) -> Result<Vec<u8>, String> {
 struct Request {
     model_id: String,
     image_path: String,
+    target_class: Option<String>,
+    min_confidence: f32,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BatchRequest {
+    model_id: String,
+    image_paths: Vec<String>,
     target_class: Option<String>,
     min_confidence: f32,
 }
@@ -693,6 +702,8 @@ fn prepare_images(image_paths: &[String], size: u32) -> Vec<Result<PreparedImage
 fn infer_prepared_batch(
     model: &ModelConfig,
     prepared: &[(usize, &PreparedImage)],
+    target_class: Option<&str>,
+    min_confidence: f32,
     session: &mut Session,
     session_reused: bool,
 ) -> Result<Vec<(usize, Value)>, String> {
@@ -730,8 +741,8 @@ fn infer_prepared_batch(
             &data[start..start + image_output_len],
             channels,
             anchors,
-            None,
-            0.25,
+            target_class,
+            min_confidence,
             session_reused,
         ))
     }).collect())
@@ -740,6 +751,8 @@ fn infer_prepared_batch(
 fn infer_prepared_parallel(
     model: &ModelConfig,
     prepared: Vec<Result<PreparedImage, String>>,
+    target_class: Option<&str>,
+    min_confidence: f32,
 ) -> Result<Vec<Value>, String> {
     let requested_sessions = prepared.len().min(batch_session_count()).max(1);
     let (session_reused, sessions) = take_batch_sessions(model, requested_sessions)?;
@@ -765,8 +778,8 @@ fn infer_prepared_parallel(
                         Ok(prepared) => infer_prepared(
                             model,
                             prepared,
-                            None,
-                            0.25,
+                            target_class,
+                            min_confidence,
                             &mut session,
                             session_reused,
                         ).unwrap_or_else(error_result),
@@ -804,15 +817,27 @@ fn infer_batch(
     root: &Path,
     model_id: &str,
     image_paths: &[String],
+    target_class: Option<&str>,
+    min_confidence: f32,
 ) -> Result<Vec<Value>, String> {
-    let model = load_model(root, model_id, None)?;
+    if !min_confidence.is_finite() || !(0.0..=1.0).contains(&min_confidence) {
+        return Err("置信度无效".into());
+    }
+    let model = load_model(root, model_id, target_class)?;
     let prepared = prepare_images(image_paths, model.size);
     let valid = prepared.iter().enumerate()
         .filter_map(|(index, result)| result.as_ref().ok().map(|image| (index, image)))
         .collect::<Vec<_>>();
     if valid.len() > 1 && batch_support(&model) != Some(false) {
         let (session_reused, mut session) = take_batch_session(&model)?;
-        match infer_prepared_batch(&model, &valid, &mut session, session_reused) {
+        match infer_prepared_batch(
+            &model,
+            &valid,
+            target_class,
+            min_confidence,
+            &mut session,
+            session_reused,
+        ) {
             Ok(batch_results) => {
                 remember_batch_support(&model, true);
                 return_batch_sessions(&model, vec![session]);
@@ -831,7 +856,7 @@ fn infer_batch(
             }
         }
     }
-    infer_prepared_parallel(&model, prepared)
+    infer_prepared_parallel(&model, prepared, target_class, min_confidence)
 }
 
 fn draw_rect(image: &mut RgbImage, x: u32, y: u32, width: u32, height: u32) {
@@ -897,16 +922,50 @@ pub fn endpoint(root: &Path) -> Result<(String, String), String> {
         std::thread::spawn(move || {
             for mut request in server.incoming_requests() {
                 let authorized = request.headers().iter().any(|h| h.field.equiv("Authorization") && h.value.as_str() == format!("Bearer {secret}"));
-                if !authorized || request.url() != "/detect" || request.method() != &tiny_http::Method::Post {
+                let is_single = request.url() == "/detect";
+                let is_batch = request.url() == "/detect-batch";
+                if !authorized || (!is_single && !is_batch) || request.method() != &tiny_http::Method::Post {
                     let _ = request.respond(tiny_http::Response::empty(403));
                     continue;
                 }
-                if request.body_length().is_none_or(|len| len > 16384) {
+                let max_body_length = if is_batch { 512 * 1024 } else { 16384 };
+                if request.body_length().is_none_or(|len| len > max_body_length) {
                     let _ = request.respond(tiny_http::Response::empty(413));
                     continue;
                 }
-                let result = serde_json::from_reader(request.as_reader()).map_err(|_| "请求格式无效".to_string())
-                    .and_then(|input| CACHE.lock().map_err(|_| "推理服务不可用".to_string()).and_then(|mut cache| infer(&root, input, &mut cache)));
+                let mut body = String::new();
+                let result = request.as_reader().read_to_string(&mut body)
+                    .map_err(|_| "请求格式无效".to_string())
+                    .and_then(|_| {
+                        if is_batch {
+                            let input = serde_json::from_str::<BatchRequest>(&body)
+                                .map_err(|_| "请求格式无效".to_string())?;
+                            if input.image_paths.is_empty() {
+                                return Err("批量图片不能为空".into());
+                            }
+                            if input.image_paths.len() > MAX_BATCH_IMAGES {
+                                return Err(format!("单批最多处理 {MAX_BATCH_IMAGES} 张图片"));
+                            }
+                            let results = infer_batch(
+                                &root,
+                                &input.model_id,
+                                &input.image_paths,
+                                input.target_class.as_deref(),
+                                input.min_confidence,
+                            )?;
+                            Ok(json!({
+                                "ok": true,
+                                "message": "批量推理完成",
+                                "results": results,
+                            }))
+                        } else {
+                            let input = serde_json::from_str::<Request>(&body)
+                                .map_err(|_| "请求格式无效".to_string())?;
+                            CACHE.lock()
+                                .map_err(|_| "推理服务不可用".to_string())
+                                .and_then(|mut cache| infer(&root, input, &mut cache))
+                        }
+                    });
                 let value = result.unwrap_or_else(|message| json!({"ok":false,"message":message}));
                 let _ = request.respond(tiny_http::Response::from_string(value.to_string()));
             }
