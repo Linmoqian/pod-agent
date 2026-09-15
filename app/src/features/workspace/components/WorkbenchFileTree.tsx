@@ -4,7 +4,7 @@
  * @author: https://github.com/Linmoqian
  */
 
-import { ChevronRight, File, Folder } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { useEffect, useState, type CSSProperties } from 'react';
 
 import {
@@ -14,6 +14,7 @@ import {
 } from '../../../services/workspace';
 import type { WorkspaceFileNode } from '../types';
 import styles from './WorkbenchPanel.module.css';
+import { TreeNodeIcon } from './WorkbenchFileTreeIcons';
 
 function TreeBranch({
   node,
@@ -30,17 +31,17 @@ function TreeBranch({
     >
       <div className={styles.treeLabel} data-folder={folder || undefined}>
         {folder ? (
-          <ChevronRight size={14} />
+          <ChevronRight size={14} aria-hidden />
         ) : (
           <span className={styles.treeSpacer} />
         )}
-        {folder ? <Folder size={15} /> : <File size={14} />}
+        <TreeNodeIcon node={node} />
         <span>{node.name}</span>
       </div>
       {folder && (
         <ul className={styles.tree}>
           {node.children.length ? (
-              node.children.map((child) => (
+            node.children.map((child) => (
               <TreeBranch key={child.name} node={child} depth={depth + 1} />
             ))
           ) : (

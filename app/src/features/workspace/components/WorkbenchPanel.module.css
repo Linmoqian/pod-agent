@@ -156,7 +156,8 @@
   border-radius: var(--radius-full);
 }
 
-.workbenchTask[data-status='failed'] .workbenchTaskProgress::-webkit-progress-value {
+.workbenchTask[data-status='failed']
+  .workbenchTaskProgress::-webkit-progress-value {
   background: var(--color-danger-500, #d45);
 }
 
@@ -364,9 +365,45 @@
   font-weight: 500;
 }
 
-.treeLabel svg {
+.treeLabel > svg {
   flex: 0 0 auto;
   color: var(--color-text-tertiary);
+}
+
+.treeIcon {
+  display: inline-flex;
+  flex: 0 0 15px;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-tertiary);
+}
+
+.treeIcon[data-kind='folder'] {
+  color: var(--color-accent-gold);
+}
+
+.treeIcon[data-kind='archive'],
+.treeIcon[data-kind='config'] {
+  color: var(--color-brand-600);
+}
+
+.treeIcon[data-kind='code'],
+.treeIcon[data-kind='json'] {
+  color: var(--color-accent-teal);
+}
+
+.treeIcon[data-kind='data'],
+.treeIcon[data-kind='image'] {
+  color: var(--color-accent-mint);
+}
+
+.treeIcon[data-kind='document'] {
+  color: var(--color-accent-red);
+}
+
+.treeIcon[data-kind='package'],
+.treeIcon[data-kind='script'] {
+  color: var(--color-accent-gold);
 }
 
 .treeLabel[data-folder] > svg:first-child {
