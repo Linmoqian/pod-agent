@@ -9,15 +9,28 @@
 .resultStatus:active { transform: scale(var(--press-scale, .97)); }
 .resultStatus:focus-visible { outline: 2px solid var(--color-brand-500, #29967c); outline-offset: 2px; }
 .modelSelect {
+  position: relative;
   width: 100%;
   min-width: 0;
   height: 32px;
+  justify-content: center;
+  padding-right: 30px;
+  padding-left: 30px;
   border-color: var(--color-border-default, var(--color-border, #ddd));
   border-radius: var(--radius-sm);
   background: var(--color-surface-subtle, #f7f7f5);
   color: var(--color-text-secondary, #333);
   box-shadow: none;
   font-size: 11px;
+}
+.modelSelect > [data-slot='select-value'] {
+  width: 100%;
+  justify-content: center;
+  text-align: center;
+}
+.modelSelect > svg {
+  position: absolute;
+  right: 10px;
 }
 .modelSelect:hover {
   border-color: color-mix(in srgb, var(--color-brand-500) 34%, var(--color-border-default, #ddd));
