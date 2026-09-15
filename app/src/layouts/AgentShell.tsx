@@ -350,7 +350,7 @@ export default function AgentShell({
     return (
       <motion.aside
         key={id}
-        layout="position"
+        layout={resizing ? false : 'position'}
         initial={{ opacity: 0 }}
         animate={{
           opacity: dragging && dragging !== id ? 0.62 : 1,
@@ -360,7 +360,7 @@ export default function AgentShell({
         }}
         exit={{ opacity: 0, scale: reduced ? 1 : 0.985 }}
         transition={
-          reduced
+          reduced || resizing
             ? { duration: 0 }
             : {
                 layout: {
@@ -693,11 +693,11 @@ export default function AgentShell({
           {visible('navigation') && panel('navigation')}
           <motion.div
             key="conversation"
-            layout
+            layout={!resizing}
             className={styles.center}
             style={{ order: 1 }}
             transition={
-              reduced
+              reduced || resizing
                 ? { duration: 0 }
                 : {
                     layout: {
