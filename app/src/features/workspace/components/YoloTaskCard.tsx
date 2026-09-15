@@ -67,6 +67,7 @@ type YoloResponse = {
 
 type ResultReveal = {
   photoId: string;
+  path: string;
   result: YoloResponse;
 };
 
@@ -174,10 +175,15 @@ export function useYoloTask() {
   const retainedPreviewCount = useRef(0);
   const reservedPreviewCount = useRef(0);
   const runtimeMemoryGb = useRef<number | undefined>(undefined);
+  const photosRef = useRef<YoloPhoto[]>([]);
   const thumbnailUrls = useRef(new Map<string, string>());
   const thumbnailScheduledIds = useRef(new Set<string>());
+  const thumbnailPromises = useRef(new Map<string, Promise<void>>());
+  const thumbnailResolvers = useRef(new Map<string, () => void>());
+  const thumbnailFocusId = useRef<string | null>(null);
   const resultRevealQueue = useRef<ResultReveal[]>([]);
   const revealingResults = useRef(false);
+  photosRef.current = photos;
 
   const registerReadJobs = (count: number) => {
     if (count <= 0) return;
@@ -202,8 +208,15 @@ export function useYoloTask() {
       const bytes = await invoke<number[]>('yolo_thumbnail', { imagePath: job.path });
       if (!mounted.current) return;
       const previewLimit = getImageReadPlan(runtimeMemoryGb.current).previewLimit;
+      const protectedIds = new Set([
+        thumbnailFocusId.current,
+        ...photosRef.current.filter((photo) => photo.status === 'done').slice(-3).map((photo) => photo.id),
+        ...photosRef.current.filter((photo) => photo.status === 'running').slice(0, 3).map((photo) => photo.id),
+      ]);
       const shouldEvict = thumbnailUrls.current.size >= previewLimit;
-      const oldest = shouldEvict ? thumbnailUrls.current.keys().next().value : undefined;
+      const oldest = shouldEvict
+        ? [...thumbnailUrls.current.keys()].find((id) => !protectedIds.has(id))
+        : undefined;
       const evictedUrl = typeof oldest === 'string' ? thumbnailUrls.current.get(oldest) : undefined;
       if (typeof oldest === 'string') thumbnailUrls.current.delete(oldest);
       const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'image/png' }));
@@ -220,6 +233,9 @@ export function useYoloTask() {
       // 缩略图只是展示层资源；即使它失败，也不能阻塞或移除真实推理任务。
       thumbnailScheduledIds.current.delete(job.id);
     } finally {
+      thumbnailResolvers.current.get(job.id)?.();
+      thumbnailResolvers.current.delete(job.id);
+      thumbnailPromises.current.delete(job.id);
       if (mounted.current) {
         reservedPreviewCount.current = Math.max(0, reservedPreviewCount.current - 1);
         completeReadJob();
@@ -249,15 +265,33 @@ export function useYoloTask() {
       0,
       previewLimit - retainedPreviewCount.current - reservedPreviewCount.current,
     );
-    const pending = jobs.filter((job) => !thumbnailScheduledIds.current.has(job.id));
+    const pending = jobs.filter((job) => {
+      const cached = thumbnailUrls.current.has(job.id);
+      const inFlight = thumbnailPromises.current.has(job.id);
+      return !inFlight && (!thumbnailScheduledIds.current.has(job.id) || (prioritize && !cached));
+    });
     const selected = prioritize ? pending : pending.slice(0, available);
     if (!selected.length) return;
     reservedPreviewCount.current += selected.length;
-    selected.forEach((job) => thumbnailScheduledIds.current.add(job.id));
+    selected.forEach((job) => {
+      thumbnailScheduledIds.current.add(job.id);
+      thumbnailPromises.current.set(job.id, new Promise<void>((resolve) => {
+        thumbnailResolvers.current.set(job.id, resolve);
+      }));
+    });
     registerReadJobs(selected.length);
     if (prioritize) thumbnailQueue.current.unshift(...selected);
     else thumbnailQueue.current.push(...selected);
     pumpThumbnailReads();
+  };
+
+  const ensureThumbnail = async (job: ThumbnailJob) => {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      if (thumbnailUrls.current.has(job.id)) return;
+      enqueueThumbnailReads([job], true);
+      const pending = thumbnailPromises.current.get(job.id);
+      if (pending) await pending;
+    }
   };
 
   const loadRuntimeMemory = async () => {
@@ -277,6 +311,13 @@ export function useYoloTask() {
       while (mounted.current && resultRevealQueue.current.length) {
         const next = resultRevealQueue.current.shift();
         if (!next) continue;
+        thumbnailFocusId.current = next.photoId;
+        try {
+          await ensureThumbnail({ id: next.photoId, path: next.path, external: false });
+        } finally {
+          thumbnailFocusId.current = null;
+        }
+        if (!mounted.current) return;
         const finishedAt = Date.now();
         setPhotos((list) => list.map((photo) => {
           if (photo.id !== next.photoId) return photo;
@@ -338,6 +379,8 @@ export function useYoloTask() {
     const objectUrls = urls.current;
     const thumbnailUrlCache = thumbnailUrls.current;
     const scheduledThumbnailIds = thumbnailScheduledIds.current;
+    const thumbnailPromiseCache = thumbnailPromises.current;
+    const thumbnailResolverCache = thumbnailResolvers.current;
     mounted.current = true;
     if (isTauriRuntime()) void invoke<Model[]>('yolo_models').then((list) => {
       if (!mounted.current) return;
@@ -348,6 +391,8 @@ export function useYoloTask() {
       thumbnailQueue.current = [];
       thumbnailUrlCache.clear();
       scheduledThumbnailIds.clear();
+      thumbnailPromiseCache.clear();
+      thumbnailResolverCache.clear();
       resultRevealQueue.current = [];
       reservedPreviewCount.current = 0;
       objectUrls.forEach((url) => URL.revokeObjectURL(url));
@@ -397,6 +442,7 @@ export function useYoloTask() {
       if (!mounted.current) return;
       enqueueResultReveals(batch.map((photo, index) => ({
         photoId: photo.id,
+        path: photo.path,
         result: results[index] ?? { ok: false, message: '批量推理未返回该图片结果' },
       })));
     }).catch((reason) => {
@@ -404,6 +450,7 @@ export function useYoloTask() {
       const message = reason instanceof Error ? reason.message : String(reason);
       enqueueResultReveals(batch.map((photo) => ({
         photoId: photo.id,
+        path: photo.path,
         result: { ok: false, message },
       })));
     }).finally(() => { active.current = false; if (mounted.current) setRevision((value) => value + 1); });
