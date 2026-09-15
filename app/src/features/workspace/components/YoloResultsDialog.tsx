@@ -547,7 +547,7 @@ export default function YoloResultsPanel({
           <div className={styles.detailSummary} aria-label="当前图片识别信息">
             <div><span>处理状态</span><strong>{statusLabel(activePhoto)}</strong></div>
             <div><span>识别数量</span><strong>{countLabel(activePhoto)}</strong></div>
-            <div><span>推理模型</span><strong title={activePhoto.modelId}>{activePhoto.modelId || 'YOLO · ONNX'}</strong></div>
+            <div><span>推理模型</span><strong title={activePhoto.modelId}>{activePhoto.modelId || '未指定模型'}</strong></div>
           </div>
           <p className={styles.detailMessage}>{activePhoto.message || '尚未返回推理摘要'}</p>
           {activePhoto.counts && Object.keys(activePhoto.counts).length > 0 && <div className={styles.counts}>{Object.entries(activePhoto.counts).map(([name, count]) => <span key={name}>{name} <b>{count}</b></span>)}</div>}

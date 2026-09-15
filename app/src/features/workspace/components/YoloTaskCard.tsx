@@ -162,7 +162,7 @@ export function useYoloTask() {
   const [photos, setPhotos] = useState<YoloPhoto[]>([]);
   const [models, setModels] = useState<Model[]>([]);
   const [modelId, setModelId] = useState('');
-  const [paused, setPaused] = useState(false);
+  const [paused, setPausedState] = useState(false);
   const [addingCount, setAddingCount] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState('');
@@ -185,7 +185,14 @@ export function useYoloTask() {
   const thumbnailFocusId = useRef<string | null>(null);
   const resultRevealQueue = useRef<ResultReveal[]>([]);
   const revealingResults = useRef(false);
+  const pausedRef = useRef(false);
   photosRef.current = photos;
+
+  // 暂停只拦截下一批的启动;当前 Batch 不可被 Tauri invoke 中途抢占,完成后再停在队列边界。
+  const setPaused = (next: boolean) => {
+    pausedRef.current = next;
+    setPausedState(next);
+  };
 
   const registerReadJobs = (count: number) => {
     if (count <= 0) return;
@@ -458,7 +465,7 @@ export function useYoloTask() {
   };
 
   useEffect(() => {
-    if (paused || active.current || !modelId) return;
+    if (paused || pausedRef.current || active.current || !modelId) return;
     const batch = photos
       .filter((photo) => !photo.external && photo.status === 'waiting')
       .slice(0, getImageReadPlan(runtimeMemoryGb.current).inferenceBatchSize);
@@ -648,15 +655,17 @@ export default function YoloTaskCard({
   }, [photos]);
   const { done, running: runningPhotos, failed, queued } = groups;
   const running = runningPhotos[0];
+  const localQueued = queued.filter((photo) => !photo.external);
+  const canPause = localQueued.length > 0;
   const reading = task.adding || task.readProgress.total > task.readProgress.completed;
   const left = queued.slice(0, 3);
   const completedVisible = done.slice(-3);
   const visible = [...left, ...completedVisible];
   const status = running
-    ? '进行中'
+    ? paused && !running.external ? '本批次完成后暂停' : '进行中'
     : reading
       ? '读取中'
-      : paused && queued.length
+      : paused && canPause
         ? '已暂停'
         : failed.length && queued.length
           ? '部分失败'
@@ -730,11 +739,11 @@ export default function YoloTaskCard({
       />
     </div>}
     <progress max={Math.max(1, photos.length)} value={done.length + failed.length} aria-label="图片推理进度" aria-valuetext={`已完成 ${done.length} 张，失败 ${failed.length} 张，共 ${photos.length} 张`} />
-    <p className={styles.message} title={running?.name}>{task.error || (running ? running.name : reading ? (task.readProgress.total ? `正在生成预览 ${task.readProgress.completed} / ${task.readProgress.total}` : '正在生成预览') : failed[0]?.message || done[done.length - 1]?.message || 'YOLO · ONNX')}</p>
+    <p className={styles.message} title={running?.name}>{task.error || (running ? running.name : reading ? (task.readProgress.total ? `正在生成预览 ${task.readProgress.completed} / ${task.readProgress.total}` : '正在生成预览') : failed[0]?.message || done[done.length - 1]?.message || '等待图片')}</p>
     <footer>
       <button title="添加图片" aria-label="添加推理图片" disabled={!isTauriRuntime() || !task.modelId} onClick={() => void task.add()}><Plus size={15} />添加图片</button>
       <button title="添加图片文件夹（包含子文件夹）" aria-label="添加图片文件夹" disabled={!isTauriRuntime() || !task.modelId} onClick={() => void task.add(true)}><FolderPlus size={15} /></button>
-      <button title={paused ? '继续处理' : '当前图片完成后暂停'} aria-label={paused ? '继续处理' : '暂停处理'} disabled={!queued.length} onClick={() => task.setPaused(!paused)}>{paused ? <Play size={15} /> : <Pause size={15} />}</button>
+      <button title={paused ? '继续处理' : '当前批次完成后暂停'} aria-label={paused ? '继续处理' : '暂停处理'} disabled={!canPause} onClick={() => task.setPaused(!paused)}>{paused ? <Play size={15} /> : <Pause size={15} />}</button>
       {failed.some((p) => !p.external) && <button title="重试失败图片" aria-label="重试失败图片" onClick={task.retry}><RotateCcw size={15} /></button>}
     </footer>
   </section>;
