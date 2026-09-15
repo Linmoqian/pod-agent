@@ -65,6 +65,11 @@ type YoloResponse = {
   detections?: YoloDetection[];
 };
 
+type ResultReveal = {
+  photoId: string;
+  result: YoloResponse;
+};
+
 type NavigatorWithMemory = Navigator & {
   deviceMemory?: number;
 };
@@ -87,6 +92,17 @@ type ThumbnailJob = {
   path: string;
   external: boolean;
 };
+
+function resultRevealDelay(queueLength: number) {
+  if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return 0;
+  if (queueLength > 96) return 16;
+  if (queueLength > 24) return 32;
+  return 64;
+}
+
+function waitForResultReveal(delay: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, delay));
+}
 
 function getImageReadPlan(memoryOverride?: number): ImageReadPlan {
   const browserNavigator = typeof navigator === 'undefined'
@@ -158,6 +174,10 @@ export function useYoloTask() {
   const retainedPreviewCount = useRef(0);
   const reservedPreviewCount = useRef(0);
   const runtimeMemoryGb = useRef<number | undefined>(undefined);
+  const thumbnailUrls = useRef(new Map<string, string>());
+  const thumbnailScheduledIds = useRef(new Set<string>());
+  const resultRevealQueue = useRef<ResultReveal[]>([]);
+  const revealingResults = useRef(false);
 
   const registerReadJobs = (count: number) => {
     if (count <= 0) return;
@@ -181,20 +201,24 @@ export function useYoloTask() {
     try {
       const bytes = await invoke<number[]>('yolo_thumbnail', { imagePath: job.path });
       if (!mounted.current) return;
-      let url: string | undefined;
-      // 只为预览槽位生成少量缩略图；推理不依赖这个可选的预览任务。
-      if (retainedPreviewCount.current < getImageReadPlan(runtimeMemoryGb.current).previewLimit) {
-        url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'image/png' }));
-        urls.current.push(url);
-        retainedPreviewCount.current += 1;
-      }
+      const previewLimit = getImageReadPlan(runtimeMemoryGb.current).previewLimit;
+      const shouldEvict = thumbnailUrls.current.size >= previewLimit;
+      const oldest = shouldEvict ? thumbnailUrls.current.keys().next().value : undefined;
+      const evictedUrl = typeof oldest === 'string' ? thumbnailUrls.current.get(oldest) : undefined;
+      if (typeof oldest === 'string') thumbnailUrls.current.delete(oldest);
+      const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'image/png' }));
+      thumbnailUrls.current.set(job.id, url);
+      retainedPreviewCount.current = thumbnailUrls.current.size;
+      urls.current.push(url);
       setPhotos((list) => list.map((photo) => {
+        if (photo.id === oldest) return { ...photo, url: undefined };
         if (photo.id !== job.id) return photo;
-        const preview = url ? { url } : {};
-        return { ...photo, ...preview };
+        return { ...photo, url };
       }));
+      if (evictedUrl) URL.revokeObjectURL(evictedUrl);
     } catch {
       // 缩略图只是展示层资源；即使它失败，也不能阻塞或移除真实推理任务。
+      thumbnailScheduledIds.current.delete(job.id);
     } finally {
       if (mounted.current) {
         reservedPreviewCount.current = Math.max(0, reservedPreviewCount.current - 1);
@@ -218,18 +242,21 @@ export function useYoloTask() {
     }
   };
 
-  const enqueueThumbnailReads = (jobs: ThumbnailJob[]) => {
+  const enqueueThumbnailReads = (jobs: ThumbnailJob[], prioritize = false) => {
     if (!jobs.length) return;
     const previewLimit = getImageReadPlan(runtimeMemoryGb.current).previewLimit;
     const available = Math.max(
       0,
       previewLimit - retainedPreviewCount.current - reservedPreviewCount.current,
     );
-    const selected = jobs.slice(0, available);
+    const pending = jobs.filter((job) => !thumbnailScheduledIds.current.has(job.id));
+    const selected = prioritize ? pending : pending.slice(0, available);
     if (!selected.length) return;
     reservedPreviewCount.current += selected.length;
+    selected.forEach((job) => thumbnailScheduledIds.current.add(job.id));
     registerReadJobs(selected.length);
-    thumbnailQueue.current.push(...selected);
+    if (prioritize) thumbnailQueue.current.unshift(...selected);
+    else thumbnailQueue.current.push(...selected);
     pumpThumbnailReads();
   };
 
@@ -241,6 +268,47 @@ export function useYoloTask() {
     } catch {
       // 系统内存不可读时使用 WebView 报告值或保守默认值。
     }
+  };
+
+  const revealNextResults = async () => {
+    if (revealingResults.current) return;
+    revealingResults.current = true;
+    try {
+      while (mounted.current && resultRevealQueue.current.length) {
+        const next = resultRevealQueue.current.shift();
+        if (!next) continue;
+        const finishedAt = Date.now();
+        setPhotos((list) => list.map((photo) => {
+          if (photo.id !== next.photoId) return photo;
+          if (!next.result.ok) return {
+            ...photo,
+            status: 'error',
+            finishedAt,
+            message: next.result.message || '推理失败',
+          };
+          return {
+            ...photo,
+            status: 'done',
+            finishedAt,
+            message: next.result.message,
+            count: next.result.count,
+            counts: next.result.counts,
+            detections: next.result.detections,
+          };
+        }));
+        if (resultRevealQueue.current.length) {
+          await waitForResultReveal(resultRevealDelay(resultRevealQueue.current.length));
+        }
+      }
+    } finally {
+      revealingResults.current = false;
+    }
+  };
+
+  const enqueueResultReveals = (results: ResultReveal[]) => {
+    if (!results.length) return;
+    resultRevealQueue.current.push(...results);
+    void revealNextResults();
   };
 
   useYoloToolEvents((event) => {
@@ -268,6 +336,8 @@ export function useYoloTask() {
   });
   useEffect(() => {
     const objectUrls = urls.current;
+    const thumbnailUrlCache = thumbnailUrls.current;
+    const scheduledThumbnailIds = thumbnailScheduledIds.current;
     mounted.current = true;
     if (isTauriRuntime()) void invoke<Model[]>('yolo_models').then((list) => {
       if (!mounted.current) return;
@@ -276,6 +346,9 @@ export function useYoloTask() {
     return () => {
       mounted.current = false;
       thumbnailQueue.current = [];
+      thumbnailUrlCache.clear();
+      scheduledThumbnailIds.clear();
+      resultRevealQueue.current = [];
       reservedPreviewCount.current = 0;
       objectUrls.forEach((url) => URL.revokeObjectURL(url));
     };
@@ -302,6 +375,11 @@ export function useYoloTask() {
       .filter((photo) => !photo.external && photo.status === 'waiting')
       .slice(0, getImageReadPlan(runtimeMemoryGb.current).inferenceBatchSize);
     if (!batch.length) return;
+    // 当前 Batch 优先补齐系统缩略图，确保处理中卡片持续显示真实图片而不是占位图。
+    enqueueThumbnailReads(
+      batch.map((photo) => ({ id: photo.id, path: photo.path, external: false })),
+      true,
+    );
     const ids = new Set(batch.map((photo) => photo.id));
     const requestModelId = batch[0].modelId ?? modelId;
     active.current = true;
@@ -317,37 +395,17 @@ export function useYoloTask() {
     }).then((results) => {
       if (!Array.isArray(results)) throw new Error('批量推理响应无效');
       if (!mounted.current) return;
-      const resultById = new Map(batch.map((photo, index) => [photo.id, results[index]]));
-      const finishedAt = Date.now();
-      setPhotos((list) => list.map((p) => {
-        const result = resultById.get(p.id);
-        if (!result) return p;
-        if (!result.ok) return {
-          ...p,
-          status: 'error',
-          finishedAt,
-          message: result.message || '推理失败',
-        };
-        return {
-          ...p,
-          status: 'done',
-          finishedAt,
-          message: result.message,
-          count: result.count,
-          counts: result.counts,
-          detections: result.detections,
-        };
-      }));
+      enqueueResultReveals(batch.map((photo, index) => ({
+        photoId: photo.id,
+        result: results[index] ?? { ok: false, message: '批量推理未返回该图片结果' },
+      })));
     }).catch((reason) => {
       if (!mounted.current) return;
       const message = reason instanceof Error ? reason.message : String(reason);
-      const finishedAt = Date.now();
-      setPhotos((list) => list.map((p) => ids.has(p.id) ? {
-        ...p,
-        status: 'error',
-        finishedAt,
-        message,
-      } : p));
+      enqueueResultReveals(batch.map((photo) => ({
+        photoId: photo.id,
+        result: { ok: false, message },
+      })));
     }).finally(() => { active.current = false; if (mounted.current) setRevision((value) => value + 1); });
   }, [photos, paused, modelId, revision]);
   const add = async (folder = false, dropped?: string[]) => {
