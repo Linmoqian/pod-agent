@@ -16,6 +16,7 @@ use std::{
 static ENDPOINT: OnceLock<Result<(String, String), String>> = OnceLock::new();
 static CACHE: Mutex<Option<(String, Session)>> = Mutex::new(None);
 static BATCH_CACHE: Mutex<Option<(String, Vec<Session>)>> = Mutex::new(None);
+static BATCH_SUPPORT_CACHE: Mutex<Option<(String, bool)>> = Mutex::new(None);
 const MAX_BATCH_IMAGES: usize = 32;
 const PREP_QUEUE_CAPACITY: usize = 4;
 const MAX_PREP_WORKERS: usize = 4;
@@ -378,7 +379,7 @@ fn image_thumbnail(path: &Path) -> Result<Vec<u8>, String> {
 
 fn inference_thread_count() -> usize {
     std::thread::available_parallelism()
-        .map(|parallelism| parallelism.get().clamp(2, 4))
+        .map(|parallelism| parallelism.get().clamp(2, 8))
         .unwrap_or(2)
 }
 
@@ -389,7 +390,57 @@ fn batch_session_count() -> usize {
 }
 
 fn build_session(path: &Path, intra_threads: usize) -> Result<Session, String> {
-    Session::builder().map_err(|_| "ONNX Runtime 初始化失败")?
+    let mut builder = Session::builder().map_err(|_| "ONNX Runtime 初始化失败")?;
+    #[cfg(target_vendor = "apple")]
+    {
+        builder = builder
+            .with_execution_providers([
+                ort::execution_providers::CoreMLExecutionProvider::default()
+                    .with_compute_units(ort::execution_providers::coreml::CoreMLComputeUnits::All)
+                    .with_low_precision_accumulation_on_gpu(true)
+                    .with_specialization_strategy(ort::execution_providers::coreml::CoreMLSpecializationStrategy::FastPrediction)
+                    .build(),
+            ])
+            .map_err(|_| "CoreML 执行后端初始化失败")?;
+    }
+    #[cfg(all(
+        feature = "tensorrt",
+        any(target_os = "linux", target_os = "windows"),
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ))]
+    {
+        builder = builder
+            .with_execution_providers([
+                ort::execution_providers::TensorRTExecutionProvider::default()
+                    .with_fp16(true)
+                    .with_min_subgraph_size(5)
+                    .build(),
+                ort::execution_providers::CUDAExecutionProvider::default()
+                    .with_conv_algorithm_search(ort::execution_providers::CuDNNConvAlgorithmSearch::Heuristic)
+                    .with_tf32(true)
+                    .with_prefer_nhwc(true)
+                    .build(),
+            ])
+            .map_err(|_| "TensorRT/CUDA 执行后端初始化失败")?;
+    }
+    #[cfg(all(
+        feature = "cuda",
+        not(feature = "tensorrt"),
+        any(target_os = "linux", target_os = "windows"),
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ))]
+    {
+        builder = builder
+            .with_execution_providers([
+                ort::execution_providers::CUDAExecutionProvider::default()
+                    .with_conv_algorithm_search(ort::execution_providers::CuDNNConvAlgorithmSearch::Heuristic)
+                    .with_tf32(true)
+                    .with_prefer_nhwc(true)
+                    .build(),
+            ])
+            .map_err(|_| "CUDA 执行后端初始化失败")?;
+    }
+    builder
         .with_intra_threads(intra_threads).map_err(|_| "线程配置失败")?
         .commit_from_file(path).map_err(|_| "ONNX 模型加载失败".into())
 }
@@ -430,32 +481,57 @@ fn return_batch_sessions(model: &ModelConfig, mut sessions: Vec<Session>) {
     }
 }
 
+fn take_batch_session(model: &ModelConfig) -> Result<(bool, Session), String> {
+    let mut cache = BATCH_CACHE.lock().map_err(|_| "推理服务不可用")?;
+    let reused = cache.as_ref().is_some_and(|(key, sessions)| {
+        key == &model.cache_key && !sessions.is_empty()
+    });
+    if !reused {
+        let session = build_session(&model.path, inference_thread_count())?;
+        *cache = Some((model.cache_key.clone(), vec![session]));
+    }
+    let session = cache
+        .as_mut()
+        .and_then(|(_, sessions)| sessions.pop())
+        .ok_or("推理服务不可用")?;
+    Ok((reused, session))
+}
+
+fn batch_support(model: &ModelConfig) -> Option<bool> {
+    BATCH_SUPPORT_CACHE.lock().ok().and_then(|cache| {
+        cache.as_ref().and_then(|(key, supported)| {
+            (key == &model.cache_key).then_some(*supported)
+        })
+    })
+}
+
+fn remember_batch_support(model: &ModelConfig, supported: bool) {
+    if let Ok(mut cache) = BATCH_SUPPORT_CACHE.lock() {
+        *cache = Some((model.cache_key.clone(), supported));
+    }
+}
+
 fn error_result(message: String) -> Value {
     json!({ "ok": false, "message": message })
 }
 
-fn infer_prepared(
+fn result_from_output(
     model: &ModelConfig,
-    prepared: PreparedImage,
+    prepared: &PreparedImage,
+    data: &[f32],
+    channels: usize,
+    anchors: usize,
     target_class: Option<&str>,
     min_confidence: f32,
-    session: &mut Session,
     session_reused: bool,
-) -> Result<Value, String> {
-    let size = model.size;
-    let tensor = Tensor::from_array(([1, 3, size as usize, size as usize], prepared.input))
-        .map_err(|_| "输入张量失败")?;
-    let output = session.run(ort::inputs![tensor]).map_err(|_| "ONNX 推理失败")?;
-    let (shape, data) = output[0].try_extract_tensor::<f32>().map_err(|_| "输出类型不支持")?;
-    if shape.len() != 3 || shape[0] != 1 || shape[1] != (model.classes.len() + 4) as i64 || shape[2] <= 0 {
-        return Err("仅支持 YOLOv8 detect 原始输出 [1,4+类别数,N]，请使用 nms=False 导出".into());
-    }
-    let detections = decode(data, shape[1] as usize, shape[2] as usize, min_confidence);
+) -> Value {
+    let detections = decode(data, channels, anchors, min_confidence);
     let mut counts = BTreeMap::<String, usize>::new();
     let mut preview_detections = Vec::new();
     if let Some(target) = target_class {
         counts.insert(target.to_string(), 0);
     }
+    let size = model.size;
     let pad_x = (size - prepared.resized_width) as f32 / 2.;
     let pad_y = (size - prepared.resized_height) as f32 / 2.;
     for detection in detections {
@@ -492,14 +568,43 @@ fn infer_prepared(
                 .join("、"),
         )
     };
-    Ok(json!({
+    json!({
         "ok": true,
         "count": count,
         "counts": counts,
         "detections": preview_detections,
         "message": message,
         "sessionReused": session_reused
-    }))
+    })
+}
+
+fn infer_prepared(
+    model: &ModelConfig,
+    mut prepared: PreparedImage,
+    target_class: Option<&str>,
+    min_confidence: f32,
+    session: &mut Session,
+    session_reused: bool,
+) -> Result<Value, String> {
+    let size = model.size;
+    let input = std::mem::take(&mut prepared.input);
+    let tensor = Tensor::from_array(([1, 3, size as usize, size as usize], input))
+        .map_err(|_| "输入张量失败")?;
+    let output = session.run(ort::inputs![tensor]).map_err(|_| "ONNX 推理失败")?;
+    let (shape, data) = output[0].try_extract_tensor::<f32>().map_err(|_| "输出类型不支持")?;
+    if shape.len() != 3 || shape[0] != 1 || shape[1] != (model.classes.len() + 4) as i64 || shape[2] <= 0 {
+        return Err("仅支持 YOLOv8 detect 原始输出 [1,4+类别数,N]，请使用 nms=False 导出".into());
+    }
+    Ok(result_from_output(
+        model,
+        &prepared,
+        data,
+        shape[1] as usize,
+        shape[2] as usize,
+        target_class,
+        min_confidence,
+        session_reused,
+    ))
 }
 
 fn infer(root: &Path, request: Request, cache: &mut Option<(String, Session)>) -> Result<Value, String> {
@@ -520,47 +625,106 @@ fn infer(root: &Path, request: Request, cache: &mut Option<(String, Session)>) -
     )
 }
 
-fn infer_batch(
-    root: &Path,
-    model_id: &str,
-    image_paths: &[String],
-) -> Result<Vec<Value>, String> {
-    let model = load_model(root, model_id, None)?;
-    let requested_sessions = batch_session_count();
-    let (session_reused, sessions) = take_batch_sessions(&model, requested_sessions)?;
+fn prepare_images(image_paths: &[String], size: u32) -> Vec<Result<PreparedImage, String>> {
     let worker_count = image_paths.len()
         .min(MAX_PREP_WORKERS)
         .min(std::thread::available_parallelism().map(|value| value.get()).unwrap_or(1).max(1));
     let next_index = AtomicUsize::new(0);
     let (sender, receiver) = mpsc::sync_channel(PREP_QUEUE_CAPACITY);
-    let (result_sender, result_receiver) = mpsc::channel();
-    let prepared_receiver = Arc::new(Mutex::new(receiver));
-    let returned_sessions = Arc::new(Mutex::new(Vec::with_capacity(sessions.len())));
-    let mut results = vec![Value::Null; image_paths.len()];
-    let size = model.size;
+    let mut prepared = (0..image_paths.len())
+        .map(|_| None)
+        .collect::<Vec<Option<Result<PreparedImage, String>>>>();
 
     std::thread::scope(|scope| {
         for _ in 0..worker_count {
             let sender = sender.clone();
             let next_index = &next_index;
-            let paths = image_paths;
             scope.spawn(move || loop {
                 let index = next_index.fetch_add(1, Ordering::Relaxed);
-                if index >= paths.len() {
+                if index >= image_paths.len() {
                     break;
                 }
-                let prepared = prepare_image(&paths[index], size);
-                if sender.send((index, prepared)).is_err() {
+                let result = prepare_image(&image_paths[index], size);
+                if sender.send((index, result)).is_err() {
                     break;
                 }
             });
         }
         drop(sender);
+        for (index, result) in receiver {
+            prepared[index] = Some(result);
+        }
+    });
+
+    prepared.into_iter()
+        .map(|result| result.unwrap_or_else(|| Err("图片预处理任务中断".into())))
+        .collect()
+}
+
+fn infer_prepared_batch(
+    model: &ModelConfig,
+    prepared: &[(usize, &PreparedImage)],
+    session: &mut Session,
+    session_reused: bool,
+) -> Result<Vec<(usize, Value)>, String> {
+    let size = model.size as usize;
+    let image_input_len = 3 * size * size;
+    let mut input = Vec::with_capacity(image_input_len * prepared.len());
+    for (_, image) in prepared {
+        if image.input.len() != image_input_len {
+            return Err("输入图片尺寸不一致".into());
+        }
+        input.extend_from_slice(&image.input);
+    }
+    let tensor = Tensor::from_array(([prepared.len(), 3, size, size], input))
+        .map_err(|_| "批量输入张量失败")?;
+    let output = session.run(ort::inputs![tensor]).map_err(|_| "ONNX 批量推理失败")?;
+    let (shape, data) = output[0].try_extract_tensor::<f32>().map_err(|_| "输出类型不支持")?;
+    if shape.len() != 3
+        || shape[0] != prepared.len() as i64
+        || shape[1] != (model.classes.len() + 4) as i64
+        || shape[2] <= 0
+    {
+        return Err("模型不支持动态 Batch 或输出形状不匹配".into());
+    }
+    let channels = shape[1] as usize;
+    let anchors = shape[2] as usize;
+    let image_output_len = channels.checked_mul(anchors).ok_or("输出尺寸无效")?;
+    if data.len() < image_output_len * prepared.len() {
+        return Err("批量输出数据不完整".into());
+    }
+    Ok(prepared.iter().enumerate().map(|(batch_index, (index, image))| {
+        let start = batch_index * image_output_len;
+        (*index, result_from_output(
+            model,
+            image,
+            &data[start..start + image_output_len],
+            channels,
+            anchors,
+            None,
+            0.25,
+            session_reused,
+        ))
+    }).collect())
+}
+
+fn infer_prepared_parallel(
+    model: &ModelConfig,
+    prepared: Vec<Result<PreparedImage, String>>,
+) -> Result<Vec<Value>, String> {
+    let requested_sessions = prepared.len().min(batch_session_count()).max(1);
+    let (session_reused, sessions) = take_batch_sessions(model, requested_sessions)?;
+    let (sender, receiver) = mpsc::sync_channel(PREP_QUEUE_CAPACITY);
+    let (result_sender, result_receiver) = mpsc::channel();
+    let prepared_receiver = Arc::new(Mutex::new(receiver));
+    let returned_sessions = Arc::new(Mutex::new(Vec::with_capacity(sessions.len())));
+    let mut results = vec![Value::Null; prepared.len()];
+
+    std::thread::scope(|scope| {
         for mut session in sessions {
             let prepared_receiver = Arc::clone(&prepared_receiver);
             let result_sender = result_sender.clone();
             let returned_sessions = Arc::clone(&returned_sessions);
-            let model = &model;
             scope.spawn(move || {
                 loop {
                     let job = match prepared_receiver.lock() {
@@ -589,6 +753,12 @@ fn infer_batch(
             });
         }
         drop(result_sender);
+        for (index, prepared) in prepared.into_iter().enumerate() {
+            if sender.send((index, prepared)).is_err() {
+                break;
+            }
+        }
+        drop(sender);
         for (index, result) in result_receiver {
             results[index] = result;
         }
@@ -597,8 +767,42 @@ fn infer_batch(
         .lock()
         .map(|mut sessions| std::mem::take(&mut *sessions))
         .unwrap_or_default();
-    return_batch_sessions(&model, sessions);
+    return_batch_sessions(model, sessions);
     Ok(results)
+}
+
+fn infer_batch(
+    root: &Path,
+    model_id: &str,
+    image_paths: &[String],
+) -> Result<Vec<Value>, String> {
+    let model = load_model(root, model_id, None)?;
+    let prepared = prepare_images(image_paths, model.size);
+    let valid = prepared.iter().enumerate()
+        .filter_map(|(index, result)| result.as_ref().ok().map(|image| (index, image)))
+        .collect::<Vec<_>>();
+    if valid.len() > 1 && batch_support(&model) != Some(false) {
+        let (session_reused, mut session) = take_batch_session(&model)?;
+        match infer_prepared_batch(&model, &valid, &mut session, session_reused) {
+            Ok(batch_results) => {
+                remember_batch_support(&model, true);
+                return_batch_sessions(&model, vec![session]);
+                let mut results = prepared.into_iter().map(|result| match result {
+                    Ok(_) => Value::Null,
+                    Err(message) => error_result(message),
+                }).collect::<Vec<_>>();
+                for (index, result) in batch_results {
+                    results[index] = result;
+                }
+                return Ok(results);
+            }
+            Err(_) => {
+                remember_batch_support(&model, false);
+                drop(session);
+            }
+        }
+    }
+    infer_prepared_parallel(&model, prepared)
 }
 
 fn draw_rect(image: &mut RgbImage, x: u32, y: u32, width: u32, height: u32) {

@@ -13,7 +13,8 @@ model = YOLO("./yolov8n.pt")
 # 转换为 ONNX
 model.export(
     format="onnx",
-    imgsz=640
+    imgsz=640,
+    dynamic=True
 )
 
 # 加载 ONNX 模型

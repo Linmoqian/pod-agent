@@ -14,6 +14,11 @@ edition = "2021"
 name = "app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+default = []
+cuda = ["ort/cuda"]
+tensorrt = ["ort/tensorrt", "ort/cuda"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -29,7 +34,7 @@ rusqlite = { version = "0.32", features = ["backup", "bundled"] }
 sha2 = "0.10"
 uuid = { version = "1", features = ["v4", "serde"] }
 unicode-normalization = "0.1"
-ort = "=2.0.0-rc.10"
+ort = { version = "=2.0.0-rc.10", features = ["coreml"] }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 tiny_http = "0.12"
 

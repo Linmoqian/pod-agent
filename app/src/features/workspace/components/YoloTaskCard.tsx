@@ -112,7 +112,8 @@ function getImageReadPlan(memoryOverride?: number): ImageReadPlan {
     concurrency: Math.max(1, Math.min(memoryConcurrency, Math.max(1, cpuCount - 1))),
     previewLimit: safeMemoryGb <= 4 ? 8 : safeMemoryGb <= 8 ? 16 : 32,
     appendChunkSize: safeMemoryGb <= 4 ? 64 : safeMemoryGb <= 8 ? 128 : 256,
-    inferenceBatchSize: safeMemoryGb <= 4 ? 2 : safeMemoryGb <= 8 ? 4 : 6,
+    // 以吞吐为目标，让 Rust 端优先走真正的动态 Batch；静态 Batch=1 权重会在后端自动回退。
+    inferenceBatchSize: safeMemoryGb <= 4 ? 8 : safeMemoryGb <= 8 ? 16 : 32,
   };
 }
 
