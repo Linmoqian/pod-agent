@@ -112,7 +112,8 @@
 .exportButton,
 .iconButton,
 .row,
-.previewFrame > button {
+.previewFrame > button,
+.compareFrame > button {
   cursor: pointer;
 }
 
@@ -140,20 +141,23 @@
 .exportButton:active:not(:disabled),
 .row:active,
 .iconButton:active,
-.previewFrame > button:active:not(:disabled) {
+.previewFrame > button:active:not(:disabled),
+.compareFrame > button:active:not(:disabled) {
   transform: scale(0.98);
 }
 
 .exportButton:focus-visible,
 .iconButton:focus-visible,
 .row:focus-visible,
-.previewFrame > button:focus-visible {
+.previewFrame > button:focus-visible,
+.compareFrame > button:focus-visible {
   outline: 2px solid var(--color-brand-500);
   outline-offset: 2px;
 }
 
 .exportButton:disabled,
-.previewFrame > button:disabled {
+.previewFrame > button:disabled,
+.compareFrame > button:disabled {
   opacity: 0.48;
   cursor: default;
 }
@@ -548,6 +552,85 @@
   gap: var(--space-3);
 }
 
+.compareToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.compareModes {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border: var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-subtle);
+}
+
+.compareModeButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--color-text-tertiary);
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.compareModeButton:hover,
+.compareModeButton[data-active='true'] {
+  color: var(--color-brand-600);
+  background: var(--color-surface-default);
+}
+
+.compareModeButton:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+}
+
+.compareModeButton:active {
+  transform: scale(0.98);
+}
+
+.compareZoom,
+.comparePosition {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+}
+
+.compareZoom input,
+.comparePosition input {
+  width: 118px;
+  height: 3px;
+  accent-color: var(--color-brand-500);
+  cursor: pointer;
+}
+
+.comparePosition input:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.compareZoom span,
+.comparePosition > span:last-child {
+  min-width: 32px;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
 .previewCard {
   min-width: 0;
   margin: 0;
@@ -574,13 +657,17 @@
   width: 100%;
   height: 100%;
   object-fit: contain;
+  transform: scale(var(--preview-zoom, 1));
+  transform-origin: center;
+  transition: transform 180ms ease-out;
 }
 
 .previewPlaceholder {
   background: var(--color-surface-default);
 }
 
-.previewFrame > button {
+.previewFrame > button,
+.compareFrame > button {
   display: grid;
   width: 100%;
   height: 100%;
@@ -619,6 +706,103 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.overlayCard {
+  padding: var(--space-2);
+}
+
+.compareFrame {
+  position: relative;
+  display: grid;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  min-height: 220px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: #1d2422;
+  color: var(--color-text-tertiary);
+  isolation: isolate;
+  touch-action: none;
+}
+
+.compareFrame[data-ready='true'] {
+  cursor: col-resize;
+}
+
+.compareFrame .compareBase,
+.compareResult img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform: scale(var(--preview-zoom, 1));
+  transform-origin: center;
+  transition: transform 180ms ease-out;
+}
+
+.compareResult {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  clip-path: inset(0 calc(100% - var(--compare-position, 50%)) 0 0);
+  pointer-events: none;
+}
+
+.compareDivider {
+  position: absolute;
+  inset: 0 auto 0 var(--compare-position, 50%);
+  z-index: 2;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 0 0 1px rgba(28, 41, 37, 0.2), 0 0 12px rgba(14, 27, 23, 0.28);
+  pointer-events: none;
+  transform: translateX(-1px);
+}
+
+.compareDivider span {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  border-radius: var(--radius-full);
+  color: var(--color-brand-700, #245b4d);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 2px 8px rgba(14, 27, 23, 0.2);
+  transform: translate(-50%, -50%);
+}
+
+.compareDivider span::before {
+  content: '↔';
+  font-size: 15px;
+  line-height: 1;
+}
+
+.compareLabels {
+  position: absolute;
+  inset: 10px 12px auto;
+  z-index: 3;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.compareLabels span {
+  padding: 4px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: var(--radius-full);
+  color: #fff;
+  background: rgba(26, 34, 31, 0.54);
+  font-size: 10px;
+  backdrop-filter: blur(5px);
 }
 
 .detailSummary {
@@ -712,6 +896,10 @@
   .comparison {
     padding: var(--space-4);
   }
+
+  .compareToolbar {
+    align-items: flex-start;
+  }
 }
 
 @media (max-width: 520px) {
@@ -743,13 +931,32 @@
   .previewFrame {
     min-height: 180px;
   }
+
+  .compareFrame {
+    min-height: 180px;
+  }
+
+  .compareZoom,
+  .comparePosition {
+    flex: 1 1 100%;
+  }
+
+  .compareZoom input,
+  .comparePosition input {
+    flex: 1;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .exportButton,
   .iconButton,
   .row,
+  .compareModeButton,
   .previewFrame > button,
+  .compareFrame > button,
+  .previewFrame img,
+  .compareFrame .compareBase,
+  .compareResult img,
   .resizeHandle::before,
   .resizeGrip,
   .resizeToggle {

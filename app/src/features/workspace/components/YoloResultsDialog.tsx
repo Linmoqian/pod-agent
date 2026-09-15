@@ -20,9 +20,11 @@ import {
   ChevronRight,
   LayoutGrid,
   ImageIcon,
+  Layers,
   List,
   LoaderCircle,
   Search,
+  Split,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
@@ -43,6 +45,9 @@ const RESULTS_LIST_DEFAULT_PERCENT = 31;
 const RESULTS_LIST_MAX_PERCENT = 72;
 const RESULTS_COMPARISON_MIN_WIDTH = 320;
 const RESULTS_DIVIDER_WIDTH = 16;
+const COMPARE_ZOOM_MIN = 1;
+const COMPARE_ZOOM_MAX = 2.5;
+const COMPARE_ZOOM_STEP = 0.1;
 
 function statusLabel(photo: YoloPhoto) {
   if (photo.status === 'done') return '完成';
@@ -115,6 +120,9 @@ export default function YoloResultsPanel({
   const [activePhotoId, setActivePhotoId] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [thumbnailSize, setThumbnailSize] = useState(THUMBNAIL_DEFAULT);
+  const [compareMode, setCompareMode] = useState<'side-by-side' | 'overlay'>('side-by-side');
+  const [comparePosition, setComparePosition] = useState(50);
+  const [compareZoom, setCompareZoom] = useState(1);
   const [listWidthPercent, setListWidthPercent] = useState(RESULTS_LIST_DEFAULT_PERCENT);
   const [loadingImages, setLoadingImages] = useState<string[]>([]);
   const [loadingResults, setLoadingResults] = useState<string[]>([]);
@@ -127,6 +135,8 @@ export default function YoloResultsPanel({
     startWidthPercent: number;
     bodyWidth: number;
   } | null>(null);
+  const compareFrameRef = useRef<HTMLDivElement>(null);
+  const comparePointerId = useRef<number | null>(null);
   const expandedListWidthRef = useRef(RESULTS_LIST_DEFAULT_PERCENT);
   const listWidthPercentRef = useRef(RESULTS_LIST_DEFAULT_PERCENT);
   const [resizing, setResizing] = useState(false);
@@ -166,6 +176,11 @@ export default function YoloResultsPanel({
       return filtered[0]?.id ?? (query.trim() ? '' : photos[0]?.id ?? '');
     });
   }, [filtered, initialPhotoId, photos, query]);
+
+  useEffect(() => {
+    setComparePosition(50);
+    setCompareZoom(COMPARE_ZOOM_MIN);
+  }, [activePhotoId]);
 
   const loadImage = async (photo: YoloPhoto) => {
     if (photo.previewUrl || loadingImages.includes(photo.id)) return;
@@ -302,6 +317,37 @@ export default function YoloResultsPanel({
     setListWidthPercent(next);
   };
 
+  const updateComparePosition = (clientX: number) => {
+    const frame = compareFrameRef.current;
+    if (!frame) return;
+    const bounds = frame.getBoundingClientRect();
+    if (!bounds.width) return;
+    const next = ((clientX - bounds.left) / bounds.width) * 100;
+    setComparePosition(Math.max(0, Math.min(100, next)));
+  };
+
+  const handleComparePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!activePhoto?.resultUrl || !event.isPrimary || event.button !== 0 || comparePointerId.current !== null) return;
+    event.preventDefault();
+    comparePointerId.current = event.pointerId;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    updateComparePosition(event.clientX);
+  };
+
+  const handleComparePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (comparePointerId.current !== event.pointerId || !event.isPrimary) return;
+    event.preventDefault();
+    updateComparePosition(event.clientX);
+  };
+
+  const handleComparePointerEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (comparePointerId.current !== event.pointerId || !event.isPrimary) return;
+    comparePointerId.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
   const listCollapsed = listWidthPercent === 0;
   const maxListPercent = maxResultsListPercent(bodyRef.current?.getBoundingClientRect().width ?? 0);
 
@@ -310,11 +356,11 @@ export default function YoloResultsPanel({
       <div className={styles.headerCopy}>
         <span className={styles.eyebrow}>图片识别</span>
         <h2 id="yolo-results-title">图片识别结果</h2>
-        <p>{photos.length} 张图片，完成 {completed.length} 张</p>
+        <p>{photos.length} 张图片，完成 {completed} 张</p>
       </div>
       <div className={styles.summary} aria-label="识别结果概览">
-        <span><b>{completed.length}</b> 已完成</span>
-        <span><b>{failed.length}</b> 失败</span>
+        <span><b>{completed}</b> 已完成</span>
+        <span><b>{failed}</b> 失败</span>
       </div>
     </header>
     <div className={styles.toolbar}>
@@ -404,7 +450,24 @@ export default function YoloResultsPanel({
             <div className={styles.detailTitle}><span className={styles.eyebrow}>当前图片 · {activePhotoIndex(activePhoto, photos)} / {photos.length}</span><h3 title={activePhoto.name}>{activePhoto.name}</h3></div>
             <div className={styles.detailState}><span className={styles.status} data-status={activePhoto.status}>{statusLabel(activePhoto)}</span><strong>{countLabel(activePhoto)}</strong></div>
           </header>
-          <div className={styles.imagePair}>
+          <div className={styles.compareToolbar} aria-label="图片比较工具">
+            <div className={styles.compareModes} role="group" aria-label="比较方式">
+              <button type="button" className={styles.compareModeButton} data-active={compareMode === 'side-by-side'} aria-pressed={compareMode === 'side-by-side'} onClick={() => setCompareMode('side-by-side')}><Split size={14} aria-hidden />并排</button>
+              <button type="button" className={styles.compareModeButton} data-active={compareMode === 'overlay'} aria-pressed={compareMode === 'overlay'} onClick={() => setCompareMode('overlay')}><Layers size={14} aria-hidden />拖动对比</button>
+            </div>
+            <label className={styles.compareZoom}>
+              <ZoomOut size={14} aria-hidden />
+              <input type="range" min={COMPARE_ZOOM_MIN} max={COMPARE_ZOOM_MAX} step={COMPARE_ZOOM_STEP} value={compareZoom} aria-label="比较图片缩放" aria-valuetext={`${Math.round(compareZoom * 100)}%`} onChange={(event) => setCompareZoom(Number(event.target.value))} />
+              <ZoomIn size={14} aria-hidden />
+              <span>{Math.round(compareZoom * 100)}%</span>
+            </label>
+            {compareMode === 'overlay' && <label className={styles.comparePosition}>
+              <span>分界</span>
+              <input type="range" min="0" max="100" step="1" value={comparePosition} disabled={!activePhoto.resultUrl} aria-label="原图与推理结果分界位置" aria-valuetext={`${Math.round(comparePosition)}% 原图`} onChange={(event) => setComparePosition(Number(event.target.value))} />
+              <span>{Math.round(comparePosition)}%</span>
+            </label>}
+          </div>
+          {compareMode === 'side-by-side' ? <div className={styles.imagePair} style={{ '--preview-zoom': compareZoom } as CSSProperties}>
             <figure className={styles.previewCard}>
               <div className={styles.previewFrame}>
                 {(activePhoto.previewUrl || activePhoto.url) ? <img src={activePhoto.previewUrl || activePhoto.url} alt={`${activePhoto.name} 原图`} /> : loadingImages.includes(activePhoto.id) ? <LoadingIcon /> : <button type="button" onClick={() => void loadImage(activePhoto)} title="加载原图"><ImageIcon size={24} /><span>加载原图</span></button>}
@@ -417,7 +480,27 @@ export default function YoloResultsPanel({
               </div>
               <figcaption><strong>推理结果</strong><span>{resultLabel(activePhoto)}</span></figcaption>
             </figure>
-          </div>
+          </div> : <figure className={`${styles.previewCard} ${styles.overlayCard}`}>
+            <div
+              ref={compareFrameRef}
+              className={`${styles.compareFrame} ${!activePhoto.resultUrl ? styles.previewPlaceholder : ''}`}
+              data-ready={Boolean(activePhoto.resultUrl)}
+              style={{ '--compare-position': `${comparePosition}%`, '--preview-zoom': compareZoom } as CSSProperties}
+              onPointerDown={handleComparePointerDown}
+              onPointerMove={handleComparePointerMove}
+              onPointerUp={handleComparePointerEnd}
+              onPointerCancel={handleComparePointerEnd}
+            >
+              {(activePhoto.previewUrl || activePhoto.url) ? <img className={styles.compareBase} src={activePhoto.previewUrl || activePhoto.url} alt={`${activePhoto.name} 原图`} /> : loadingImages.includes(activePhoto.id) ? <LoadingIcon /> : <button type="button" onClick={() => void loadImage(activePhoto)} title="加载原图"><ImageIcon size={24} /><span>加载原图</span></button>}
+              {activePhoto.resultUrl && <div className={styles.compareResult} aria-hidden="true"><img src={activePhoto.resultUrl} alt="" /></div>}
+              {activePhoto.resultUrl && <div className={styles.compareDivider} aria-hidden="true"><span /></div>}
+              {!activePhoto.resultUrl && loadingResults.includes(activePhoto.id) && <LoadingIcon />}
+              {!activePhoto.resultUrl && !loadingResults.includes(activePhoto.id) && activePhoto.status === 'done' && <button type="button" onClick={() => void loadResult(activePhoto)} title="生成标注结果图"><ImageIcon size={24} /><span>加载推理结果</span></button>}
+              {!activePhoto.resultUrl && !loadingResults.includes(activePhoto.id) && activePhoto.status !== 'done' && <span>{resultLabel(activePhoto)}</span>}
+              {activePhoto.resultUrl && <div className={styles.compareLabels} aria-hidden="true"><span>原图</span><span>推理结果</span></div>}
+            </div>
+            <figcaption><strong>拖动分界线比较</strong><span>{activePhoto.resultUrl ? `${Math.round(comparePosition)}% 原图` : resultLabel(activePhoto)}</span></figcaption>
+          </figure>}
           <div className={styles.detailSummary} aria-label="当前图片识别信息">
             <div><span>处理状态</span><strong>{statusLabel(activePhoto)}</strong></div>
             <div><span>识别数量</span><strong>{countLabel(activePhoto)}</strong></div>
