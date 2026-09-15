@@ -16,6 +16,7 @@
   justify-content: space-between;
   gap: 12px;
   min-width: 0;
+  position: relative;
   user-select: none;
   padding: 0 16px;
   border-bottom: var(--border-default);
@@ -26,6 +27,10 @@
   padding-left: 88px;
 }
 .wordmark {
+  position: absolute;
+  left: 50%;
+  max-width: calc(100% - 180px);
+  transform: translateX(-50%);
   pointer-events: none;
   white-space: nowrap;
   overflow: hidden;
