@@ -187,10 +187,7 @@ pub async fn yolo_memory_gb() -> Result<f64, String> {
 #[tauri::command]
 pub async fn yolo_thumbnail(image_path: String) -> Result<Vec<u8>, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let image = image::ImageReader::open(image_path).map_err(|_| "图片不可读")?.decode().map_err(|_| "图片解码失败")?;
-        let mut bytes = std::io::Cursor::new(Vec::new());
-        image.thumbnail(240, 180).write_to(&mut bytes, image::ImageFormat::Png).map_err(|_| "缩略图失败")?;
-        Ok(bytes.into_inner())
+        thumbnail(Path::new(&image_path))
     }).await.map_err(|_| "缩略图任务中断".to_string())?
 }
 
@@ -334,6 +331,49 @@ fn prepare_image(image_path: &str, size: u32) -> Result<PreparedImage, String> {
         ratio: ratio as f32,
         input,
     })
+}
+
+fn thumbnail(path: &Path) -> Result<Vec<u8>, String> {
+    if !path.is_absolute() {
+        return Err("图片必须为绝对路径".into());
+    }
+    #[cfg(target_os = "macos")]
+    if let Some(bytes) = quicklook_thumbnail(path) {
+        return Ok(bytes);
+    }
+    image_thumbnail(path)
+}
+
+#[cfg(target_os = "macos")]
+fn quicklook_thumbnail(path: &Path) -> Option<Vec<u8>> {
+    let output_dir = std::env::temp_dir().join(format!("lian-quicklook-{}", uuid::Uuid::new_v4()));
+    if std::fs::create_dir(&output_dir).is_err() {
+        return None;
+    }
+    let generated = std::process::Command::new("/usr/bin/qlmanage")
+        .args(["-t", "-x", "-s", "240", "-o"])
+        .arg(&output_dir)
+        .arg(path)
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .and_then(|_| {
+            std::fs::read_dir(&output_dir).ok()?.filter_map(Result::ok)
+                .map(|entry| entry.path())
+                .find(|candidate| candidate.extension().and_then(|value| value.to_str()) == Some("png"))
+                .and_then(|candidate| std::fs::read(candidate).ok())
+        });
+    let _ = std::fs::remove_dir_all(&output_dir);
+    generated
+}
+
+fn image_thumbnail(path: &Path) -> Result<Vec<u8>, String> {
+    let image = image::ImageReader::open(path).map_err(|_| "图片不可读")?
+        .decode().map_err(|_| "图片解码失败")?;
+    let mut bytes = std::io::Cursor::new(Vec::new());
+    image.thumbnail(240, 180).write_to(&mut bytes, image::ImageFormat::Png)
+        .map_err(|_| "缩略图失败")?;
+    Ok(bytes.into_inner())
 }
 
 fn inference_thread_count() -> usize {
