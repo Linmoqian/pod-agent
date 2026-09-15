@@ -16,6 +16,7 @@ import {
   MessageSquare,
   Pencil,
   Plus,
+  Terminal,
   Trash2,
   X,
 } from 'lucide-react';
@@ -64,6 +65,7 @@ import WorkspaceComposer from '../features/workspace/components/WorkspaceCompose
 import WorkspaceTimeline from '../features/workspace/components/WorkspaceTimeline';
 import WorkspaceFilePreviewPanel from '../features/workspace/components/WorkspaceFilePreview';
 import YoloResultsPanel from '../features/workspace/components/YoloResultsDialog';
+import TerminalPanel from '../features/workspace/components/TerminalPanel';
 import { useYoloTask } from '../features/workspace/components/YoloTaskCard';
 import { getFilePreviewKind } from '../features/workspace/components/WorkbenchFileTreeIcons';
 import { createWorkbenchTasks } from '../features/workspace/workbenchTasks';
@@ -82,9 +84,10 @@ import useWorkspaceTabLayout, {
   type WorkspaceTabGroupColor,
   WORKSPACE_TAB_GROUP_COLORS,
 } from './useWorkspaceTabLayout';
+import { useSettings } from '../features/settings/context';
 
 type ContextHeaderProps = {
-  activeView: 'conversation' | 'yolo-results' | 'file-preview';
+  activeView: 'conversation' | 'yolo-results' | 'file-preview' | 'terminal';
   tabs: WorkspaceTab[];
   tabGroups: WorkspaceTabGroup[];
   activeTabId: string;
@@ -119,6 +122,10 @@ type ContextHeaderProps = {
   filePreview: WorkspaceFilePreview | null;
   onOpenFilePreview: () => void;
   onCloseFilePreview: () => void;
+  developerMode: boolean;
+  terminalOpen: boolean;
+  onOpenTerminal: () => void;
+  onCloseTerminal: () => void;
 };
 
 type FilePreviewState = WorkspaceFilePreview & {
@@ -770,6 +777,38 @@ function ContextHeader(props: ContextHeaderProps) {
             </button>
           </motion.div>
         )}
+        {props.terminalOpen && (
+          <motion.div
+            layout="position"
+            className={`${styles.tab} ${styles.utilityTab}`}
+            data-active={props.activeView === 'terminal' ? 'true' : undefined}
+            transition={{
+              type: 'spring',
+              stiffness: 460,
+              damping: 36,
+              mass: 0.7,
+            }}
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={props.activeView === 'terminal'}
+              className={styles.tabLabel}
+              onClick={props.onOpenTerminal}
+            >
+              <Terminal size={14} aria-hidden />
+              <span>终端</span>
+            </button>
+            <button
+              type="button"
+              className={styles.closeTab}
+              aria-label="关闭终端"
+              onClick={props.onCloseTerminal}
+            >
+              <X size={14} />
+            </button>
+          </motion.div>
+        )}
         {(!lastTemporaryTabId || !tabBlocks.some((block) =>
           block.tabs.some((tab) => tab.id === lastTemporaryTabId),
         )) && newConversationButton}
@@ -1108,6 +1147,18 @@ function ContextHeader(props: ContextHeaderProps) {
         </div>
       </div>}
       <div className={styles.headerActions}>
+        {props.developerMode && !props.terminalOpen && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={styles.terminalButton}
+            onClick={props.onOpenTerminal}
+          >
+            <Terminal size={15} aria-hidden />
+            终端
+          </Button>
+        )}
         {props.inProject && (
           <div className={styles.contextStats} aria-label="项目概览">
             <span>
@@ -1226,16 +1277,21 @@ function ContextHeader(props: ContextHeaderProps) {
 export default function AppLayout() {
   const controller = useWorkspaceController();
   const { snapshot } = controller;
+  const { experienceMode } = useSettings();
+  const developerMode = experienceMode === 'developer';
   const tabLayout = useWorkspaceTabLayout(controller.tabs);
   const yoloTask = useYoloTask();
   const workbenchTasks = useMemo(
     () => createWorkbenchTasks(yoloTask.photos),
     [yoloTask.photos],
   );
-  const [activeView, setActiveView] = useState<'conversation' | 'yolo-results' | 'file-preview'>('conversation');
+  const [activeView, setActiveView] = useState<
+    'conversation' | 'yolo-results' | 'file-preview' | 'terminal'
+  >('conversation');
   const [yoloResultsOpen, setYoloResultsOpen] = useState(false);
   const [yoloResultsFocusId, setYoloResultsFocusId] = useState<string>();
   const [filePreview, setFilePreview] = useState<FilePreviewState | null>(null);
+  const [terminalOpen, setTerminalOpen] = useState(developerMode);
   const filePreviewRequestRef = useRef(0);
   const [importName, setImportName] = useState('');
 
@@ -1289,6 +1345,15 @@ export default function AppLayout() {
     setFilePreview(null);
     setActiveView('conversation');
   };
+  const openTerminal = () => {
+    if (!developerMode) return;
+    setTerminalOpen(true);
+    setActiveView('terminal');
+  };
+  const closeTerminal = () => {
+    setTerminalOpen(false);
+    setActiveView((view) => (view === 'terminal' ? 'conversation' : view));
+  };
   const activateConversation = (id: string) => {
     setActiveView('conversation');
     void controller.activateTab(id);
@@ -1310,6 +1375,16 @@ export default function AppLayout() {
   useEffect(() => {
     setImportName(controller.pendingImportName ?? '');
   }, [controller.pendingImportName]);
+
+  useEffect(() => {
+    void workspaceApi.setTerminalAccess(developerMode);
+    if (developerMode) {
+      setTerminalOpen(true);
+      return;
+    }
+    setTerminalOpen(false);
+    setActiveView((view) => (view === 'terminal' ? 'conversation' : view));
+  }, [developerMode]);
 
   if (!snapshot) {
     return <LoadingShell />;
@@ -1384,6 +1459,10 @@ export default function AppLayout() {
           filePreview={filePreview}
           onOpenFilePreview={activateFilePreview}
           onCloseFilePreview={closeFilePreview}
+          developerMode={developerMode}
+          terminalOpen={terminalOpen}
+          onOpenTerminal={openTerminal}
+          onCloseTerminal={closeTerminal}
         />
         <section className={styles.workspace}>
           {activeView === 'yolo-results' ? (
@@ -1397,6 +1476,8 @@ export default function AppLayout() {
             />
           ) : activeView === 'file-preview' && filePreview ? (
             <WorkspaceFilePreviewPanel preview={filePreview} />
+          ) : activeView === 'terminal' && terminalOpen ? (
+            <TerminalPanel developerMode={developerMode} />
           ) : (
             <>
               <WorkspaceTimeline

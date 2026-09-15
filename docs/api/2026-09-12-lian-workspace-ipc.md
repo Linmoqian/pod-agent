@@ -6,8 +6,8 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 接口标识 | `ensure_draft_project`、`inspect_data_sources`、`register_datasets`、`submit_agent_intent`、`confirm_task_plan`、`cancel_workflow`、`get_workspace_snapshot`、`get_artifact_detail`、`list_workspace_files`、`read_workspace_file` |
-| 用途 | 从工作区文件查看、数据导入到混合模型 Artifact 血缘的唯一前端业务边界 |
+| 接口标识 | `ensure_draft_project`、`inspect_data_sources`、`register_datasets`、`submit_agent_intent`、`confirm_task_plan`、`cancel_workflow`、`get_workspace_snapshot`、`get_artifact_detail`、`list_workspace_files`、`read_workspace_file`、`set_terminal_access`、`run_terminal_command` |
+| 用途 | 从工作区文件查看、开发人员终端、数据导入到混合模型 Artifact 血缘的唯一前端业务边界 |
 | 调用方 | `app/src/features/workspace/` |
 | 提供方 | Tauri Rust 后端 |
 | 稳定性 | V1 实验性 |
@@ -30,6 +30,7 @@
 | 科研计划 | `submit_research_intent`、`start_task_plan_run` | 输入为 `EntityRef[]`；每次启动创建新的 TaskPlanRun 与 Execution |
 | 执行与血缘 | `get_execution_detail`、`get_lineage_subgraph` | 血缘方向为 `upstream/downstream/both`，深度自动限制为 1–5，默认 2 |
 | 工作区文件 | `list_workspace_files`、`read_workspace_file` | 只读列出受限文件树，并读取 Markdown/代码文件供中央预览；相对路径由 Rust 校验 |
+| 开发人员终端 | `set_terminal_access`、`run_terminal_command` | 仅开发人员模式 UI 使用；同步 Rust 进程内开关后，在工程根目录执行一次性命令，输出不持久化 |
 
 `ensure_draft_project`、`register_datasets`、`submit_agent_intent`、`confirm_task_plan` 与 `get_artifact_detail` 在 M2 保留为兼容入口，内部仍落入同一 SQLite 权威层；M3 前不得删除。
 
@@ -47,6 +48,8 @@
 | `get_artifact_detail` | 同步 | `artifactId: string` | 返回 Artifact、直接上游、来源 Dataset 与同一 WorkflowRun 的 ToolRun |
 | `list_workspace_files` | 同步 | 无 | 仅返回工作区内非隐藏目录项，最多 4 层递归、500 个条目；节点包含 `relativePath` |
 | `read_workspace_file` | 同步 | `relativePath: string` | 仅允许工作区内、文件树可达的 Markdown/代码文件；单文件最多 1 MiB |
+| `set_terminal_access` | 同步 | `enabled: boolean` | 仅更新当前应用进程内的终端访问开关，不写入数据库 |
+| `run_terminal_command` | 异步 | `request.command: string` | Rust 进程内开关必须已启用；命令最多 16 KiB；固定在当前工程根目录执行，stdout/stderr 各最多返回 256 KiB |
 
 所有时间字段均为 UTC RFC 3339 字符串。ID 为不透明字符串，调用方不得解析或自行生成业务含义。
 
@@ -66,6 +69,8 @@
 | `get_artifact_detail` | `ArtifactDetail` | 是 | `artifact/upstream/dataset/toolRuns` |
 | `list_workspace_files` | `WorkspaceFileNode` | 是 | 根节点与子节点包含 `name/relativePath/directory/children`；不返回文件内容 |
 | `read_workspace_file` | `WorkspaceFilePreview` | 是 | 返回 `name/relativePath/kind/language/content`；`kind` 为 `markdown` 或 `code` |
+| `set_terminal_access` | `null` | 是 | 只表示当前进程内开关已更新 |
+| `run_terminal_command` | `TerminalRunResult` | 是 | 返回 `stdout/stderr/status/success/truncated/durationMs/cwd`；只表示本次命令结果，不创建持久化运行记录 |
 
 `Dataset.source` 对前端仅暴露 `sourceId/name/format/checksum/size`，不暴露受管目录绝对路径。`Artifact.files[]` 包含 `name/contentType/size/checksum`；除受限的 `read_workspace_file` 预览外，文件内容不通过 IPC 直接返回。
 
@@ -94,6 +99,9 @@
 | `WORKFLOW_NOT_RUNNING`、`WORKFLOW_CANCELLED` | 任务已结束或已经取消 | 否 | 查询快照确认终态 |
 | `WORKSPACE_UNAVAILABLE`、`WORKSPACE_FILE_UNAVAILABLE` | 工作区或目标文件不可读取 | 是 | 刷新文件树后重试 |
 | `WORKSPACE_FILE_UNSUPPORTED`、`WORKSPACE_FILE_TOO_LARGE` | 文件类型不支持或超过 1 MiB | 否 | 使用 Markdown/代码文件，或缩小文件后重试 |
+| `TERMINAL_LOCKED` | 当前未选择开发人员模式 | 否 | 在设置 → 工作模式中选择“开发人员” |
+| `TERMINAL_COMMAND_REQUIRED`、`TERMINAL_COMMAND_TOO_LARGE` | 命令为空或超过 16 KiB | 否 | 输入有效命令并控制命令长度 |
+| `TERMINAL_EXEC_FAILED`、`TERMINAL_TASK_FAILED` | Shell 启动或终端任务边界失败 | 是 | 检查本机 Shell 与当前工程环境后重试 |
 | `AGENT_UNAVAILABLE`、`AGENT_TIMEOUT`、`AGENT_PROTOCOL_ERROR`、`AGENT_OUTPUT_INVALID` | Pi 计划器不可用、超时或输出非法 | 是 | 系统自动使用确定性计划；需要模型计划时检查 sidecar 配置 |
 | `DB_BUSY`、`WORKFLOW_BUSY`、`IMPORT_TASK_FAILED`、`REGISTER_TASK_FAILED`、`WORKFLOW_TASK_FAILED` | 暂时性执行边界失败 | 是 | 刷新状态后有限次数重试 |
 | `ARTIFACT_PATH_INVALID`、`UNKNOWN_TOOL` | 工具返回越界路径或工具未注册 | 否 | 拒绝结果并检查工具版本，不绕过安全门 |
@@ -103,8 +111,9 @@
 - 前端仅调用上述 command；不得直接访问 SQLite、受管目录或 Python/Node 进程。
 - Rust 校验项目 ID 与统计输出文件名，所有科研元数据、状态和校验和以 SQLite 为准。
 - 工作区预览只接受非空相对路径；拒绝绝对路径、`..`、符号链接、隐藏/受管目录与超出文件树深度的路径，单文件读取上限为 1 MiB。
+- `run_terminal_command` 只接受开发人员模式请求，固定使用本机 Shell 在工程根目录执行；命令和输出均不写入 SQLite，stdout/stderr 单次各最多返回 256 KiB。
 - 原始文件复制到 `projects/{projectId}/sources`，按 SHA-256 去重并设为只读；不覆盖仓库旧 `data/`。
-- Pi 不注册文件、Shell 或数据库工具。Python 只读取 Rust 写入配置中的受管输入并输出到指定运行目录。
+- Pi 不注册文件、Shell 或数据库工具；终端仅由开发人员 UI 直接调用。Python 只读取 Rust 写入配置中的受管输入并输出到指定运行目录。
 - 错误和事件不得包含密钥、模型提供商凭证或受管文件绝对路径。
 
 ## 行为约束
@@ -113,6 +122,7 @@
 - 幂等性：原始源文件按项目与 SHA-256 去重；重复确认已运行中的计划会被状态门拒绝。失败、取消或中断后的重试创建新的 WorkflowRun 并保留旧记录。
 - 超时与取消：Pi 计划器超时为 45 秒并退回确定性计划；Python 分析轮询取消标记，取消时终止子进程。V1 尚未为 Python 设置独立墙钟超时。
 - 并发、限流与重试：单次检查最多 100 个文件；SQLite 连接以互斥锁串行访问；调用方不得无限重试。
+- 终端：一次只提交一个命令；当前实现是一次性命令执行，不提供持久化 Shell 会话或 PTY 交互。
 - 重启：应用启动时把仍为 `running` 的 WorkflowRun、TaskPlanRun、Execution 与 TaskPlan 标记为 `interrupted`；前端重新调用 `get_workspace_snapshot` 恢复状态，不依赖内存事件重放。
 - 日志：stdout/stderr 在子进程运行期间持续排空，各最多保留 10 MiB；Execution 只保存文件描述、校验和与截断标记。
 - 输出验证：Rust 仅接受统计输出清单中的单层文件名，计算每个文件及组合 SHA-256 后登记 Artifact。
@@ -182,3 +192,4 @@ const plan = await invoke("submit_agent_intent", {
 | 2026-09-12 | 0.1.0 | 兼容 | 建立 V1 八个 command 与三个生命周期事件契约 | 无 |
 | 2026-09-12 | 0.2.0 | 兼容扩展 | 增加 M2 科研语义、导入确认、Execution、Lineage 与 Project API | V1 command 保留至 M3 |
 | 2026-09-14 | 0.3.0 | 领域重构 | 对话成为交互单元：新增 `ensure_active_conversation` / `get_conversation_context` / `open_project_context` / `new_temporary_conversation` / `send_message` / `promote_conversation`；`submit_agent_intent` / `submit_research_intent` 增加可选 `conversationId`；Agent 进程新增 `discuss` 请求（返回 Markdown 回复，上下文明确声明当前无数据） | DB v3：messages 改挂 conversations，历史 Project 消息自动迁入「研究对话」会话；升级前自动备份 `pre-v3-*` |
+| 2026-09-16 | 0.4.0 | 兼容扩展 | 开发人员模式增加 `run_terminal_command`，提供受 IPC 门控的一次性本机命令执行面板 | 不影响 Agent 工具、SQLite 与既有工作流 |

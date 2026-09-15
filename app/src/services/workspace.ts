@@ -12,6 +12,7 @@ import type {
   ImportInspection,
   Project,
   TaskPlan,
+  TerminalRunResult,
   WorkflowRun,
   WorkspaceFileNode,
   WorkspaceFilePreview,
@@ -347,6 +348,26 @@ export const workspaceApi = {
       return Promise.resolve(createBrowserPreviewFile(relativePath));
     return invoke<WorkspaceFilePreview>('read_workspace_file', {
       relativePath,
+    });
+  },
+  setTerminalAccess(enabled: boolean) {
+    if (!isTauriRuntime()) return Promise.resolve();
+    return invoke<void>('set_terminal_access', { enabled });
+  },
+  runTerminalCommand(command: string) {
+    if (!isTauriRuntime()) {
+      return Promise.resolve<TerminalRunResult>({
+        stdout: '',
+        stderr: '浏览器预览不支持执行本机命令，请在 Tauri 桌面端使用。',
+        status: null,
+        success: false,
+        truncated: false,
+        durationMs: 0,
+        cwd: '当前工程根目录',
+      });
+    }
+    return invoke<TerminalRunResult>('run_terminal_command', {
+      request: { command },
     });
   },
 };

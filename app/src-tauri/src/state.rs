@@ -8,6 +8,7 @@ pub struct AppState {
     pub connection: Mutex<Connection>,
     pub data_root: PathBuf,
     pub cancellations: Mutex<HashMap<String, Arc<AtomicBool>>>,
+    pub terminal_enabled: AtomicBool,
 }
 
 impl AppState {
@@ -16,6 +17,7 @@ impl AppState {
             connection: Mutex::new(connection),
             data_root,
             cancellations: Mutex::new(HashMap::new()),
+            terminal_enabled: AtomicBool::new(false),
         }
     }
 }

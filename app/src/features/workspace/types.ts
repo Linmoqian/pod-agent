@@ -65,6 +65,16 @@ export type WorkspaceFilePreview = {
   content: string;
 };
 
+export type TerminalRunResult = {
+  stdout: string;
+  stderr: string;
+  status: number | null;
+  success: boolean;
+  truncated: boolean;
+  durationMs: number;
+  cwd: string;
+};
+
 export type Artifact = {
   id: string;
   projectId: string;

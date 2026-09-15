@@ -287,6 +287,10 @@
   flex: 0 0 auto;
 }
 
+.terminalButton {
+  color: var(--color-brand-600);
+}
+
 .unsavedDot {
   position: relative;
   display: grid;
