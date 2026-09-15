@@ -31,7 +31,7 @@ import styles from './YoloResultsDialog.module.css';
 
 type YoloResultsPanelProps = Pick<
   YoloTask,
-  'photos' | 'loadImagePreview' | 'loadResultPreview' | 'exportCsv'
+  'photos' | 'loadThumbnail' | 'loadImagePreview' | 'loadResultPreview' | 'exportCsv'
 > & {
   initialPhotoId?: string;
 };
@@ -81,22 +81,68 @@ const ResultRow = memo(function ResultRow({
   photo,
   active,
   onActivate,
+  loadThumbnail,
 }: {
   photo: YoloPhoto;
   active: boolean;
   onActivate: (photo: YoloPhoto) => void;
+  loadThumbnail: (photo: YoloPhoto) => Promise<string | undefined>;
 }) {
+  const rowRef = useRef<HTMLButtonElement>(null);
+  const loadThumbnailRef = useRef(loadThumbnail);
+  const photoRef = useRef(photo);
+  const [thumbnailUrl, setThumbnailUrl] = useState(photo.url);
+  const [thumbnailLoading, setThumbnailLoading] = useState(false);
+  loadThumbnailRef.current = loadThumbnail;
+  photoRef.current = photo;
+
+  useEffect(() => {
+    let disposed = false;
+    const currentPhoto = photoRef.current;
+    setThumbnailUrl(currentPhoto.url);
+    if (currentPhoto.url) return;
+    const row = rowRef.current;
+    if (!row) return;
+    const load = () => {
+      if (disposed) return;
+      setThumbnailLoading(true);
+      void loadThumbnailRef.current(currentPhoto)
+        .then((url) => {
+          if (!disposed && url) setThumbnailUrl(url);
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (!disposed) setThumbnailLoading(false);
+        });
+    };
+    if (typeof IntersectionObserver === 'undefined') {
+      load();
+      return;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      observer.disconnect();
+      load();
+    }, { rootMargin: '160px' });
+    observer.observe(row);
+    return () => {
+      disposed = true;
+      observer.disconnect();
+    };
+  }, [photo.id, photo.url]);
+
   return <button
     type="button"
     className={styles.row}
+    ref={rowRef}
     data-active={active}
     role="option"
     aria-selected={active}
     onClick={() => onActivate(photo)}
   >
-    {photo.url
-      ? <img className={styles.rowThumb} src={photo.url} alt="" />
-      : <span className={`${styles.rowThumb} ${styles.imageFallback}`}><ImageIcon size={16} /></span>}
+    {thumbnailUrl
+      ? <img className={styles.rowThumb} src={thumbnailUrl} alt="" onError={() => setThumbnailUrl(undefined)} />
+      : <span className={`${styles.rowThumb} ${styles.imageFallback}`}>{thumbnailLoading ? <LoadingIcon /> : <ImageIcon size={16} />}</span>}
     <span className={styles.rowCopy}><strong title={photo.name}>{photo.name}</strong><small>{countLabel(photo)}</small></span>
     <span className={styles.status} data-status={photo.status}>{statusLabel(photo)}</span>
   </button>;
@@ -119,6 +165,7 @@ function minResultsListPercent(bodyWidth: number) {
 export default function YoloResultsPanel({
   photos,
   initialPhotoId,
+  loadThumbnail,
   loadImagePreview,
   loadResultPreview,
   exportCsv,
@@ -416,6 +463,7 @@ export default function YoloResultsPanel({
             photo={photo}
             active={activePhoto?.id === photo.id}
             onActivate={activatePhoto}
+            loadThumbnail={loadThumbnail}
           />)}
         </div>
       </aside>

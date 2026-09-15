@@ -296,6 +296,16 @@ export function useYoloTask() {
     }
   };
 
+  const loadThumbnail = async (photo: YoloPhoto) => {
+    const cached = thumbnailUrls.current.get(photo.id);
+    if (cached) return cached;
+    if (!isTauriRuntime()) return undefined;
+    await ensureThumbnail({ id: photo.id, path: photo.path, external: Boolean(photo.external) });
+    const url = thumbnailUrls.current.get(photo.id);
+    if (!url) throw new Error('缩略图加载失败');
+    return url;
+  };
+
   const loadRuntimeMemory = async () => {
     if (runtimeMemoryGb.current !== undefined || !isTauriRuntime()) return;
     try {
@@ -595,7 +605,7 @@ export function useYoloTask() {
   };
   return { photos, models, modelId, setModelId, paused, setPaused, adding: addingCount > 0, dragging, error, add,
     readProgress,
-    loadResultPreview, loadImagePreview, exportCsv,
+    loadThumbnail, loadResultPreview, loadImagePreview, exportCsv,
     retry: () => setPhotos((list) => list.map((p) => !p.external && p.status === 'error' ? {
       ...p,
       status: 'waiting',

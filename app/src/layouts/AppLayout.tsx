@@ -1282,6 +1282,7 @@ export default function AppLayout() {
             <YoloResultsPanel
               photos={yoloTask.photos}
               initialPhotoId={yoloResultsFocusId}
+              loadThumbnail={yoloTask.loadThumbnail}
               loadImagePreview={yoloTask.loadImagePreview}
               loadResultPreview={yoloTask.loadResultPreview}
               exportCsv={yoloTask.exportCsv}
