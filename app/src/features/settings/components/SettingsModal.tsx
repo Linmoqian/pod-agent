@@ -7,7 +7,7 @@
  * @author: https://github.com/Linmoqian
  */
 
-import { Bot, Code2, FlaskConical, Monitor, Moon, Search, Sprout, Sun, SlidersHorizontal, UserRound } from 'lucide-react';
+import { Bot, ChevronDown, Code2, FlaskConical, Languages, Monitor, Moon, Search, Sprout, Sun, SlidersHorizontal, UserRound } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { version } from "../../../../package.json";
@@ -108,6 +108,26 @@ function ThemeSection() {
             onSelect={() => setThemePreference(value)}
           />
         ))}
+      </div>
+      <div className={styles.languageSetting}>
+        <div className={styles.languageCopy}>
+          <span className={styles.languageIcon} aria-hidden>
+            <Languages size={18} strokeWidth={1.75} />
+          </span>
+          <span className={styles.languageText}>
+            <strong>语言</strong>
+            <small>界面显示语言，暂未开放切换</small>
+          </span>
+        </div>
+        <button
+          type="button"
+          className={styles.languageButton}
+          disabled
+          aria-label="切换界面语言（暂未开放）"
+        >
+          <span>简体中文</span>
+          <ChevronDown size={15} strokeWidth={1.75} aria-hidden />
+        </button>
       </div>
     </section>
   );
@@ -280,7 +300,7 @@ function SettingsModal({ open, onClose }: SettingsModalProps) {
     keywords: readonly string[];
     icon: ReactNode;
   }> = [
-    { id: 'appearance', label: '外观', hint: '主题与界面', keywords: ['浅色', '深色', '系统', '主题'], icon: <SlidersHorizontal size={16} /> },
+    { id: 'appearance', label: '外观', hint: '主题与界面', keywords: ['浅色', '深色', '系统', '主题', '语言'], icon: <SlidersHorizontal size={16} /> },
     { id: 'mode', label: '工作模式', hint: '助手行为', keywords: ['新手', '专家', '开发人员', '引导', '调试'], icon: <UserRound size={16} /> },
     ...(experienceMode === 'developer'
       ? [{ id: 'model' as const, label: '模型', hint: '提供商与密钥', keywords: ['模型', '提供商', '密钥', '端点'], icon: <Bot size={16} /> }]
