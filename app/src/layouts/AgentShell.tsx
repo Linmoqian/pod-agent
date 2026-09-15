@@ -1,5 +1,6 @@
 /* 可移动、可调宽的 Agent 对话工作台。
  * Created on 2026-09-14
+ * Updated on 2026-09-16
  * @author: https://github.com/Linmoqian
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -28,51 +29,17 @@ import SettingsModal from '../features/settings/components/SettingsModal';
 import type { Project } from '../features/workspace/types';
 import styles from './AgentShell.module.css';
 import YoloTaskCard, { type YoloTask } from '../features/workspace/components/YoloTaskCard';
-
-type PanelId = 'navigation' | 'workbench';
-type Layout = { reversed: boolean; navigation: number; workbench: number };
-const DEFAULT_LAYOUT: Layout = {
-  reversed: false,
-  navigation: 248,
-  workbench: 320,
-};
-const PANEL_MIN_WIDTH: Record<PanelId, number> = {
-  navigation: 52,
-  workbench: 280,
-};
+import {
+  DEFAULT_PANEL_LAYOUT,
+  PANEL_MAX_WIDTH,
+  PANEL_MIN_WIDTH,
+  persistPanelLayout,
+  readPanelLayout,
+  type PanelId,
+  type PanelLayout,
+} from './panelLayout';
 const PANEL_COMPACT_WIDTH = 84;
-const PANEL_MAX_WIDTH: Record<PanelId, number> = {
-  navigation: 420,
-  workbench: 480,
-};
-const STORAGE_KEY = 'lian.chat-layout.v1';
 const COMPACT_LAYOUT_QUERY = '(max-width: 980px)';
-function readLayout(): Layout {
-  try {
-    const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-    if (
-      value &&
-      typeof value.reversed === 'boolean' &&
-      Number.isFinite(value.navigation) &&
-      Number.isFinite(value.workbench)
-    ) {
-      return {
-        reversed: value.reversed,
-        navigation: Math.min(
-          PANEL_MAX_WIDTH.navigation,
-          Math.max(PANEL_MIN_WIDTH.navigation, value.navigation),
-        ),
-        workbench: Math.min(
-          PANEL_MAX_WIDTH.workbench,
-          Math.max(PANEL_MIN_WIDTH.workbench, value.workbench),
-        ),
-      };
-    }
-  } catch {
-    /* 布局偏好不可读时使用默认值。 */
-  }
-  return DEFAULT_LAYOUT;
-}
 
 export default function AgentShell({
   children,
@@ -99,7 +66,7 @@ export default function AgentShell({
   onOpenYoloResults: (photoId?: string) => void;
   yoloTask: YoloTask;
 }) {
-  const [layout, setLayout] = useState(readLayout);
+  const [layout, setLayout] = useState<PanelLayout>(readPanelLayout);
   const leftPanel: PanelId = layout.reversed ? 'workbench' : 'navigation';
   const rightPanel: PanelId = leftPanel === 'navigation' ? 'workbench' : 'navigation';
   const nativeWindow = isTauri();
@@ -149,13 +116,6 @@ export default function AgentShell({
   const menu = useRef<HTMLMenuElement>(null);
   const menuTrigger = useRef<HTMLElement | null>(null);
   const reduced = useReducedMotion();
-  const persistLayout = (next: Layout) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      /* 内存布局仍可使用。 */
-    }
-  };
   const reloadApplication = () => {
     window.location.reload();
   };
@@ -164,7 +124,7 @@ export default function AgentShell({
     window.clearTimeout(dragDelay.current);
     dragDelay.current = null;
   };
-  const updateLayout = (updater: (current: Layout) => Layout, persist = false) => {
+  const updateLayout = (updater: (current: PanelLayout) => PanelLayout, persist = false) => {
     setLayout((current) => {
       const next = updater(current);
       if (
@@ -174,7 +134,7 @@ export default function AgentShell({
       ) {
         return current;
       }
-      if (persist) persistLayout(next);
+      if (persist) persistPanelLayout(next);
       return next;
     });
   };
@@ -582,7 +542,7 @@ export default function AgentShell({
           onLostPointerCapture={cancel}
           onDoubleClick={() =>
             updateLayout(
-              (value) => ({ ...value, [id]: DEFAULT_LAYOUT[id] }),
+              (value) => ({ ...value, [id]: DEFAULT_PANEL_LAYOUT[id] }),
               true,
             )
           }
@@ -761,6 +721,17 @@ export default function AgentShell({
       <SettingsModal
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
+        layout={layout}
+        onLayoutChange={(next) =>
+          updateLayout(
+            (value) => ({
+              ...value,
+              reversed: next.reversed,
+              workbench: next.workbench,
+            }),
+            true,
+          )
+        }
       />
     </div>
   );

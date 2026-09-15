@@ -1,13 +1,30 @@
 /*
- * 设置模态:外观、工作模式与关于三个独立页面。
+ * 设置模态:外观、育种台、工作模式与关于等独立页面。
  * 选项卡片为同组互斥单选,以 aria-pressed 表达选中态;
  * 主题/模式状态读写走 SettingsContext,由其负责持久化与 <html data-theme>。
  * Created on 2026-09-08
- * Updated on 2026-09-15
+ * Updated on 2026-09-16
  * @author: https://github.com/Linmoqian
  */
 
-import { Bot, ChevronDown, Code2, FlaskConical, Languages, Monitor, Moon, Search, Sprout, Sun, SlidersHorizontal, UserRound } from 'lucide-react';
+import {
+  Bot,
+  ChevronDown,
+  Code2,
+  FlaskConical,
+  Languages,
+  Monitor,
+  Moon,
+  PanelLeft,
+  PanelRight,
+  PanelsTopLeft,
+  RotateCcw,
+  Search,
+  Sprout,
+  Sun,
+  SlidersHorizontal,
+  UserRound,
+} from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { version } from "../../../../package.json";
@@ -27,6 +44,14 @@ import BrandMark from "../../../components/common/BrandMark";
 import { ProviderSettingsPanel } from "../../providers/components/ProviderSettingsModal";
 import { useSettings } from "../context";
 import type { ExperienceMode, ThemePreference } from "../types";
+import {
+  DEFAULT_PANEL_LAYOUT,
+  PANEL_MAX_WIDTH,
+  PANEL_MIN_WIDTH,
+  persistPanelLayout,
+  readPanelLayout,
+  type PanelLayout,
+} from "../../../layouts/panelLayout";
 import styles from "./SettingsModal.module.css";
 
 type OptionCardProps = {
@@ -185,6 +210,105 @@ function ModeSection() {
   );
 }
 
+function WorkbenchSection({
+  layout: controlledLayout,
+  onLayoutChange,
+}: {
+  layout?: PanelLayout;
+  onLayoutChange?: (next: PanelLayout) => void;
+}) {
+  const [localLayout, setLocalLayout] = useState(readPanelLayout);
+  const layout = controlledLayout ?? localLayout;
+  const side = layout.reversed ? 'left' : 'right';
+  const updateLayout = (
+    changes: Partial<Pick<PanelLayout, 'reversed' | 'workbench'>>,
+  ) => {
+    const next = { ...layout, ...changes };
+    if (onLayoutChange) {
+      onLayoutChange(next);
+      return;
+    }
+    setLocalLayout(next);
+    persistPanelLayout(next);
+  };
+
+  return (
+    <section className={styles.section} aria-labelledby="settings-workbench">
+      <h3 id="settings-workbench" className={styles.sectionTitle}>
+        育种台
+      </h3>
+      <p className={styles.sectionDescription}>
+        配置育种台在工作空间中的停靠位置与面板宽度，改动会立即生效并自动保存。
+      </p>
+      <div
+        className={`${styles.optionGrid} ${styles.layoutOptionGrid}`}
+        role="group"
+        aria-label="育种台位置"
+      >
+        <OptionCard
+          label="左侧"
+          description="将育种台停靠在对话区左侧。"
+          icon={<PanelLeft size={21} strokeWidth={1.75} />}
+          selected={side === 'left'}
+          onSelect={() => updateLayout({ reversed: true })}
+        />
+        <OptionCard
+          label="右侧"
+          description="将育种台停靠在对话区右侧。"
+          icon={<PanelRight size={21} strokeWidth={1.75} />}
+          selected={side === 'right'}
+          onSelect={() => updateLayout({ reversed: false })}
+        />
+      </div>
+      <div className={styles.layoutSetting}>
+        <div className={styles.layoutSettingHeader}>
+          <div>
+            <strong>面板宽度</strong>
+            <span>也可以直接拖动工作区中的分界线。</span>
+          </div>
+          <output className={styles.layoutValue} htmlFor="workbench-width">
+            {layout.workbench}px
+          </output>
+        </div>
+        <div className={styles.layoutRange}>
+          <span aria-hidden>紧凑</span>
+          <input
+            id="workbench-width"
+            type="range"
+            min={PANEL_MIN_WIDTH.workbench}
+            max={PANEL_MAX_WIDTH.workbench}
+            step="1"
+            value={layout.workbench}
+            aria-label="育种台宽度"
+            onChange={(event) =>
+              updateLayout({ workbench: Number(event.currentTarget.value) })
+            }
+          />
+          <span aria-hidden>宽松</span>
+        </div>
+      </div>
+      <div className={styles.layoutFooter}>
+        <span>
+          当前布局：{side === 'left' ? '左侧' : '右侧'} · {layout.workbench}px
+        </span>
+        <button
+          type="button"
+          className={styles.resetLayout}
+          onClick={() =>
+            updateLayout({
+              reversed: DEFAULT_PANEL_LAYOUT.reversed,
+              workbench: DEFAULT_PANEL_LAYOUT.workbench,
+            })
+          }
+        >
+          <RotateCcw size={14} aria-hidden />
+          恢复默认布局
+        </button>
+      </div>
+    </section>
+  );
+}
+
 const DEVELOPERS = [
   { name: "linmoqian", portrait: developerOnePortrait, accent: "purple" },
   { name: "qcl", portrait: developerTwoPortrait, accent: "blue" },
@@ -284,11 +408,18 @@ function AboutSection() {
 type SettingsModalProps = {
   open: boolean;
   onClose: () => void;
+  layout?: PanelLayout;
+  onLayoutChange?: (next: PanelLayout) => void;
 };
 
-type SettingsSection = 'appearance' | 'mode' | 'model' | 'about';
+type SettingsSection = 'appearance' | 'workbench' | 'mode' | 'model' | 'about';
 
-function SettingsModal({ open, onClose }: SettingsModalProps) {
+function SettingsModal({
+  open,
+  onClose,
+  layout,
+  onLayoutChange,
+}: SettingsModalProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>('appearance');
   const [query, setQuery] = useState('');
   const reduceMotion = useReducedMotion();
@@ -301,6 +432,7 @@ function SettingsModal({ open, onClose }: SettingsModalProps) {
     icon: ReactNode;
   }> = [
     { id: 'appearance', label: '外观', hint: '主题与界面', keywords: ['浅色', '深色', '系统', '主题', '语言'], icon: <SlidersHorizontal size={16} /> },
+    { id: 'workbench', label: '育种台', hint: '布局与侧栏', keywords: ['育种台', '布局', '位置', '宽度', '左侧', '右侧'], icon: <PanelsTopLeft size={16} /> },
     { id: 'mode', label: '工作模式', hint: '助手行为', keywords: ['新手', '专家', '开发人员', '引导', '调试'], icon: <UserRound size={16} /> },
     ...(experienceMode === 'developer'
       ? [{ id: 'model' as const, label: '模型', hint: '提供商与密钥', keywords: ['模型', '提供商', '密钥', '端点'], icon: <Bot size={16} /> }]
@@ -393,6 +525,12 @@ function SettingsModal({ open, onClose }: SettingsModalProps) {
                   transition={reduceMotion ? { duration: 0 } : { duration: 0.14, ease: 'easeOut' }}
                 >
                   {activeSection === 'appearance' && <ThemeSection />}
+                  {activeSection === 'workbench' && (
+                    <WorkbenchSection
+                      layout={layout}
+                      onLayoutChange={onLayoutChange}
+                    />
+                  )}
                   {activeSection === 'mode' && <ModeSection />}
                   {activeSection === 'model' && <ProviderSettingsPanel />}
                   {activeSection === 'about' && <AboutSection />}
