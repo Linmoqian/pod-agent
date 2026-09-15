@@ -1,7 +1,7 @@
 /*
  * 展示 Project 内消息时间线与待确认的数据识别结果。
  * Created on 2026-09-12
- * Updated on 2026-09-14
+ * Updated on 2026-09-16
  * @author: https://github.com/Linmoqian
  */
 
@@ -195,7 +195,6 @@ function TimelineMessages({
 }: Pick<WorkspaceTimelineProps, 'messages' | 'onRetry'>) {
   return messages.map((item) => (
     <div key={item.id} className={styles.message} data-role={item.role}>
-      <small>{item.role === 'user' ? '你' : 'lian'}</small>
       {item.role === 'user' ? (
         <p>{item.content}</p>
       ) : item.status === 'pending' ? (

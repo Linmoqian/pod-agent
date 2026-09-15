@@ -44,15 +44,6 @@
   padding: 4px 2px;
 }
 
-.message > small {
-  display: block;
-  margin-bottom: var(--space-2);
-  color: var(--color-text-tertiary);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: 0.02em;
-}
-
 .message[data-role='user'] {
   max-width: 85%;
   align-self: flex-end;
@@ -61,10 +52,6 @@
   border-radius: var(--radius-lg) var(--radius-lg) var(--radius-sm)
     var(--radius-lg);
   background: var(--color-surface-subtle);
-}
-
-.message small {
-  color: var(--color-text-disabled);
 }
 
 .welcomeMascotFloat {
