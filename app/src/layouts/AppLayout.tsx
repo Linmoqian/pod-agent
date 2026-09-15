@@ -1067,13 +1067,20 @@ function ContextHeader(props: ContextHeaderProps) {
           </div>
         )}
         {!props.inProject && (
-          <span
+          <button
+            type="button"
             className={styles.unsavedDot}
-            aria-label="未保存的临时会话"
-            title="未保存的临时会话，按 Ctrl+S 保存"
+            aria-label="关闭未保存的临时会话"
+            title="未保存的临时会话，点击关闭"
+            disabled={props.busy}
+            onClick={() => {
+              const currentTab = props.tabs.find((tab) => tab.id === props.activeTabId);
+              if (currentTab) requestCloseTab(currentTab);
+            }}
           >
-            <Circle size={8} fill="currentColor" aria-hidden />
-          </span>
+            <Circle className={styles.unsavedDotIcon} size={8} fill="currentColor" aria-hidden />
+            <X className={styles.unsavedCloseIcon} size={14} strokeWidth={1.9} aria-hidden />
+          </button>
         )}
         {props.inProject && (
           <Button

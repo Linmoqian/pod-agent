@@ -288,11 +288,63 @@
 }
 
 .unsavedDot {
+  position: relative;
   display: grid;
   width: 30px;
   height: 30px;
+  padding: 0;
+  border: 0;
   place-items: center;
+  border-radius: var(--radius-md);
+  background: transparent;
   color: var(--color-brand-500);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--easing-standard),
+    color var(--duration-fast) var(--easing-standard);
+}
+.unsavedDotIcon,
+.unsavedCloseIcon {
+  grid-area: 1 / 1;
+  pointer-events: none;
+  transition: opacity var(--duration-fast) var(--easing-standard),
+    transform var(--duration-fast) var(--easing-standard);
+}
+.unsavedCloseIcon {
+  opacity: 0;
+  transform: scale(0.78);
+}
+.unsavedDot:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+}
+.unsavedDot:focus-visible .unsavedDotIcon {
+  opacity: 0;
+  transform: scale(0.78);
+}
+.unsavedDot:focus-visible .unsavedCloseIcon {
+  opacity: 1;
+  transform: scale(1);
+}
+.unsavedDot:active .unsavedCloseIcon {
+  transform: scale(var(--press-scale, 0.97));
+}
+.unsavedDot:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+@media (hover: hover) and (pointer: fine) {
+  .unsavedDot:hover {
+    background: var(--color-surface-subtle);
+    color: var(--color-text-primary);
+  }
+  .unsavedDot:hover .unsavedDotIcon {
+    opacity: 0;
+    transform: scale(0.78);
+  }
+  .unsavedDot:hover .unsavedCloseIcon {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 .eyebrow,
 .projectRow h1,
