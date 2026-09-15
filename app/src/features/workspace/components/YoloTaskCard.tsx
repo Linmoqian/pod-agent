@@ -51,7 +51,7 @@ export type ImagePreviewOptions = { forceFallback?: boolean };
 type Model = { id: string; name: string; available: boolean };
 type YoloEvent = {
   id: string;
-  status: 'running' | 'done' | 'error';
+  status: 'queued' | 'running' | 'done' | 'error';
   imagePath?: string;
   modelId?: string;
   message?: string;
@@ -152,7 +152,7 @@ export function useYoloToolEvents(onEvent: (event: YoloEvent) => void) {
     let disposed = false;
     let unlisten: (() => void) | undefined;
     void listen<YoloEvent>('lian-yolo-event', ({ payload }) => {
-      if (!disposed && typeof payload.id === 'string' && ['running', 'done', 'error'].includes(payload.status)) callback.current(payload);
+      if (!disposed && typeof payload.id === 'string' && ['queued', 'running', 'done', 'error'].includes(payload.status)) callback.current(payload);
     }).then((stop) => { if (disposed) stop(); else unlisten = stop; }).catch(() => {});
     return () => { disposed = true; unlisten?.(); };
   }, []);
@@ -355,27 +355,57 @@ export function useYoloTask() {
   };
 
   useYoloToolEvents((event) => {
-    if (event.status === 'running' && event.imagePath) {
-      if (externalIds.current.has(event.id)) return;
-      externalIds.current.add(event.id);
-      const path = event.imagePath;
-      setPhotos((list) => list.some((p) => p.id === event.id) ? list : [...list, {
-        id: event.id, path, name: path.split(/[/\\]/).pop() ?? path,
-        status: 'running', startedAt: Date.now(), external: true, modelId: event.modelId,
-      }]);
-      registerReadJobs(1);
-      enqueueThumbnailReads([{ id: event.id, path, external: true }]);
-    } else {
-      setPhotos((list) => list.map((p) => p.id === event.id ? {
-        ...p,
-        status: event.status,
-        finishedAt: event.status === 'done' || event.status === 'error' ? Date.now() : p.finishedAt,
-        message: event.message,
-        count: event.count,
-        counts: event.counts,
-        detections: event.detections,
-      } : p));
+    const path = event.imagePath;
+    if (path) {
+      const isNew = !externalIds.current.has(event.id);
+      const terminal = event.status === 'done' || event.status === 'error';
+      const status = event.status === 'queued' ? 'waiting' : event.status;
+      if (isNew) {
+        externalIds.current.add(event.id);
+        const now = Date.now();
+        setPhotos((list) => list.some((p) => p.id === event.id) ? list : [...list, {
+          id: event.id,
+          path,
+          name: path.split(/[/\\]/).pop() ?? path,
+          status,
+          startedAt: event.status === 'queued' ? undefined : now,
+          finishedAt: terminal ? now : undefined,
+          external: true,
+          modelId: event.modelId,
+          message: event.message,
+          count: event.count,
+          counts: event.counts,
+          detections: event.detections,
+        }]);
+      } else {
+        setPhotos((list) => list.map((p) => p.id === event.id ? {
+          ...p,
+          status,
+          startedAt: event.status === 'running' ? p.startedAt ?? Date.now() : p.startedAt,
+          finishedAt: terminal ? p.finishedAt ?? Date.now() : p.finishedAt,
+          message: event.message ?? p.message,
+          count: event.count ?? p.count,
+          counts: event.counts ?? p.counts,
+          detections: event.detections ?? p.detections,
+        } : p));
+      }
+      if (event.status === 'running' || event.status === 'done') {
+        enqueueThumbnailReads([{ id: event.id, path, external: true }], true);
+      } else if (isNew) {
+        enqueueThumbnailReads([{ id: event.id, path, external: true }]);
+      }
+      return;
     }
+    if (event.status === 'queued') return;
+    setPhotos((list) => list.map((p) => p.id === event.id ? {
+      ...p,
+      status: event.status,
+      finishedAt: event.status === 'done' || event.status === 'error' ? Date.now() : p.finishedAt,
+      message: event.message ?? p.message,
+      count: event.count ?? p.count,
+      counts: event.counts ?? p.counts,
+      detections: event.detections ?? p.detections,
+    } : p));
   });
   useEffect(() => {
     const objectUrls = urls.current;

@@ -231,7 +231,7 @@ pub fn discuss(
         if progress.kind == "yolo.task" {
             if let Ok(event) = serde_json::from_str::<Value>(&progress.delta) {
                 if let Some(id) = event["id"].as_str() {
-                    if event["status"] == "running" { active.borrow_mut().insert(id.into()); }
+                    if matches!(event["status"].as_str(), Some("queued" | "running")) { active.borrow_mut().insert(id.into()); }
                     else { active.borrow_mut().remove(id); }
                 }
             }
@@ -242,7 +242,7 @@ pub fn discuss(
         app_dir,
         request,
         "discuss.result",
-        Duration::from_secs(120),
+        Duration::from_secs(15 * 60),
         Some(&forward),
     );
     for id in active.borrow().iter() {
