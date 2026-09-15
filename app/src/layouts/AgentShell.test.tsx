@@ -66,13 +66,30 @@ it.each([
     const header = screen.getByRole('banner', { name: '工作空间顶部栏' });
     expect(header.hasAttribute('data-native-mac')).toBe(inset);
     expect(header.hasAttribute('data-tauri-drag-region')).toBe(native);
-    const button = screen.getByTitle(`会话侧栏 · ${shortcut}`);
+    const button = screen.getByTitle(`左侧边栏 · ${shortcut}`);
     expect(button).not.toHaveAttribute('data-tauri-drag-region');
     fireEvent.click(button);
-    expect(screen.getByLabelText('展开会话侧栏')).toBeInTheDocument();
+    expect(screen.getByLabelText('展开左侧边栏')).toBeInTheDocument();
   } finally {
     platformMock.mockRestore();
   }
+});
+
+it('顶部边栏按钮和快捷键跟随左右停靠位置', () => {
+  render(shell());
+  fireEvent.click(screen.getByLabelText('移动会话侧栏到右侧'));
+
+  fireEvent.click(screen.getByLabelText('收起左侧边栏'));
+  expect(props.onToggleWorkbench).toHaveBeenCalledTimes(1);
+
+  fireEvent.click(screen.getByLabelText('收起右侧边栏'));
+  expect(screen.getByLabelText('展开右侧边栏')).toBeInTheDocument();
+
+  vi.clearAllMocks();
+  fireEvent.keyDown(window, { key: 'b', ctrlKey: true });
+  expect(props.onToggleWorkbench).toHaveBeenCalledTimes(1);
+  fireEvent.keyDown(window, { key: 'b', ctrlKey: true, shiftKey: true });
+  expect(screen.getByLabelText('收起右侧边栏')).toBeInTheDocument();
 });
 
 it('换位保留对话和上下文的 DOM 与输入状态', () => {
@@ -208,15 +225,15 @@ it('窄屏默认显示对话，侧栏互斥且 Escape 关闭', async () => {
     render(shell());
     expect(screen.queryByLabelText('会话侧栏')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('育种台')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByLabelText('展开会话侧栏'));
+    fireEvent.click(screen.getByLabelText('展开左侧边栏'));
     expect(screen.getByLabelText('会话侧栏')).toBeInTheDocument();
-    fireEvent.click(screen.getByLabelText('展开育种台'));
+    fireEvent.click(screen.getByLabelText('展开右侧边栏'));
     await waitFor(() =>
       expect(screen.queryByLabelText('会话侧栏')).not.toBeInTheDocument(),
     );
     expect(screen.getByLabelText('育种台')).toBeInTheDocument();
     fireEvent.keyDown(window, { key: 'Escape' });
-    expect(screen.getByLabelText('展开会话侧栏')).toBeInTheDocument();
+    expect(screen.getByLabelText('展开左侧边栏')).toBeInTheDocument();
   } finally {
     media.mockRestore();
   }

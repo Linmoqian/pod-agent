@@ -100,6 +100,8 @@ export default function AgentShell({
   yoloTask: YoloTask;
 }) {
   const [layout, setLayout] = useState(readLayout);
+  const leftPanel: PanelId = layout.reversed ? 'workbench' : 'navigation';
+  const rightPanel: PanelId = leftPanel === 'navigation' ? 'workbench' : 'navigation';
   const nativeWindow = isTauri();
   const mac = /Mac/i.test(navigator.platform);
   const shownYolo = useRef(new Set<string>());
@@ -214,11 +216,11 @@ export default function AgentShell({
     const handler = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'b') {
         event.preventDefault();
+        const target = event.shiftKey ? rightPanel : leftPanel;
         if (narrow) {
-          const target = event.shiftKey ? 'workbench' : 'navigation';
           setMobilePanel((value) => (value === target ? null : target));
           if (target === 'workbench' && !workbenchOpen) onToggleWorkbench();
-        } else if (event.shiftKey) onToggleWorkbench();
+        } else if (target === 'workbench') onToggleWorkbench();
         else setNavigationOpen((value) => !value);
       }
       if (event.key === 'Escape') {
@@ -236,8 +238,7 @@ export default function AgentShell({
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [onToggleWorkbench, narrow, workbenchOpen]);
-  const leftPanel: PanelId = layout.reversed ? 'workbench' : 'navigation';
+  }, [leftPanel, onToggleWorkbench, narrow, rightPanel, workbenchOpen]);
   const swap = () =>
     updateLayout((value) => ({ ...value, reversed: !value.reversed }), true);
   const panel = (id: PanelId) => {
@@ -620,9 +621,14 @@ export default function AgentShell({
   const visible = (id: PanelId) =>
     narrow
       ? mobilePanel === id
-      : id === 'navigation'
-        ? navigationOpen
-        : workbenchOpen;
+        : id === 'navigation'
+          ? navigationOpen
+          : workbenchOpen;
+  const togglePanelAtSide = (side: 'left' | 'right') => {
+    const id = side === 'left' ? leftPanel : rightPanel;
+    if (id === 'navigation') toggleNavigation();
+    else toggleWorkbench();
+  };
   return (
     <div
       className={styles.shell}
@@ -652,16 +658,16 @@ export default function AgentShell({
         </span>
         <div>
           <button
-            aria-label={visible('navigation') ? '切换会话侧栏' : '展开会话侧栏'}
-            title={`会话侧栏 · ${mac ? '⌘B' : 'Ctrl+B'}`}
-            onClick={toggleNavigation}
+            aria-label={visible(leftPanel) ? '收起左侧边栏' : '展开左侧边栏'}
+            title={`左侧边栏 · ${mac ? '⌘B' : 'Ctrl+B'}`}
+            onClick={() => togglePanelAtSide('left')}
           >
             <PanelLeft size={17} />
           </button>
           <button
-            aria-label={visible('workbench') ? '切换育种台' : '展开育种台'}
-            title={`育种台 · ${mac ? '⌘⇧B' : 'Ctrl+Shift+B'}`}
-            onClick={toggleWorkbench}
+            aria-label={visible(rightPanel) ? '收起右侧边栏' : '展开右侧边栏'}
+            title={`右侧边栏 · ${mac ? '⌘⇧B' : 'Ctrl+Shift+B'}`}
+            onClick={() => togglePanelAtSide('right')}
           >
             <PanelRight size={17} />
           </button>
@@ -746,8 +752,8 @@ export default function AgentShell({
           }}
         >
           <li><button role="menuitem" onClick={() => { onNewConversation(); setContextMenu(null); }}><Plus size={15} />新的临时会话 <kbd>⌘N</kbd></button></li>
-          <li><button role="menuitem" onClick={() => { toggleNavigation(); setContextMenu(null); }}><PanelLeft size={15} />切换会话侧栏</button></li>
-          <li><button role="menuitem" onClick={() => { toggleWorkbench(); setContextMenu(null); }}><PanelRight size={15} />切换育种台</button></li>
+          <li><button role="menuitem" onClick={() => { togglePanelAtSide('left'); setContextMenu(null); }}><PanelLeft size={15} />{visible(leftPanel) ? '收起左侧边栏' : '展开左侧边栏'}</button></li>
+          <li><button role="menuitem" onClick={() => { togglePanelAtSide('right'); setContextMenu(null); }}><PanelRight size={15} />{visible(rightPanel) ? '收起右侧边栏' : '展开右侧边栏'}</button></li>
           <li className={styles.menuDivider} />
           <li><button role="menuitem" onClick={() => { setContextMenu(null); reloadApplication(); }}><RefreshCw size={15} />刷新应用</button></li>
       </motion.menu>
