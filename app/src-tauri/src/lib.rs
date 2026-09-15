@@ -27,6 +27,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             services::yolo::yolo_detect_image,
+            services::yolo::yolo_detect_images,
             services::yolo::yolo_result_preview,
             services::yolo::yolo_image_preview,
             services::yolo::yolo_export_csv,

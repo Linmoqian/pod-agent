@@ -6,10 +6,18 @@ use image::{imageops, Rgb, RgbImage};
 use ort::{session::Session, value::Tensor};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::{collections::BTreeMap, path::{Path, PathBuf}, sync::{OnceLock, Mutex}};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+    sync::{mpsc, Mutex, OnceLock},
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
 static ENDPOINT: OnceLock<Result<(String, String), String>> = OnceLock::new();
 static CACHE: Mutex<Option<(String, Session)>> = Mutex::new(None);
+const MAX_BATCH_IMAGES: usize = 32;
+const PREP_QUEUE_CAPACITY: usize = 4;
+const MAX_PREP_WORKERS: usize = 4;
 
 fn folder_images(root: &Path) -> Result<Vec<String>, String> {
     if !root.is_absolute() || !root.is_dir() { return Err("请选择有效的图片文件夹".into()); }
@@ -63,6 +71,21 @@ pub async fn yolo_detect_image(model_id: String, image_path: String) -> Result<V
         let mut cache = CACHE.lock().map_err(|_| "推理服务不可用")?;
         infer(root, Request { model_id, image_path, target_class: None, min_confidence: 0.25 }, &mut cache)
     }).await.map_err(|_| "推理任务中断".to_string())?
+}
+
+#[tauri::command]
+pub async fn yolo_detect_images(model_id: String, image_paths: Vec<String>) -> Result<Vec<Value>, String> {
+    if image_paths.len() > MAX_BATCH_IMAGES {
+        return Err(format!("单批最多处理 {MAX_BATCH_IMAGES} 张图片"));
+    }
+    if image_paths.is_empty() {
+        return Ok(Vec::new());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap();
+        let mut cache = CACHE.lock().map_err(|_| "推理服务不可用")?;
+        infer_batch(root, &model_id, &image_paths, &mut cache)
+    }).await.map_err(|_| "批量推理任务中断".to_string())?
 }
 
 #[tauri::command]
@@ -189,6 +212,22 @@ struct Model {
     input_size: Option<u32>,
 }
 
+struct ModelConfig {
+    path: PathBuf,
+    classes: Vec<String>,
+    size: u32,
+    cache_key: String,
+}
+
+struct PreparedImage {
+    width: u32,
+    height: u32,
+    resized_width: u32,
+    resized_height: u32,
+    ratio: f32,
+    input: Vec<f32>,
+}
+
 #[derive(Clone)]
 struct Detection { class: usize, score: f32, rect: [f32; 4] }
 
@@ -233,75 +272,148 @@ fn decode(data: &[f32], channels: usize, anchors: usize, threshold: f32) -> Vec<
     kept
 }
 
-fn infer(root: &Path, request: Request, cache: &mut Option<(String, Session)>) -> Result<Value, String> {
-    if !request.min_confidence.is_finite() || !(0.0..=1.0).contains(&request.min_confidence) {
-        return Err("置信度无效".into());
-    }
-    let models: Vec<Model> = serde_json::from_slice(&std::fs::read(root.join("app/agent/tools/yolo-models.json")).map_err(|_| "模型清单不可读")?)
-        .map_err(|_| "模型清单无效")?;
-    let model = models.into_iter().find(|m| m.id == request.model_id).ok_or("未知模型")?;
+fn load_model(root: &Path, model_id: &str, target_class: Option<&str>) -> Result<ModelConfig, String> {
+    let models: Vec<Model> = serde_json::from_slice(
+        &std::fs::read(root.join("app/agent/tools/yolo-models.json"))
+            .map_err(|_| "模型清单不可读")?,
+    ).map_err(|_| "模型清单无效")?;
+    let model = models.into_iter().find(|model| model.id == model_id).ok_or("未知模型")?;
     let path = root.join(model.onnx_path.ok_or("该模型未登记 ONNX 权重")?);
     let classes = model.classes.ok_or("缺少有序类别清单")?;
     let size = model.input_size.ok_or("缺少输入尺寸")?;
-    if classes.is_empty() || !(32..=2048).contains(&size) { return Err("模型配置无效".into()); }
-    if let Some(target) = &request.target_class {
-        if !classes.contains(target) { return Err("指定模型不支持该类别".into()); }
+    if classes.is_empty() || !(32..=2048).contains(&size) {
+        return Err("模型配置无效".into());
     }
-    if !Path::new(&request.image_path).is_absolute() { return Err("图片必须为绝对路径".into()); }
-    let reader = image::ImageReader::open(&request.image_path).map_err(|_| "图片不可读")?
-        .with_guessed_format().map_err(|_| "图片格式无效")?;
-    let image = reader.decode().map_err(|_| "图片解码失败或超过资源限制")?.to_rgb8();
-    let (w, h) = image.dimensions();
-    if w == 0 || h == 0 { return Err("图片尺寸无效".into()); }
-    let ratio = (size as f64 / w as f64).min(size as f64 / h as f64);
-    let nw = (w as f64 * ratio).round().max(1.) as u32;
-    let nh = (h as f64 * ratio).round().max(1.) as u32;
-    let mut padded = RgbImage::from_pixel(size, size, Rgb([114, 114, 114]));
-    let resized = imageops::resize(&image, nw, nh, imageops::FilterType::Triangle);
-    imageops::replace(&mut padded, &resized, ((size-nw)/2) as i64, ((size-nh)/2) as i64);
-    let plane = (size * size) as usize;
-    let mut input = vec![0_f32; plane * 3];
-    for (i, pixel) in padded.pixels().enumerate() {
-        for c in 0..3 { input[c * plane + i] = pixel[c] as f32 / 255.; }
+    if target_class.is_some_and(|target| !classes.iter().any(|class| class == target)) {
+        return Err("指定模型不支持该类别".into());
     }
     let metadata = std::fs::metadata(&path).map_err(|_| "ONNX 权重不存在")?;
-    let key = format!("{}:{:?}:{}", path.display(), metadata.modified().ok(), metadata.len());
-    let reused = cache.as_ref().is_some_and(|(k, _)| k == &key);
+    let cache_key = format!("{}:{:?}:{}", path.display(), metadata.modified().ok(), metadata.len());
+    Ok(ModelConfig { path, classes, size, cache_key })
+}
+
+fn prepare_image(image_path: &str, size: u32) -> Result<PreparedImage, String> {
+    if !Path::new(image_path).is_absolute() {
+        return Err("图片必须为绝对路径".into());
+    }
+    let reader = image::ImageReader::open(image_path).map_err(|_| "图片不可读")?
+        .with_guessed_format().map_err(|_| "图片格式无效")?;
+    let image = reader.decode().map_err(|_| "图片解码失败或超过资源限制")?.to_rgb8();
+    let (width, height) = image.dimensions();
+    if width == 0 || height == 0 {
+        return Err("图片尺寸无效".into());
+    }
+    let ratio = (size as f64 / width as f64).min(size as f64 / height as f64);
+    let resized_width = (width as f64 * ratio).round().max(1.) as u32;
+    let resized_height = (height as f64 * ratio).round().max(1.) as u32;
+    let mut padded = RgbImage::from_pixel(size, size, Rgb([114, 114, 114]));
+    let resized = imageops::resize(
+        &image,
+        resized_width,
+        resized_height,
+        imageops::FilterType::Triangle,
+    );
+    imageops::replace(
+        &mut padded,
+        &resized,
+        ((size - resized_width) / 2) as i64,
+        ((size - resized_height) / 2) as i64,
+    );
+    let plane = (size as usize) * (size as usize);
+    let mut input = vec![0_f32; plane * 3];
+    for (index, pixel) in padded.pixels().enumerate() {
+        for channel in 0..3 {
+            input[channel * plane + index] = pixel[channel] as f32 / 255.;
+        }
+    }
+    Ok(PreparedImage {
+        width,
+        height,
+        resized_width,
+        resized_height,
+        ratio: ratio as f32,
+        input,
+    })
+}
+
+fn inference_thread_count() -> usize {
+    std::thread::available_parallelism()
+        .map(|parallelism| parallelism.get().clamp(2, 4))
+        .unwrap_or(2)
+}
+
+fn ensure_session(model: &ModelConfig, cache: &mut Option<(String, Session)>) -> Result<bool, String> {
+    let reused = cache.as_ref().is_some_and(|(key, _)| key == &model.cache_key);
     if !reused {
         let session = Session::builder().map_err(|_| "ONNX Runtime 初始化失败")?
-            .with_intra_threads(2).map_err(|_| "线程配置失败")?
-            .commit_from_file(path).map_err(|_| "ONNX 模型加载失败")?;
-        *cache = Some((key, session));
+            .with_intra_threads(inference_thread_count()).map_err(|_| "线程配置失败")?
+            .commit_from_file(&model.path).map_err(|_| "ONNX 模型加载失败")?;
+        *cache = Some((model.cache_key.clone(), session));
     }
-    let session = &mut cache.as_mut().unwrap().1;
-    let tensor = Tensor::from_array(([1, 3, size as usize, size as usize], input)).map_err(|_| "输入张量失败")?;
+    Ok(reused)
+}
+
+fn error_result(message: String) -> Value {
+    json!({ "ok": false, "message": message })
+}
+
+fn infer_prepared(
+    model: &ModelConfig,
+    prepared: PreparedImage,
+    target_class: Option<&str>,
+    min_confidence: f32,
+    session: &mut Session,
+    session_reused: bool,
+) -> Result<Value, String> {
+    let size = model.size;
+    let tensor = Tensor::from_array(([1, 3, size as usize, size as usize], prepared.input))
+        .map_err(|_| "输入张量失败")?;
     let output = session.run(ort::inputs![tensor]).map_err(|_| "ONNX 推理失败")?;
     let (shape, data) = output[0].try_extract_tensor::<f32>().map_err(|_| "输出类型不支持")?;
-    if shape.len() != 3 || shape[0] != 1 || shape[1] != (classes.len()+4) as i64 || shape[2] <= 0 {
+    if shape.len() != 3 || shape[0] != 1 || shape[1] != (model.classes.len() + 4) as i64 || shape[2] <= 0 {
         return Err("仅支持 YOLOv8 detect 原始输出 [1,4+类别数,N]，请使用 nms=False 导出".into());
     }
-    let detections = decode(data, shape[1] as usize, shape[2] as usize, request.min_confidence);
+    let detections = decode(data, shape[1] as usize, shape[2] as usize, min_confidence);
     let mut counts = BTreeMap::<String, usize>::new();
     let mut preview_detections = Vec::new();
-    if let Some(target) = &request.target_class { counts.insert(target.clone(), 0); }
+    if let Some(target) = target_class {
+        counts.insert(target.to_string(), 0);
+    }
+    let pad_x = (size - prepared.resized_width) as f32 / 2.;
+    let pad_y = (size - prepared.resized_height) as f32 / 2.;
     for detection in detections {
-        let name = &classes[detection.class];
-        if request.target_class.as_ref().is_none_or(|target| target == name) {
+        let name = &model.classes[detection.class];
+        if target_class.is_none_or(|target| target == name) {
             *counts.entry(name.clone()).or_default() += 1;
-            let left = ((detection.rect[0] - (size - nw) as f32 / 2.) / ratio as f32).clamp(0., w as f32);
-            let top = ((detection.rect[1] - (size - nh) as f32 / 2.) / ratio as f32).clamp(0., h as f32);
-            let right = ((detection.rect[2] - (size - nw) as f32 / 2.) / ratio as f32).clamp(left, w as f32);
-            let bottom = ((detection.rect[3] - (size - nh) as f32 / 2.) / ratio as f32).clamp(top, h as f32);
+            let left = ((detection.rect[0] - pad_x) / prepared.ratio)
+                .clamp(0., prepared.width as f32);
+            let top = ((detection.rect[1] - pad_y) / prepared.ratio)
+                .clamp(0., prepared.height as f32);
+            let right = ((detection.rect[2] - pad_x) / prepared.ratio)
+                .clamp(left, prepared.width as f32);
+            let bottom = ((detection.rect[3] - pad_y) / prepared.ratio)
+                .clamp(top, prepared.height as f32);
             preview_detections.push(PreviewDetection {
-                class_name: name.clone(), score: detection.score,
-                x: left.round() as u32, y: top.round() as u32,
-                width: (right - left).round() as u32, height: (bottom - top).round() as u32,
+                class_name: name.clone(),
+                score: detection.score,
+                x: left.round() as u32,
+                y: top.round() as u32,
+                width: (right - left).round() as u32,
+                height: (bottom - top).round() as u32,
             });
         }
     }
     let count: usize = counts.values().sum();
-    let message = if counts.is_empty() { "未检测到达到阈值的对象".into() } else {
-        format!("这张照片检测到{}", counts.iter().map(|(name, count)| format!("{name} {count} 个")).collect::<Vec<_>>().join("、"))
+    let message = if counts.is_empty() {
+        "未检测到达到阈值的对象".into()
+    } else {
+        format!(
+            "这张照片检测到{}",
+            counts.iter()
+                .map(|(name, count)| format!("{name} {count} 个"))
+                .collect::<Vec<_>>()
+                .join("、"),
+        )
     };
     Ok(json!({
         "ok": true,
@@ -309,8 +421,77 @@ fn infer(root: &Path, request: Request, cache: &mut Option<(String, Session)>) -
         "counts": counts,
         "detections": preview_detections,
         "message": message,
-        "sessionReused": reused
+        "sessionReused": session_reused
     }))
+}
+
+fn infer(root: &Path, request: Request, cache: &mut Option<(String, Session)>) -> Result<Value, String> {
+    if !request.min_confidence.is_finite() || !(0.0..=1.0).contains(&request.min_confidence) {
+        return Err("置信度无效".into());
+    }
+    let model = load_model(root, &request.model_id, request.target_class.as_deref())?;
+    let prepared = prepare_image(&request.image_path, model.size)?;
+    let session_reused = ensure_session(&model, cache)?;
+    let session = &mut cache.as_mut().ok_or("推理服务不可用")?.1;
+    infer_prepared(
+        &model,
+        prepared,
+        request.target_class.as_deref(),
+        request.min_confidence,
+        session,
+        session_reused,
+    )
+}
+
+fn infer_batch(
+    root: &Path,
+    model_id: &str,
+    image_paths: &[String],
+    cache: &mut Option<(String, Session)>,
+) -> Result<Vec<Value>, String> {
+    let model = load_model(root, model_id, None)?;
+    let session_reused = ensure_session(&model, cache)?;
+    let worker_count = image_paths.len()
+        .min(MAX_PREP_WORKERS)
+        .min(std::thread::available_parallelism().map(|value| value.get()).unwrap_or(1).max(1));
+    let next_index = AtomicUsize::new(0);
+    let (sender, receiver) = mpsc::sync_channel(PREP_QUEUE_CAPACITY);
+    let mut results = vec![Value::Null; image_paths.len()];
+    let session = &mut cache.as_mut().ok_or("推理服务不可用")?.1;
+    let size = model.size;
+
+    std::thread::scope(|scope| {
+        for _ in 0..worker_count {
+            let sender = sender.clone();
+            let next_index = &next_index;
+            let paths = image_paths;
+            scope.spawn(move || loop {
+                let index = next_index.fetch_add(1, Ordering::Relaxed);
+                if index >= paths.len() {
+                    break;
+                }
+                let prepared = prepare_image(&paths[index], size);
+                if sender.send((index, prepared)).is_err() {
+                    break;
+                }
+            });
+        }
+        drop(sender);
+        for (index, prepared) in receiver {
+            results[index] = match prepared {
+                Ok(prepared) => infer_prepared(
+                    &model,
+                    prepared,
+                    None,
+                    0.25,
+                    session,
+                    session_reused,
+                ).unwrap_or_else(error_result),
+                Err(message) => error_result(message),
+            };
+        }
+    });
+    Ok(results)
 }
 
 fn draw_rect(image: &mut RgbImage, x: u32, y: u32, width: u32, height: u32) {

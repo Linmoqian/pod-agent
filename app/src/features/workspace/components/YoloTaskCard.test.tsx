@@ -18,7 +18,7 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
 }));
 vi.mock('../../../services/workspace', () => ({ isTauriRuntime: () => true }));
 
-test('逐张推理，失败保留且重试后归档', async () => {
+test('批量推理，失败保留且重试后归档', async () => {
   URL.createObjectURL = vi.fn(() => 'blob:test');
   URL.revokeObjectURL = vi.fn();
   let failures = 0;
@@ -27,9 +27,13 @@ test('逐张推理，失败保留且重试后归档', async () => {
     if (command === 'yolo_models') return [{ id: 'test', name: 'test', available: true }];
     if (command === 'yolo_memory_gb') return 4;
     if (command === 'yolo_thumbnail') return [1, 2];
-    const path = (args as { imagePath: string }).imagePath;
-    order.push(path);
-    if (path === '/b.png' && failures++ === 0) throw new Error('推理失败');
+    if (command === 'yolo_detect_images') {
+      const paths = (args as { imagePaths: string[] }).imagePaths;
+      order.push(...paths);
+      return paths.map((path) => path === '/b.png' && failures++ === 0
+        ? { ok: false, message: '推理失败' }
+        : { ok: true, message: '检测到 1 个对象' });
+    }
     return { ok: true, message: '检测到 1 个对象' };
   });
   const { result } = renderHook(useYoloTask);
@@ -41,24 +45,28 @@ test('逐张推理，失败保留且重试后归档', async () => {
   await waitFor(() => expect(result.current.photos.every((p) => p.status === 'done')).toBe(true));
 });
 
-test('文件夹扫描后跳过坏图并推理其他图片', async () => {
+test('文件夹扫描后保留坏图失败状态并推理其他图片', async () => {
   vi.mocked(open).mockResolvedValueOnce('/photos');
   vi.mocked(invoke).mockImplementation(async (command, args) => {
     if (command === 'yolo_models') return [{ id: 'test', name: 'test', available: true }];
     if (command === 'yolo_memory_gb') return 4;
     if (command === 'yolo_folder_images') return ['/photos/bad.png', '/photos/sub/good.JPG'];
     if (command === 'yolo_thumbnail') {
-      if ((args as { imagePath: string }).imagePath.includes('bad')) throw new Error('坏图');
       return [1];
+    }
+    if (command === 'yolo_detect_images') {
+      return (args as { imagePaths: string[] }).imagePaths.map((path) => path.includes('bad')
+        ? { ok: false, message: '坏图' }
+        : { ok: true, message: '检测到 0 个对象' });
     }
     return { ok: true, message: '检测到 0 个对象' };
   });
   const { result } = renderHook(useYoloTask);
   await waitFor(() => expect(result.current.modelId).toBe('test'));
   await act(async () => result.current.add(true));
-  await waitFor(() => expect(result.current.photos[0]?.status).toBe('done'));
-  expect(result.current.photos).toHaveLength(1);
-  expect(result.current.error).toContain('已跳过');
+  await waitFor(() => expect(result.current.photos.map((photo) => photo.status)).toEqual(['error', 'done']));
+  expect(result.current.photos).toHaveLength(2);
+  expect(result.current.photos[0].message).toBe('坏图');
   expect(open).toHaveBeenLastCalledWith({ directory: true, multiple: false });
   expect(confirm).toHaveBeenCalledWith(
     '发现 2 张图片，是否加入图片识别队列？',
@@ -72,6 +80,9 @@ test('Finder 混合路径通过原生扫描进入推理队列', async () => {
     if (command === 'yolo_memory_gb') return 4;
     if (command === 'yolo_drop_images') return ['/folder/a.png', '/b.JPG'];
     if (command === 'yolo_thumbnail') return [1];
+    if (command === 'yolo_detect_images') {
+      return (args as { imagePaths: string[] }).imagePaths.map(() => ({ ok: true, message: '检测到 0 个对象' }));
+    }
     return { ok: true, message: '检测到 0 个对象' };
   });
   const { result } = renderHook(useYoloTask);
@@ -96,5 +107,5 @@ test('工具事件只渲染卡片，不重复推理，失败不可由本地重�
   await act(async () => receive({ payload: { id: 'tool-1', status: 'error' } } as never));
   act(() => result.current.retry());
   expect(result.current.photos[0].status).toBe('error');
-  expect(vi.mocked(invoke).mock.calls.some(([command]) => command === 'yolo_detect_image')).toBe(false);
+  expect(vi.mocked(invoke).mock.calls.some(([command]) => command === 'yolo_detect_image' || command === 'yolo_detect_images')).toBe(false);
 });

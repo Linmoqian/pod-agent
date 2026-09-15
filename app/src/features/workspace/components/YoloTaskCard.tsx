@@ -79,6 +79,7 @@ type ImageReadPlan = {
   concurrency: number;
   previewLimit: number;
   appendChunkSize: number;
+  inferenceBatchSize: number;
 };
 
 type ThumbnailJob = {
@@ -111,6 +112,7 @@ function getImageReadPlan(memoryOverride?: number): ImageReadPlan {
     concurrency: Math.max(1, Math.min(memoryConcurrency, Math.max(1, cpuCount - 1))),
     previewLimit: safeMemoryGb <= 4 ? 8 : safeMemoryGb <= 8 ? 16 : 32,
     appendChunkSize: safeMemoryGb <= 4 ? 64 : safeMemoryGb <= 8 ? 128 : 256,
+    inferenceBatchSize: safeMemoryGb <= 4 ? 2 : safeMemoryGb <= 8 ? 4 : 6,
   };
 }
 
@@ -295,32 +297,55 @@ export function useYoloTask() {
 
   useEffect(() => {
     if (paused || active.current || !modelId) return;
-    const next = photos.find((photo) => !photo.external && photo.status === 'waiting');
-    if (!next) return;
+    const batch = photos
+      .filter((photo) => !photo.external && photo.status === 'waiting')
+      .slice(0, getImageReadPlan(runtimeMemoryGb.current).inferenceBatchSize);
+    if (!batch.length) return;
+    const ids = new Set(batch.map((photo) => photo.id));
+    const requestModelId = batch[0].modelId ?? modelId;
     active.current = true;
-    setPhotos((list) => list.map((p) => p.id === next.id ? {
+    setPhotos((list) => list.map((p) => ids.has(p.id) ? {
       ...p,
       status: 'running',
       startedAt: Date.now(),
       finishedAt: undefined,
     } : p));
-    void invoke<YoloResponse>('yolo_detect_image', { modelId: next.modelId ?? modelId, imagePath: next.path }).then((result) => {
-      if (!result.ok) throw new Error(result.message);
-      if (mounted.current) setPhotos((list) => list.map((p) => p.id === next.id ? {
-        ...p,
-        status: 'done',
-        finishedAt: Date.now(),
-        message: result.message,
-        count: result.count,
-        counts: result.counts,
-        detections: result.detections,
-      } : p));
+    void invoke<YoloResponse[]>('yolo_detect_images', {
+      modelId: requestModelId,
+      imagePaths: batch.map((photo) => photo.path),
+    }).then((results) => {
+      if (!Array.isArray(results)) throw new Error('批量推理响应无效');
+      if (!mounted.current) return;
+      const resultById = new Map(batch.map((photo, index) => [photo.id, results[index]]));
+      const finishedAt = Date.now();
+      setPhotos((list) => list.map((p) => {
+        const result = resultById.get(p.id);
+        if (!result) return p;
+        if (!result.ok) return {
+          ...p,
+          status: 'error',
+          finishedAt,
+          message: result.message || '推理失败',
+        };
+        return {
+          ...p,
+          status: 'done',
+          finishedAt,
+          message: result.message,
+          count: result.count,
+          counts: result.counts,
+          detections: result.detections,
+        };
+      }));
     }).catch((reason) => {
-      if (mounted.current) setPhotos((list) => list.map((p) => p.id === next.id ? {
+      if (!mounted.current) return;
+      const message = reason instanceof Error ? reason.message : String(reason);
+      const finishedAt = Date.now();
+      setPhotos((list) => list.map((p) => ids.has(p.id) ? {
         ...p,
         status: 'error',
-        finishedAt: Date.now(),
-        message: String(reason),
+        finishedAt,
+        message,
       } : p));
     }).finally(() => { active.current = false; if (mounted.current) setRevision((value) => value + 1); });
   }, [photos, paused, modelId, revision]);
