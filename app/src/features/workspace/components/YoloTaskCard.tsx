@@ -2,7 +2,7 @@
  * Created on 2026-09-15
  * @author: https://github.com/Linmoqian
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
@@ -462,15 +462,29 @@ export default function YoloTaskCard({
 }) {
   const reduced = useReducedMotion();
   const { photos, paused } = task;
-  const done = photos.filter((p) => p.status === 'done');
-  const loading = photos.filter((p) => p.status === 'loading');
-  const waiting = photos.filter((p) => p.status === 'waiting');
-  const running = photos.find((p) => p.status === 'running');
-  const failed = photos.filter((p) => p.status === 'error');
-  const queued = [...loading, ...waiting, ...(running ? [running] : [])];
+  const groups = useMemo(() => {
+    const done: YoloPhoto[] = [];
+    const loading: YoloPhoto[] = [];
+    const waiting: YoloPhoto[] = [];
+    const running: YoloPhoto[] = [];
+    const failed: YoloPhoto[] = [];
+    for (const photo of photos) {
+      if (photo.status === 'done') done.push(photo);
+      else if (photo.status === 'loading') loading.push(photo);
+      else if (photo.status === 'waiting') waiting.push(photo);
+      else if (photo.status === 'running') running.push(photo);
+      else failed.push(photo);
+    }
+    const queued = [...loading, ...waiting, ...running];
+    queued.sort((a, b) => Number(b.status === 'running') - Number(a.status === 'running'));
+    return { done, loading, waiting, running, failed, queued };
+  }, [photos]);
+  const { done, running: runningPhotos, failed, queued } = groups;
+  const running = runningPhotos[0];
   const reading = task.adding || task.readProgress.total > task.readProgress.completed;
-  const left = [...queued].sort((a, b) => Number(b.status === 'running') - Number(a.status === 'running')).slice(0, 3);
-  const visible = [...left, ...done.slice(-3)];
+  const left = queued.slice(0, 3);
+  const completedVisible = done.slice(-3);
+  const visible = [...left, ...completedVisible];
   const status = running
     ? '进行中'
     : reading
@@ -511,7 +525,7 @@ export default function YoloTaskCard({
       <div className={styles.placeholder}><Images size={22} /></div><div className={`${styles.placeholder} ${styles.right}`}><Images size={22} /></div>
       {visible.map((photo) => {
         const complete = photo.status === 'done';
-        const index = complete ? done.slice(-3).indexOf(photo) : 2 - left.indexOf(photo);
+        const index = complete ? completedVisible.indexOf(photo) : 2 - left.indexOf(photo);
         return <motion.div key={photo.id} className={`${styles.photo} ${complete ? styles.completed : ''}`} initial={false} layout="position"
           animate={{ y: -index * 3, rotate: (index - 1) * 6 }}
           transition={reduced ? { duration: 0 } : { type: 'spring', stiffness: 420, damping: 38, mass: 0.8 }}

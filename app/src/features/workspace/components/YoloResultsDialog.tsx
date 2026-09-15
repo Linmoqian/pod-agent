@@ -3,6 +3,8 @@
  * @author: https://github.com/Linmoqian
  */
 import {
+  memo,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -71,6 +73,31 @@ function LoadingIcon() {
   </motion.span>;
 }
 
+const ResultRow = memo(function ResultRow({
+  photo,
+  active,
+  onActivate,
+}: {
+  photo: YoloPhoto;
+  active: boolean;
+  onActivate: (photo: YoloPhoto) => void;
+}) {
+  return <button
+    type="button"
+    className={styles.row}
+    data-active={active}
+    role="option"
+    aria-selected={active}
+    onClick={() => onActivate(photo)}
+  >
+    {photo.url
+      ? <img className={styles.rowThumb} src={photo.url} alt="" />
+      : <span className={`${styles.rowThumb} ${styles.imageFallback}`}><ImageIcon size={16} /></span>}
+    <span className={styles.rowCopy}><strong title={photo.name}>{photo.name}</strong><small>{countLabel(photo)}</small></span>
+    <span className={styles.status} data-status={photo.status}>{statusLabel(photo)}</span>
+  </button>;
+});
+
 function maxResultsListPercent(bodyWidth: number) {
   if (!bodyWidth) return RESULTS_LIST_MAX_PERCENT;
   const available = bodyWidth - RESULTS_COMPARISON_MIN_WIDTH - RESULTS_DIVIDER_WIDTH;
@@ -104,13 +131,24 @@ export default function YoloResultsPanel({
   const listWidthPercentRef = useRef(RESULTS_LIST_DEFAULT_PERCENT);
   const [resizing, setResizing] = useState(false);
   const lastInitialPhotoId = useRef<string | undefined>(undefined);
-  const filtered = useMemo(() => photos.filter((photo) => {
-    const needle = query.trim().toLocaleLowerCase();
-    return !needle || `${photo.name} ${photo.message ?? ''}`.toLocaleLowerCase().includes(needle);
-  }), [photos, query]);
-  const completed = photos.filter((photo) => photo.status === 'done');
-  const failed = photos.filter((photo) => photo.status === 'error');
-  const activePhoto = photos.find((photo) => photo.id === activePhotoId);
+  const queryNeedle = query.trim().toLocaleLowerCase();
+  const filtered = useMemo(() => {
+    if (!queryNeedle) return photos;
+    return photos.filter((photo) => `${photo.name} ${photo.message ?? ''}`.toLocaleLowerCase().includes(queryNeedle));
+  }, [photos, queryNeedle]);
+  const summary = useMemo(() => photos.reduce(
+    (counts, photo) => {
+      if (photo.status === 'done') counts.completed += 1;
+      if (photo.status === 'error') counts.failed += 1;
+      return counts;
+    },
+    { completed: 0, failed: 0 },
+  ), [photos]);
+  const { completed, failed } = summary;
+  const activePhoto = useMemo(
+    () => photos.find((photo) => photo.id === activePhotoId),
+    [activePhotoId, photos],
+  );
 
   useEffect(() => {
     const receivedNewInitialPhoto = initialPhotoId && initialPhotoId !== lastInitialPhotoId.current;
@@ -159,10 +197,10 @@ export default function YoloResultsPanel({
     if (activePhoto.status === 'done') void loadResult(activePhoto);
   }, [activePhoto?.id, activePhoto?.status]);
 
-  const activatePhoto = (photo: YoloPhoto) => {
+  const activatePhoto = useCallback((photo: YoloPhoto) => {
     setError('');
     setActivePhotoId(photo.id);
-  };
+  }, []);
   const exportResults = async () => {
     const rows = filtered;
     if (!rows.length) return;
@@ -321,11 +359,12 @@ export default function YoloResultsPanel({
         </label>
         {!filtered.length && <p className={styles.empty}>没有匹配的图片</p>}
         <div className={styles.listItems} role="listbox" aria-label="选择图片查看详情">
-          {filtered.map((photo) => <button type="button" key={photo.id} className={styles.row} data-active={activePhoto?.id === photo.id} role="option" aria-selected={activePhoto?.id === photo.id} onClick={() => activatePhoto(photo)}>
-            {photo.url ? <img className={styles.rowThumb} src={photo.url} alt="" /> : <span className={`${styles.rowThumb} ${styles.imageFallback}`}><ImageIcon size={16} /></span>}
-            <span className={styles.rowCopy}><strong title={photo.name}>{photo.name}</strong><small>{countLabel(photo)}</small></span>
-            <span className={styles.status} data-status={photo.status}>{statusLabel(photo)}</span>
-          </button>)}
+          {filtered.map((photo) => <ResultRow
+            key={photo.id}
+            photo={photo}
+            active={activePhoto?.id === photo.id}
+            onActivate={activatePhoto}
+          />)}
         </div>
       </aside>
       <div

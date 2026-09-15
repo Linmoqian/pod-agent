@@ -32,32 +32,59 @@ export abstract class WorkbenchTask {
 export class ImageInferenceTask extends WorkbenchTask {
   readonly id = 'yolo-image-inference';
   readonly kind = 'image-inference';
+  private readonly photoCount: number;
+  private readonly finishedCountValue: number;
+  private readonly failedCountValue: number;
+  private readonly allFinishedValue: boolean;
+  private readonly runningName: string | null;
+  private readonly startedAtValue: number | null;
+  private readonly finishedAtValue: number | null;
 
-  constructor(private readonly photos: readonly YoloPhoto[]) {
+  constructor(photos: readonly YoloPhoto[]) {
     super();
+    let finishedCount = 0;
+    let failedCount = 0;
+    let runningName: string | null = null;
+    let startedAt = Number.POSITIVE_INFINITY;
+    let finishedAt = Number.NEGATIVE_INFINITY;
+    let allFinished = photos.length > 0;
+    for (const photo of photos) {
+      const finished = photo.status === 'done' || photo.status === 'error';
+      if (finished) finishedCount += 1;
+      if (photo.status === 'error') failedCount += 1;
+      if (photo.status === 'running' && runningName === null) runningName = photo.name;
+      if (!finished) allFinished = false;
+      if (typeof photo.startedAt === 'number') startedAt = Math.min(startedAt, photo.startedAt);
+      if (typeof photo.finishedAt === 'number') finishedAt = Math.max(finishedAt, photo.finishedAt);
+    }
+    this.photoCount = photos.length;
+    this.finishedCountValue = finishedCount;
+    this.failedCountValue = failedCount;
+    this.allFinishedValue = allFinished;
+    this.runningName = runningName;
+    this.startedAtValue = Number.isFinite(startedAt) ? startedAt : null;
+    this.finishedAtValue = allFinished && Number.isFinite(finishedAt) ? finishedAt : null;
   }
 
   private get finishedCount() {
-    return this.photos.filter((photo) => photo.status === 'done' || photo.status === 'error').length;
+    return this.finishedCountValue;
   }
 
   private get failedCount() {
-    return this.photos.filter((photo) => photo.status === 'error').length;
+    return this.failedCountValue;
   }
 
   private get allFinished() {
-    return this.photos.length > 0 && this.photos.every(
-      (photo) => photo.status === 'done' || photo.status === 'error',
-    );
+    return this.allFinishedValue;
   }
 
   get title() {
-    return `图片识别 · ${this.photos.length} 张图片`;
+    return `图片识别 · ${this.photoCount} 张图片`;
   }
 
   get status(): WorkbenchTaskStatus {
     if (this.allFinished) return this.failedCount ? 'failed' : 'completed';
-    return this.photos.some((photo) => photo.status === 'running') ? 'running' : 'queued';
+    return this.runningName ? 'running' : 'queued';
   }
 
   get statusLabel() {
@@ -68,34 +95,26 @@ export class ImageInferenceTask extends WorkbenchTask {
   }
 
   get progress() {
-    return this.photos.length ? this.finishedCount / this.photos.length : 0;
+    return this.photoCount ? this.finishedCount / this.photoCount : 0;
   }
 
   get progressLabel() {
-    return `已处理 ${this.finishedCount} / ${this.photos.length} 张`;
+    return `已处理 ${this.finishedCount} / ${this.photoCount} 张`;
   }
 
   get summary() {
-    const running = this.photos.find((photo) => photo.status === 'running');
-    if (running) return `正在推理：${running.name}`;
+    if (this.runningName) return `正在推理：${this.runningName}`;
     if (this.status === 'queued') return '图片已加入推理队列';
     if (this.failedCount) return `${this.failedCount} 张图片处理失败`;
     return '全部图片已处理';
   }
 
   get startedAt() {
-    const times = this.photos
-      .map((photo) => photo.startedAt)
-      .filter((value): value is number => typeof value === 'number');
-    return times.length ? Math.min(...times) : null;
+    return this.startedAtValue;
   }
 
   get finishedAt() {
-    if (!this.allFinished) return null;
-    const times = this.photos
-      .map((photo) => photo.finishedAt)
-      .filter((value): value is number => typeof value === 'number');
-    return times.length ? Math.max(...times) : null;
+    return this.finishedAtValue;
   }
 }
 
