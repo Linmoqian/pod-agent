@@ -4,3 +4,7 @@ dist
 .DS_Store
 *.log
 .vite
+
+# 转换生成的预览点云（派生数据不入库，用 tools/pth2ply.py 重新生成）
+public/ply
+测试大豆点云集

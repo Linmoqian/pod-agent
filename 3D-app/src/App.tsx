@@ -1,6 +1,6 @@
 // 应用编排：持有 Viewer 全部 UI 状态，连接数据层与渲染层
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ColorMode, PointCloudData } from "./core/types";
 import { loadPointCloud } from "./core/loaders";
 import { generateSoybeanDemo } from "./core/demo-soybean";
@@ -29,13 +29,24 @@ export default function App() {
   const [fps, setFps] = useState(0);
   const [target, setTarget] = useState<[number, number, number]>([0, 0, 0]);
 
-  // 数据可用时按数据内容挑默认着色模式
-  const applyData = useCallback((d: PointCloudData, name: string) => {
-    setData(d);
-    setFileName(name);
-    setColorMode(d.colors ? "rgb" : d.intensity ? "intensity" : "height");
-    setFitNonce((n) => n + 1);
+  // URL ?mode=height|rgb|intensity|uniform 强制指定着色模式（调试/截图直达）
+  const autoMode = useMemo(() => {
+    const m = new URLSearchParams(window.location.search).get("mode");
+    return m === "rgb" || m === "height" || m === "intensity" || m === "uniform"
+      ? m
+      : null;
   }, []);
+
+  // 数据可用时按数据内容挑默认着色模式
+  const applyData = useCallback(
+    (d: PointCloudData, name: string) => {
+      setData(d);
+      setFileName(name);
+      setColorMode(autoMode ?? (d.colors ? "rgb" : d.intensity ? "intensity" : "height"));
+      setFitNonce((n) => n + 1);
+    },
+    [autoMode]
+  );
 
   const handleFile = useCallback(
     async (file: File) => {
@@ -54,6 +65,34 @@ export default function App() {
     },
     [applyData]
   );
+
+  // URL ?src=/ply/xxx.ply 自动加载（dev 调试/截图验证直达）
+  const autoSrc = useMemo(
+    () => new URLSearchParams(window.location.search).get("src"),
+    []
+  );
+  useEffect(() => {
+    if (!autoSrc) return;
+    let cancelled = false;
+    void (async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(autoSrc);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const buffer = await res.arrayBuffer();
+        if (cancelled) return;
+        const name = autoSrc.split("/").pop() ?? "cloud.ply";
+        applyData(loadPointCloud(buffer, name), name);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [autoSrc, applyData]);
 
   const handleDemo = useCallback(() => {
     setLoading(true);
