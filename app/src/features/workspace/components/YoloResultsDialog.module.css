@@ -610,7 +610,7 @@
   place-items: center;
   overflow: hidden;
   border-radius: var(--radius-sm);
-  background: #1d2422;
+  background: var(--color-surface-media);
   color: var(--color-text-tertiary);
 }
 
@@ -683,7 +683,7 @@
   place-items: center;
   overflow: hidden;
   border-radius: var(--radius-sm);
-  background: #1d2422;
+  background: var(--color-surface-media);
   color: var(--color-text-tertiary);
   isolation: isolate;
   touch-action: none;

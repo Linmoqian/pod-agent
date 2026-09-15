@@ -17,6 +17,8 @@
   --color-surface-default: #ffffff;
   --color-surface-disabled: #ececea;
   --color-surface-muted: #fafafc;
+  --color-surface-media: #f1f3f0;
+  --color-border-media: #d6dadd;
   --color-text-primary: #1d1d1f;
   --color-text-secondary: #333333;
   --color-text-tertiary: #757570;
@@ -153,6 +155,9 @@
   --color-surface-default: #262624;
   --color-surface-disabled: #272729;
   --color-surface-muted: #2a2a2c;
+  /* 图片保持接近白色的承载面，避免透明/偏暗图片与暗色主题背景融为一体。 */
+  --color-surface-media: #f1f3f0;
+  --color-border-media: #aebbb1;
   --color-text-primary: #ffffff;
   --color-text-secondary: #cccccc;
   --color-text-tertiary: #a1a1a6;
