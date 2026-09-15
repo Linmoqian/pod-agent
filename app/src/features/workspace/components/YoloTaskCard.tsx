@@ -3,7 +3,7 @@
  * @author: https://github.com/Linmoqian
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { isYoloDropTarget } from '../hooks/yoloDropTarget';
@@ -35,6 +35,7 @@ export type YoloPhoto = {
   name: string;
   url?: string;
   previewUrl?: string;
+  previewSource?: 'native' | 'decoded';
   resultUrl?: string;
   external?: boolean;
   modelId?: string;
@@ -46,6 +47,7 @@ export type YoloPhoto = {
   counts?: Record<string, number>;
   detections?: YoloDetection[];
 };
+export type ImagePreviewOptions = { forceFallback?: boolean };
 type Model = { id: string; name: string; available: boolean };
 type YoloEvent = {
   id: string;
@@ -513,13 +515,31 @@ export function useYoloTask() {
     setPhotos((list) => list.map((item) => item.id === photo.id ? { ...item, resultUrl } : item));
     return resultUrl;
   };
-  const loadImagePreview = async (photo: YoloPhoto) => {
-    if (photo.previewUrl) return photo.previewUrl;
+  const loadImagePreview = async (photo: YoloPhoto, options: ImagePreviewOptions = {}) => {
+    const forceFallback = options.forceFallback === true;
+    if (!forceFallback && photo.previewUrl) return photo.previewUrl;
     if (!isTauriRuntime()) throw new Error('浏览器预览不读取本机图片，请在 Tauri 桌面端查看原图');
+    if (!forceFallback) {
+      try {
+        await invoke('yolo_prepare_image_preview', { imagePath: photo.path });
+        const nativeUrl = convertFileSrc(photo.path, 'asset');
+        setPhotos((list) => list.map((item) => item.id === photo.id
+          ? { ...item, previewUrl: nativeUrl, previewSource: 'native' }
+          : item));
+        return nativeUrl;
+      } catch {
+        // 资产协议不可用时继续走现有解码链路，避免原图预览中断。
+      }
+    }
+    setPhotos((list) => list.map((item) => item.id === photo.id
+      ? { ...item, previewUrl: undefined, previewSource: undefined }
+      : item));
     const bytes = await invoke<number[]>('yolo_image_preview', { imagePath: photo.path });
     const previewUrl = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'image/png' }));
     urls.current.push(previewUrl);
-    setPhotos((list) => list.map((item) => item.id === photo.id ? { ...item, previewUrl } : item));
+    setPhotos((list) => list.map((item) => item.id === photo.id
+      ? { ...item, previewUrl, previewSource: 'decoded' }
+      : item));
     return previewUrl;
   };
   const exportCsv = async (rows: YoloPhoto[]) => {

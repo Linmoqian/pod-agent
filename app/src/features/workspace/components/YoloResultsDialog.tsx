@@ -26,7 +26,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
-import type { YoloPhoto, YoloTask } from './YoloTaskCard';
+import type { ImagePreviewOptions, YoloPhoto, YoloTask } from './YoloTaskCard';
 import styles from './YoloResultsDialog.module.css';
 
 type YoloResultsPanelProps = Pick<
@@ -188,17 +188,22 @@ export default function YoloResultsPanel({
     setCompareZoom(COMPARE_ZOOM_MIN);
   }, [activePhotoId]);
 
-  const loadImage = async (photo: YoloPhoto) => {
-    if (photo.previewUrl || loadingImages.includes(photo.id)) return;
+  const loadImage = async (photo: YoloPhoto, options: ImagePreviewOptions = {}) => {
+    const forceFallback = options.forceFallback === true;
+    if (!forceFallback && (photo.previewUrl || loadingImages.includes(photo.id))) return;
     setLoadingImages((current) => [...current, photo.id]);
     setError('');
     try {
-      await loadImagePreview(photo);
+      await loadImagePreview(photo, options);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '原图加载失败');
     } finally {
       setLoadingImages((current) => current.filter((id) => id !== photo.id));
     }
+  };
+  const handleNativePreviewError = (photo: YoloPhoto) => {
+    if (photo.previewSource !== 'native') return;
+    void loadImage(photo, { forceFallback: true });
   };
   const loadResult = async (photo: YoloPhoto) => {
     if (photo.resultUrl || loadingResults.includes(photo.id)) return;
@@ -460,7 +465,7 @@ export default function YoloResultsPanel({
           {compareMode === 'side-by-side' ? <div className={styles.imagePair} style={{ '--preview-zoom': compareZoom } as CSSProperties}>
             <figure className={styles.previewCard}>
               <div className={styles.previewFrame}>
-                {(activePhoto.previewUrl || activePhoto.url) ? <img src={activePhoto.previewUrl || activePhoto.url} alt={`${activePhoto.name} 原图`} /> : loadingImages.includes(activePhoto.id) ? <LoadingIcon /> : <button type="button" onClick={() => void loadImage(activePhoto)} title="加载原图"><ImageIcon size={24} /><span>加载原图</span></button>}
+                {(activePhoto.previewUrl || activePhoto.url) ? <img src={activePhoto.previewUrl || activePhoto.url} alt={`${activePhoto.name} 原图`} decoding="async" onError={() => handleNativePreviewError(activePhoto)} /> : loadingImages.includes(activePhoto.id) ? <LoadingIcon /> : <button type="button" onClick={() => void loadImage(activePhoto)} title="加载原图"><ImageIcon size={24} /><span>加载原图</span></button>}
               </div>
               <figcaption><strong>原图</strong><span>源文件预览</span></figcaption>
             </figure>
@@ -481,7 +486,7 @@ export default function YoloResultsPanel({
               onPointerUp={handleComparePointerEnd}
               onPointerCancel={handleComparePointerEnd}
             >
-              {(activePhoto.previewUrl || activePhoto.url) ? <img className={styles.compareBase} src={activePhoto.previewUrl || activePhoto.url} alt={`${activePhoto.name} 原图`} /> : loadingImages.includes(activePhoto.id) ? <LoadingIcon /> : <button type="button" onClick={() => void loadImage(activePhoto)} title="加载原图"><ImageIcon size={24} /><span>加载原图</span></button>}
+              {(activePhoto.previewUrl || activePhoto.url) ? <img className={styles.compareBase} src={activePhoto.previewUrl || activePhoto.url} alt={`${activePhoto.name} 原图`} decoding="async" onError={() => handleNativePreviewError(activePhoto)} /> : loadingImages.includes(activePhoto.id) ? <LoadingIcon /> : <button type="button" onClick={() => void loadImage(activePhoto)} title="加载原图"><ImageIcon size={24} /><span>加载原图</span></button>}
               {activePhoto.resultUrl && <div className={styles.compareResult} aria-hidden="true"><img src={activePhoto.resultUrl} alt="" /></div>}
               {activePhoto.resultUrl && <div className={styles.compareDivider} aria-hidden="true"><span /></div>}
               {!activePhoto.resultUrl && loadingResults.includes(activePhoto.id) && <LoadingIcon />}

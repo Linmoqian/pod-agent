@@ -12,6 +12,7 @@ use std::{
     sync::{mpsc, Arc, Mutex, OnceLock},
     sync::atomic::{AtomicUsize, Ordering},
 };
+use tauri::{AppHandle, Manager};
 
 static ENDPOINT: OnceLock<Result<(String, String), String>> = OnceLock::new();
 static CACHE: Mutex<Option<(String, Session)>> = Mutex::new(None);
@@ -101,6 +102,31 @@ pub async fn yolo_image_preview(image_path: String) -> Result<Vec<u8>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         image_preview(Path::new(&image_path))
     }).await.map_err(|_| "原图预览任务中断".to_string())?
+}
+
+#[tauri::command]
+pub fn yolo_prepare_image_preview(app: AppHandle, image_path: String) -> Result<(), String> {
+    let path = Path::new(&image_path);
+    if !path.is_absolute() {
+        return Err("图片路径必须为绝对路径".to_string());
+    }
+    let metadata = std::fs::symlink_metadata(path).map_err(|_| "图片不可读".to_string())?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err("图片文件不可用".to_string());
+    }
+    if !path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| {
+            matches!(ext.to_ascii_lowercase().as_str(), "jpg" | "jpeg" | "png")
+        })
+    {
+        return Err("暂不支持该图片格式".to_string());
+    }
+    let canonical_path = path.canonicalize().map_err(|_| "图片不可读".to_string())?;
+    app.asset_protocol_scope()
+        .allow_file(canonical_path)
+        .map_err(|_| "原图预览权限不可用".to_string())
 }
 
 #[derive(Deserialize)]
