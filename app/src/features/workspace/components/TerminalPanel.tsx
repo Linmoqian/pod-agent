@@ -190,19 +190,19 @@ export default function TerminalPanel({
               SSH
             </button>
           </div>
-          {!isSshView && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className={styles.clearButton}
-              onClick={() => setEntries([])}
-              disabled={!entries.length || running}
-            >
-              <Trash2 size={14} aria-hidden />
-              清空
-            </Button>
-          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={styles.clearButton}
+            aria-hidden={isSshView}
+            tabIndex={isSshView ? -1 : undefined}
+            onClick={() => setEntries([])}
+            disabled={isSshView || !entries.length || running}
+          >
+            <Trash2 size={14} aria-hidden />
+            清空
+          </Button>
         </div>
       </header>
 

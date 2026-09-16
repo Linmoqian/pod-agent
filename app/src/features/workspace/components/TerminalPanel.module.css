@@ -96,6 +96,11 @@
   color: var(--color-text-tertiary);
 }
 
+.clearButton[aria-hidden='true'] {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .output {
   display: flex;
   flex: 1;
