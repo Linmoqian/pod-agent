@@ -25,3 +25,5 @@ LIAN_YOLO_PERF_LOG=/tmp/pod-agent-yolo-perf.log \
 ```
 
 设置 `LIAN_YOLO_PERF_LOG` 后会记录模型加载、预处理、动态 Batch 回退、单张推理、后处理、纯推理总耗时和缩略图耗时；不设置时不会增加常规运行日志。
+
+macOS 缩略图通过 `QuickLookThumbnailing` 原生 API 获取，失败时回退到应用内图片解码；Apple 平台使用 Batch=1 回退 ONNX，CPU/NVIDIA 平台使用动态 Batch ONNX。

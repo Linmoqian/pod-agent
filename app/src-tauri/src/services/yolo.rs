@@ -15,6 +15,8 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
+#[cfg(target_os = "macos")]
+use std::{ffi::CString, os::raw::c_char, slice};
 use tauri::{AppHandle, Manager};
 
 static ENDPOINT: OnceLock<Result<(String, String), String>> = OnceLock::new();
@@ -445,25 +447,35 @@ fn thumbnail(path: &Path) -> Result<Vec<u8>, String> {
 
 #[cfg(target_os = "macos")]
 fn quicklook_thumbnail(path: &Path) -> Option<Vec<u8>> {
-    let output_dir = std::env::temp_dir().join(format!("lian-quicklook-{}", uuid::Uuid::new_v4()));
-    if std::fs::create_dir(&output_dir).is_err() {
+    let path = CString::new(path.to_string_lossy().as_bytes()).ok()?;
+    let mut bytes = std::ptr::null_mut();
+    let mut length = 0;
+    let generated = unsafe {
+        if lian_quicklook_thumbnail(path.as_ptr(), &mut bytes, &mut length) == 0 {
+            return None;
+        }
+        if bytes.is_null() || length == 0 {
+            lian_quicklook_thumbnail_free(bytes);
+            return None;
+        }
+        let result = slice::from_raw_parts(bytes, length).to_vec();
+        lian_quicklook_thumbnail_free(bytes);
+        result
+    };
+    if generated.is_empty() {
         return None;
     }
-    let generated = std::process::Command::new("/usr/bin/qlmanage")
-        .args(["-t", "-x", "-s", "240", "-o"])
-        .arg(&output_dir)
-        .arg(path)
-        .output()
-        .ok()
-        .filter(|output| output.status.success())
-        .and_then(|_| {
-            std::fs::read_dir(&output_dir).ok()?.filter_map(Result::ok)
-                .map(|entry| entry.path())
-                .find(|candidate| candidate.extension().and_then(|value| value.to_str()) == Some("png"))
-                .and_then(|candidate| std::fs::read(candidate).ok())
-        });
-    let _ = std::fs::remove_dir_all(&output_dir);
-    generated
+    Some(generated)
+}
+
+#[cfg(target_os = "macos")]
+unsafe extern "C" {
+    fn lian_quicklook_thumbnail(
+        path: *const c_char,
+        bytes: *mut *mut u8,
+        length: *mut usize,
+    ) -> i32;
+    fn lian_quicklook_thumbnail_free(bytes: *mut u8);
 }
 
 fn image_thumbnail(path: &Path) -> Result<Vec<u8>, String> {

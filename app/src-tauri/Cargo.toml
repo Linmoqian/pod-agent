@@ -20,6 +20,7 @@ cuda = ["ort/cuda"]
 tensorrt = ["ort/tensorrt", "ort/cuda"]
 
 [build-dependencies]
+cc = "1"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
