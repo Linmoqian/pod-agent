@@ -14,7 +14,7 @@ import { resolveEnvironment } from './conda-environments.ts';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const SCRIPT = resolve(ROOT, 'tests/YOLO/yolo_tool.py');
-type ModelEntry = { id: string; name: string; path: string; description: string; onnxPath?: string; classes?: string[]; inputSize?: number };
+type ModelEntry = { id: string; name: string; path: string; description: string; onnxPath?: string; appleOnnxPath?: string; appleBatch8OnnxPath?: string; classes?: string[]; inputSize?: number };
 type Detection = {
   className: string;
   score: number;
@@ -90,9 +90,11 @@ export const listYoloModelsTool: AgentTool = {
   parameters: Type.Object({}),
   async execute() {
     const models = modelList().map((entry) => {
-      const { path, onnxPath, classes, inputSize, ...summary } = entry;
+      const { path, onnxPath, appleOnnxPath, appleBatch8OnnxPath, classes, inputSize, ...summary } = entry;
       void classes;
       void inputSize;
+      void appleOnnxPath;
+      void appleBatch8OnnxPath;
       return {
         ...summary,
         available: existsSync(resolve(ROOT, path)),
@@ -201,7 +203,7 @@ const batchParameters = Type.Object({
 export const yoloBatchDetectTool: AgentTool<typeof batchParameters> = {
   name: 'run_yolo_batch_detection',
   label: 'YOLO 批量推理',
-  description: '对用户提供的图片文件夹递归批量推理。优先使用动态 Batch，任务会逐张同步到育种台；不要把同一文件夹拆成多次单图调用。仅返回汇总计数，结果图片和检测框由桌面任务界面消费。',
+  description: '对用户提供的图片文件夹递归批量推理。按平台使用固定 Batch=8 或动态 Batch，任务会逐张同步到育种台；不要把同一文件夹拆成多次单图调用。仅返回汇总计数，结果图片和检测框由桌面任务界面消费。',
   parameters: batchParameters,
   executionMode: 'sequential',
   async execute(toolCallId, params, signal, onUpdate) {

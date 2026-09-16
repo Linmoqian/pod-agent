@@ -217,8 +217,9 @@ pub fn yolo_models() -> Result<Value, String> {
     Ok(Value::Array(entries.into_iter().map(|entry| {
         let primary_available = entry["onnxPath"].as_str().is_some_and(|path| root.join(path).is_file());
         let apple_available = entry["appleOnnxPath"].as_str().is_some_and(|path| root.join(path).is_file());
+        let apple_batch8_available = entry["appleBatch8OnnxPath"].as_str().is_some_and(|path| root.join(path).is_file());
         let available = if cfg!(target_vendor = "apple") {
-            primary_available || apple_available
+            primary_available || apple_available || apple_batch8_available
         } else {
             primary_available
         };
@@ -296,6 +297,7 @@ struct Model {
     id: String,
     onnx_path: Option<String>,
     apple_onnx_path: Option<String>,
+    apple_batch8_onnx_path: Option<String>,
     classes: Option<Vec<String>>,
     input_size: Option<u32>,
 }
@@ -305,6 +307,7 @@ struct ModelConfig {
     classes: Vec<String>,
     size: u32,
     supports_dynamic_batch: bool,
+    fixed_batch_size: Option<usize>,
     cache_key: String,
 }
 
@@ -369,14 +372,19 @@ fn load_model(root: &Path, model_id: &str, target_class: Option<&str>) -> Result
     let model = models.into_iter().find(|model| model.id == model_id).ok_or("未知模型")?;
     let primary_path = root.join(model.onnx_path.ok_or("该模型未登记 ONNX 权重")?);
     #[cfg(target_vendor = "apple")]
-    let apple_path = model.apple_onnx_path.as_deref()
-        .map(|value| root.join(value))
-        .filter(|path| path.is_file());
+    let (path, supports_dynamic_batch, fixed_batch_size) = {
+        let batch8_path = model.apple_batch8_onnx_path.as_deref()
+            .map(|value| root.join(value))
+            .filter(|path| path.is_file());
+        let batch1_path = model.apple_onnx_path.as_deref()
+            .map(|value| root.join(value))
+            .filter(|path| path.is_file());
+        batch1_path.map(|path| (path, false, Some(1)))
+            .or_else(|| batch8_path.map(|path| (path, false, Some(8))))
+            .unwrap_or((primary_path, true, None))
+    };
     #[cfg(not(target_vendor = "apple"))]
-    let apple_path: Option<PathBuf> = None;
-    let (path, supports_dynamic_batch) = apple_path
-        .map(|path| (path, false))
-        .unwrap_or((primary_path, true));
+    let (path, supports_dynamic_batch, fixed_batch_size) = (primary_path, true, None);
     let classes = model.classes.ok_or("缺少有序类别清单")?;
     let size = model.input_size.ok_or("缺少输入尺寸")?;
     if classes.is_empty() || !(32..=2048).contains(&size) {
@@ -387,7 +395,7 @@ fn load_model(root: &Path, model_id: &str, target_class: Option<&str>) -> Result
     }
     let metadata = std::fs::metadata(&path).map_err(|_| "ONNX 权重不存在")?;
     let cache_key = format!("{}:{:?}:{}", path.display(), metadata.modified().ok(), metadata.len());
-    Ok(ModelConfig { path, classes, size, supports_dynamic_batch, cache_key })
+    Ok(ModelConfig { path, classes, size, supports_dynamic_batch, fixed_batch_size, cache_key })
 }
 
 fn prepare_image(image_path: &str, size: u32) -> Result<PreparedImage, String> {
@@ -642,6 +650,20 @@ fn error_result(message: String) -> Value {
     json!({ "ok": false, "message": message })
 }
 
+fn merge_results(
+    prepared: Vec<Result<PreparedImage, String>>,
+    batch_results: Vec<(usize, Value)>,
+) -> Vec<Value> {
+    let mut results = prepared.into_iter().map(|result| match result {
+        Ok(_) => Value::Null,
+        Err(message) => error_result(message),
+    }).collect::<Vec<_>>();
+    for (index, result) in batch_results {
+        results[index] = result;
+    }
+    results
+}
+
 fn result_from_output(
     model: &ModelConfig,
     prepared: &PreparedImage,
@@ -748,6 +770,18 @@ fn infer(root: &Path, request: Request, cache: &mut Option<(String, Session)>) -
     }
     let model = load_model(root, &request.model_id, request.target_class.as_deref())?;
     let prepared = prepare_image(&request.image_path, model.size)?;
+    if let Some(batch_size) = model.fixed_batch_size.filter(|size| *size > 1) {
+        let prepared = [(0, &prepared)];
+        return infer_prepared_fixed_batch(
+            &model,
+            &prepared,
+            request.target_class.as_deref(),
+            request.min_confidence,
+            batch_size,
+        )?.into_iter().next()
+            .map(|(_, result)| result)
+            .ok_or_else(|| "固定 Batch 推理没有返回结果".into());
+    }
     let session_reused = ensure_session(&model, cache)?;
     let session = &mut cache.as_mut().ok_or("推理服务不可用")?.1;
     infer_prepared(
@@ -834,7 +868,7 @@ fn infer_prepared_batch(
         || shape[1] != (model.classes.len() + 4) as i64
         || shape[2] <= 0
     {
-        return Err("模型不支持动态 Batch 或输出形状不匹配".into());
+        return Err("模型 Batch 或输出形状不匹配，请使用 nms=False 导出".into());
     }
     let channels = shape[1] as usize;
     let anchors = shape[2] as usize;
@@ -862,6 +896,58 @@ fn infer_prepared_batch(
         started.elapsed().as_secs_f64() * 1000.,
     ));
     Ok(results)
+}
+
+fn infer_prepared_fixed_batch(
+    model: &ModelConfig,
+    prepared: &[(usize, &PreparedImage)],
+    target_class: Option<&str>,
+    min_confidence: f32,
+    fixed_batch_size: usize,
+) -> Result<Vec<(usize, Value)>, String> {
+    if fixed_batch_size < 2 {
+        return Err("固定 Batch 大小无效".into());
+    }
+    if prepared.is_empty() {
+        return Ok(Vec::new());
+    }
+    let started = Instant::now();
+    let (session_reused, mut session) = take_batch_session(model)?;
+    let result = (|| {
+        let mut results = Vec::with_capacity(prepared.len());
+        for (batch_index, chunk) in prepared.chunks(fixed_batch_size).enumerate() {
+            let actual_len = chunk.len();
+            let last = *chunk.last().ok_or("固定 Batch 尾批为空")?;
+            let mut padded = chunk.to_vec();
+            padded.resize(fixed_batch_size, last);
+            let chunk_results = infer_prepared_batch(
+                model,
+                &padded,
+                target_class,
+                min_confidence,
+                &mut session,
+                session_reused,
+            )?;
+            results.extend(chunk_results.into_iter().take(actual_len));
+            perf_log(format!(
+                "infer.fixed_chunk index={} requested={} padded={} batch_size={}",
+                batch_index + 1,
+                actual_len,
+                padded.len(),
+                fixed_batch_size,
+            ));
+        }
+        Ok(results)
+    })();
+    return_batch_sessions(model, vec![session]);
+    perf_log(format!(
+        "infer.fixed_batch images={} batch_size={} reused={} elapsed_ms={}",
+        prepared.len(),
+        fixed_batch_size,
+        session_reused,
+        started.elapsed().as_secs_f64() * 1000.,
+    ));
+    result
 }
 
 fn infer_prepared_parallel(
@@ -969,7 +1055,31 @@ fn infer_batch(
     let valid = prepared.iter().enumerate()
         .filter_map(|(index, result)| result.as_ref().ok().map(|image| (index, image)))
         .collect::<Vec<_>>();
-    if valid.len() > 1 && model.supports_dynamic_batch && batch_support(&model) != Some(false) {
+    if let Some(fixed_batch_size) = model.fixed_batch_size.filter(|size| *size > 1) {
+        if !valid.is_empty() {
+            perf_log(format!(
+                "batch.use_fixed images={} batch_size={}",
+                valid.len(),
+                fixed_batch_size,
+            ));
+            let batch_results = infer_prepared_fixed_batch(
+                &model,
+                &valid,
+                target_class,
+                min_confidence,
+                fixed_batch_size,
+            )?;
+            let results = merge_results(prepared, batch_results);
+            perf_log(format!(
+                "batch.finish mode=fixed images={} batch_size={} total_ms={} images_per_sec={:.3}",
+                image_paths.len(),
+                fixed_batch_size,
+                total_started.elapsed().as_secs_f64() * 1000.,
+                image_paths.len() as f64 / total_started.elapsed().as_secs_f64(),
+            ));
+            return Ok(results);
+        }
+    } else if valid.len() > 1 && model.supports_dynamic_batch && batch_support(&model) != Some(false) {
         perf_log(format!("batch.try_dynamic images={}", valid.len()));
         let (session_reused, mut session) = take_batch_session(&model)?;
         match infer_prepared_batch(
@@ -983,13 +1093,7 @@ fn infer_batch(
             Ok(batch_results) => {
                 remember_batch_support(&model, true);
                 return_batch_sessions(&model, vec![session]);
-                let mut results = prepared.into_iter().map(|result| match result {
-                    Ok(_) => Value::Null,
-                    Err(message) => error_result(message),
-                }).collect::<Vec<_>>();
-                for (index, result) in batch_results {
-                    results[index] = result;
-                }
+                let results = merge_results(prepared, batch_results);
                 perf_log(format!(
                     "batch.finish mode=dynamic images={} total_ms={} images_per_sec={:.3}",
                     image_paths.len(),

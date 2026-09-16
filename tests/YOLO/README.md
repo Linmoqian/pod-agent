@@ -10,7 +10,7 @@ conda run -n base python tests/YOLO/test_yolo_tool.py
 
 实际推理需要选定 conda 环境安装 ultralytics，并通过 `YOLO_PYTHON` 指向该环境解释器。当前未自动安装依赖。
 
-动态 Batch ONNX 导出（需要当前 Conda 环境已安装 `ultralytics` 与 `onnx`；同时生成 Apple CoreML 的 Batch=1 回退模型）：
+动态 Batch ONNX 导出（需要当前 Conda 环境已安装 `ultralytics` 与 `onnx`；同时生成 Apple CoreML 的固定 Batch=1 与 Batch=8 模型）：
 
 ```bash
 python tests/YOLO/export_dynamic_onnx.py
@@ -24,6 +24,6 @@ LIAN_YOLO_PERF_LOG=/tmp/pod-agent-yolo-perf.log \
   services::yolo::tests::benchmark_100_images_throughput -- --ignored --nocapture
 ```
 
-设置 `LIAN_YOLO_PERF_LOG` 后会记录模型加载、预处理、动态 Batch 回退、单张推理、后处理、纯推理总耗时和缩略图耗时；不设置时不会增加常规运行日志。
+设置 `LIAN_YOLO_PERF_LOG` 后会记录模型加载、预处理、动态/固定 Batch、单张推理、后处理、纯推理总耗时和缩略图耗时；不设置时不会增加常规运行日志。
 
-macOS 缩略图通过 `QuickLookThumbnailing` 原生 API 获取，失败时回退到应用内图片解码；Apple 平台使用 Batch=1 回退 ONNX，CPU/NVIDIA 平台使用动态 Batch ONNX。
+macOS 缩略图通过 `QuickLookThumbnailing` 原生 API 获取，失败时回退到应用内图片解码；Apple 平台优先使用 Batch=1 回退 ONNX，缺少 Batch=1 权重时使用固定 Batch=8 ONNX，尾批用最后一张图片补齐但不保存补位结果；CPU/NVIDIA 平台使用动态 Batch ONNX。当前 M4 实测 Batch=1 双会话并行吞吐更高，因此 Batch=8 保留为可验证的备用路径。
