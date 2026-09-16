@@ -145,6 +145,15 @@ export type TimelineMessage = {
   createdAt: string;
 };
 
+/** 复制会话时写入的新消息快照；不携带前端运行态。 */
+export type CloneMessageSnapshot = {
+  taskPlanId: string | null;
+  role: 'user' | 'assistant';
+  content: string;
+  reasoning: string | null;
+  createdAt: string;
+};
+
 export type WorkspaceSnapshot = {
   conversation: Conversation;
   project: Project | null;

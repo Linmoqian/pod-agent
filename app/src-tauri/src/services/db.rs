@@ -1,6 +1,6 @@
 use rusqlite::{params, Connection, DatabaseName, OptionalExtension};
 use serde_json::{json, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use crate::domain::{
@@ -1013,30 +1013,996 @@ pub fn conversation_messages(
         .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))
 }
 
-/// 复制会话消息，不复制任务归属，供临时会话克隆使用。
-pub fn copy_conversation_messages(
+/// 项目副本中重新生成的关键 ID；调用方用任务计划映射修正会话消息归属。
+#[derive(Debug, Default)]
+pub struct ProjectCloneMappings {
+    pub task_plans: HashMap<String, String>,
+}
+
+fn clone_id() -> String {
+    uuid::Uuid::new_v4().to_string()
+}
+
+fn is_terminal_status(status: &str) -> bool {
+    matches!(
+        status,
+        "completed" | "succeeded" | "failed" | "cancelled" | "interrupted"
+    )
+}
+
+fn remap_json(value: &Value, ids: &HashMap<String, String>) -> Value {
+    match value {
+        Value::String(value) => ids
+            .get(value)
+            .cloned()
+            .map(Value::String)
+            .unwrap_or_else(|| Value::String(value.clone())),
+        Value::Array(values) => Value::Array(
+            values
+                .iter()
+                .map(|item| remap_json(item, ids))
+                .collect(),
+        ),
+        Value::Object(values) => Value::Object(
+            values
+                .iter()
+                .map(|(key, item)| (key.clone(), remap_json(item, ids)))
+                .collect(),
+        ),
+        value => value.clone(),
+    }
+}
+
+fn prune_missing_artifact_refs(
+    value: &mut Value,
+    artifacts: &HashMap<String, String>,
+    source_artifact_ids: &HashSet<String>,
+) {
+    match value {
+        Value::Array(values) => {
+            values
+                .iter_mut()
+                .for_each(|item| prune_missing_artifact_refs(item, artifacts, source_artifact_ids));
+        }
+        Value::Object(values) => {
+            for (key, item) in values.iter_mut() {
+                if key == "expectedArtifacts" {
+                    if let Value::Array(artifact_ids) = item {
+                        artifact_ids.retain(|artifact_id| {
+                            artifact_id
+                                .as_str()
+                                // 计划通常保存的是 Artifact 类型名（如 report.analysis），
+                                // 只有明确指向源 Artifact ID 的引用才需要过滤。
+                                .map(|id| {
+                                    !source_artifact_ids.contains(id) || artifacts.contains_key(id)
+                                })
+                                .unwrap_or(true)
+                        });
+                    }
+                }
+                prune_missing_artifact_refs(item, artifacts, source_artifact_ids);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn project_id_map(
     connection: &Connection,
-    source_conversation_id: &str,
-    target_conversation_id: &str,
-) -> AppResult<()> {
-    let messages = conversation_messages(connection, source_conversation_id)?;
-    for message in messages {
+    table: &str,
+    project_id: &str,
+    prefix: &str,
+    ids: &mut HashMap<String, String>,
+) -> AppResult<HashMap<String, String>> {
+    let mut statement = connection
+        .prepare(&format!("SELECT id FROM {table} WHERE project_id=?1"))
+        .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+    let source_ids = statement
+        .query_map([project_id], |row| row.get::<_, String>(0))
+        .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+    let mut table_ids = HashMap::new();
+    for source_id in source_ids {
+        let target_id = clone_id();
+        ids.insert(source_id.clone(), target_id.clone());
+        table_ids.insert(source_id, target_id);
+    }
+    let _ = prefix;
+    Ok(table_ids)
+}
+
+/// 在一个已开启的事务中复制项目上下文。
+///
+/// 源文件与已完成 Artifact 的路径保持只读共享；数据库中的项目实体、关系和终态运行
+/// 记录全部使用新 ID。运行态记录与不完整 Artifact 被有意跳过。
+pub fn clone_project_context(
+    connection: &Connection,
+    source_project_id: &str,
+    target_project_id: &str,
+) -> AppResult<ProjectCloneMappings> {
+    let mut ids = HashMap::new();
+    let source_files = project_id_map(connection, "source_files", source_project_id, "source", &mut ids)?;
+    let schemas = project_id_map(connection, "research_schemas", source_project_id, "schema", &mut ids)?;
+    let research_datasets = project_id_map(
+        connection,
+        "research_datasets",
+        source_project_id,
+        "research_dataset",
+        &mut ids,
+    )?;
+    let materials = project_id_map(connection, "materials", source_project_id, "material", &mut ids)?;
+    let material_aliases = project_id_map(
+        connection,
+        "material_aliases",
+        source_project_id,
+        "material_alias",
+        &mut ids,
+    )?;
+    let traits = project_id_map(connection, "traits", source_project_id, "trait", &mut ids)?;
+    let environments = project_id_map(
+        connection,
+        "environments",
+        source_project_id,
+        "environment",
+        &mut ids,
+    )?;
+    let datasets = project_id_map(connection, "datasets", source_project_id, "dataset", &mut ids)?;
+    let identity_decisions = project_id_map(
+        connection,
+        "identity_decisions",
+        source_project_id,
+        "identity_decision",
+        &mut ids,
+    )?;
+    let import_sessions = project_id_map(
+        connection,
+        "import_sessions",
+        source_project_id,
+        "import_session",
+        &mut ids,
+    )?;
+    let task_plans = project_id_map(connection, "task_plans", source_project_id, "task_plan", &mut ids)?;
+    let mut workflow_runs = HashMap::new();
+    {
+        let mut statement = connection
+            .prepare("SELECT id,status FROM workflow_runs WHERE project_id=?1")
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let rows = statement
+            .query_map([source_project_id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        for row in rows {
+            let (source_id, status) = row
+                .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+            if is_terminal_status(&status) {
+                let target_id = clone_id();
+                ids.insert(source_id.clone(), target_id.clone());
+                workflow_runs.insert(source_id, target_id);
+            }
+        }
+    }
+    let mut task_plan_runs = HashMap::new();
+    {
+        let mut statement = connection
+            .prepare("SELECT id,status FROM task_plan_runs WHERE project_id=?1")
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let rows = statement
+            .query_map([source_project_id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        for row in rows {
+            let (source_id, status) = row
+                .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+            if is_terminal_status(&status) {
+                let target_id = ids
+                    .get(&source_id)
+                    .cloned()
+                    .unwrap_or_else(clone_id);
+                ids.insert(source_id.clone(), target_id.clone());
+                task_plan_runs.insert(source_id, target_id);
+            }
+        }
+    }
+    let executions = project_id_map(connection, "executions", source_project_id, "execution", &mut ids)?;
+    let (artifacts, source_artifact_ids) = {
+        let mut statement = connection
+            .prepare(
+                "SELECT id,status,produced_by_run_id FROM artifacts WHERE project_id=?1",
+            )
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let rows = statement
+            .query_map([source_project_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                ))
+            })
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let mut table_ids = HashMap::new();
+        let mut source_artifact_ids = HashSet::new();
+        for row in rows {
+            let (source_id, status, produced_by_run_id) = row
+                .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+            source_artifact_ids.insert(source_id.clone());
+            let complete_enough = !matches!(
+                status.as_str(),
+                "running" | "pending" | "partial" | "incomplete"
+            );
+            let run_is_copyable = produced_by_run_id
+                .as_ref()
+                .map(|run_id| {
+                    workflow_runs.contains_key(run_id) || task_plan_runs.contains_key(run_id)
+                })
+                .unwrap_or(true);
+            if complete_enough && run_is_copyable {
+                let target_id = clone_id();
+                ids.insert(source_id.clone(), target_id.clone());
+                table_ids.insert(source_id, target_id);
+            }
+        }
+        (table_ids, source_artifact_ids)
+    };
+    let research_nodes = project_id_map(
+        connection,
+        "research_nodes",
+        source_project_id,
+        "research_node",
+        &mut ids,
+    )?;
+
+    let source_file_rows = {
+        let mut statement = connection
+            .prepare("SELECT id,original_name,managed_path,format,sha256,size,created_at FROM source_files WHERE project_id=?1")
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let rows = statement
+            .query_map([source_project_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, i64>(5)?,
+                    row.get::<_, String>(6)?,
+                ))
+            })
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        rows
+    };
+    for (source_id, name, path, format, checksum, size, created_at) in source_file_rows {
         connection
             .execute(
-                "INSERT INTO messages(id,conversation_id,task_plan_id,role,content,reasoning,created_at) VALUES(?1,?2,NULL,?3,?4,?5,?6)",
+                "INSERT INTO source_files(id,project_id,original_name,managed_path,format,sha256,size,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",
+                params![source_files[&source_id], target_project_id, name, path, format, checksum, size, created_at],
+            )
+            .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    }
+
+    let schema_rows = {
+        let mut statement = connection
+            .prepare("SELECT id,dataset_type,version,layout,fields_json,roles_json,checksum,created_at FROM research_schemas WHERE project_id=?1")
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let rows = statement
+            .query_map([source_project_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, String>(6)?,
+                    row.get::<_, String>(7)?,
+                ))
+            })
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        rows
+    };
+    for (source_id, dataset_type, version, layout, fields, roles, checksum, created_at) in schema_rows {
+        connection
+            .execute(
+                "INSERT INTO research_schemas(id,project_id,dataset_type,version,layout,fields_json,roles_json,checksum,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+                params![schemas[&source_id], target_project_id, dataset_type, version, layout, remap_json(&parse_json(fields), &ids).to_string(), remap_json(&parse_json(roles), &ids).to_string(), checksum, created_at],
+            )
+            .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    }
+
+    let research_dataset_rows = {
+        let mut statement = connection
+            .prepare("SELECT id,name,dataset_type,current_version_id,created_at,updated_at FROM research_datasets WHERE project_id=?1")
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let rows = statement
+            .query_map([source_project_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                ))
+            })
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        rows
+    };
+    for (source_id, name, dataset_type, _current_version_id, created_at, updated_at) in &research_dataset_rows {
+        connection
+            .execute(
+                "INSERT INTO research_datasets(id,project_id,name,dataset_type,current_version_id,created_at,updated_at) VALUES(?1,?2,?3,?4,NULL,?5,?6)",
+                params![research_datasets[source_id], target_project_id, name, dataset_type, created_at, updated_at],
+            )
+            .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    }
+
+    let material_rows = {
+        let mut statement = connection
+            .prepare("SELECT id,canonical_code,exact_key,display_name,origin,generation,metadata_json,created_at FROM materials WHERE project_id=?1")
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let rows = statement
+            .query_map([source_project_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                    row.get::<_, String>(6)?,
+                    row.get::<_, String>(7)?,
+                ))
+            })
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        rows
+    };
+    for (source_id, code, exact_key, display_name, origin, generation, metadata, created_at) in material_rows {
+        connection
+            .execute(
+                "INSERT INTO materials(id,project_id,canonical_code,exact_key,display_name,origin,generation,metadata_json,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+                params![materials[&source_id], target_project_id, code, exact_key, display_name, origin, generation, remap_json(&parse_json(metadata), &ids).to_string(), created_at],
+            )
+            .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    }
+
+    let trait_rows = {
+        let mut statement = connection
+            .prepare("SELECT id,canonical_code,name,value_type,unit,method,scale,ontology_ref,created_at FROM traits WHERE project_id=?1")
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let rows = statement
+            .query_map([source_project_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                    row.get::<_, Option<String>>(6)?,
+                    row.get::<_, Option<String>>(7)?,
+                    row.get::<_, String>(8)?,
+                ))
+            })
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        rows
+    };
+    for (source_id, code, name, value_type, unit, method, scale, ontology_ref, created_at) in trait_rows {
+        connection
+            .execute(
+                "INSERT INTO traits(id,project_id,canonical_code,name,value_type,unit,method,scale,ontology_ref,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+                params![traits[&source_id], target_project_id, code, name, value_type, unit, method, scale, ontology_ref, created_at],
+            )
+            .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    }
+
+    let environment_rows = {
+        let mut statement = connection
+            .prepare("SELECT id,canonical_code,name,location,year,season,treatment_json,metadata_json,created_at FROM environments WHERE project_id=?1")
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let rows = statement
+            .query_map([source_project_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, Option<i64>>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                    row.get::<_, String>(6)?,
+                    row.get::<_, String>(7)?,
+                    row.get::<_, String>(8)?,
+                ))
+            })
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        rows
+    };
+    for (source_id, code, name, location, year, season, treatment, metadata, created_at) in environment_rows {
+        connection
+            .execute(
+                "INSERT INTO environments(id,project_id,canonical_code,name,location,year,season,treatment_json,metadata_json,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+                params![environments[&source_id], target_project_id, code, name, location, year, season, remap_json(&parse_json(treatment), &ids).to_string(), remap_json(&parse_json(metadata), &ids).to_string(), created_at],
+            )
+            .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    }
+
+    let legacy_dataset_rows = {
+        let mut statement = connection
+            .prepare("SELECT id,name,dataset_type,version,schema_json,source_json,metadata_json,quality_status,supersedes_id,canonical_path,created_at FROM datasets WHERE project_id=?1")
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let rows = statement
+            .query_map([source_project_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, String>(6)?,
+                    row.get::<_, String>(7)?,
+                    row.get::<_, Option<String>>(8)?,
+                    row.get::<_, String>(9)?,
+                    row.get::<_, String>(10)?,
+                ))
+            })
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        rows
+    };
+    for (source_id, name, dataset_type, version, schema, source, metadata, quality, supersedes, canonical_path, created_at) in legacy_dataset_rows {
+        connection
+            .execute(
+                "INSERT INTO datasets(id,project_id,name,dataset_type,version,schema_json,source_json,metadata_json,quality_status,supersedes_id,canonical_path,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
+                params![datasets[&source_id], target_project_id, name, dataset_type, version, remap_json(&parse_json(schema), &ids).to_string(), remap_json(&parse_json(source), &ids).to_string(), remap_json(&parse_json(metadata), &ids).to_string(), quality, supersedes.and_then(|id| ids.get(&id).cloned()), canonical_path, created_at],
+            )
+            .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    }
+
+    let version_rows = {
+        let mut statement = connection
+            .prepare("SELECT id,dataset_id,version,source_file_id,schema_id,canonical_path,canonical_checksum,quality_status,supersedes_version_id,metadata_json,created_at FROM dataset_versions WHERE project_id=?1")
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let rows = statement
+            .query_map([source_project_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, String>(6)?,
+                    row.get::<_, String>(7)?,
+                    row.get::<_, Option<String>>(8)?,
+                    row.get::<_, String>(9)?,
+                    row.get::<_, String>(10)?,
+                ))
+            })
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        rows
+    };
+    let version_ids = version_rows
+        .iter()
+        .map(|row| row.0.clone())
+        .collect::<Vec<_>>();
+    let version_map = version_ids
+        .into_iter()
+        .map(|source_id| {
+            let target_id = clone_id();
+            ids.insert(source_id.clone(), target_id.clone());
+            (source_id, target_id)
+        })
+        .collect::<HashMap<_, _>>();
+    for (source_id, dataset_id, version, source_file_id, schema_id, canonical_path, checksum, quality, supersedes, metadata, created_at) in version_rows {
+        connection
+            .execute(
+                "INSERT INTO dataset_versions(id,dataset_id,project_id,version,source_file_id,schema_id,canonical_path,canonical_checksum,quality_status,supersedes_version_id,metadata_json,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
+                params![version_map[&source_id], research_datasets[&dataset_id], target_project_id, version, source_files[&source_file_id], schemas[&schema_id], canonical_path, checksum, quality, supersedes.and_then(|id| version_map.get(&id).cloned()), remap_json(&parse_json(metadata), &ids).to_string(), created_at],
+            )
+            .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    }
+    for (source_id, _name, _dataset_type, source_version, _created_at, _updated_at) in
+        &research_dataset_rows
+    {
+        if let Some(source_version) = source_version.as_ref() {
+            if let Some(current_version_id) = version_map.get(source_version) {
+            connection
+                .execute(
+                    "UPDATE research_datasets SET current_version_id=?1 WHERE id=?2",
+                    params![current_version_id, research_datasets[source_id]],
+                )
+                .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+            }
+        }
+    }
+
+    let association_rows = |query: &str| -> AppResult<Vec<(String, String, String)>> {
+        let mut statement = connection
+            .prepare(query)
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let rows = statement
+            .query_map([source_project_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()));
+        rows
+    };
+    let material_association_rows = {
+        let mut statement = connection
+            .prepare("SELECT v.id,m.material_id,m.source_label,m.resolution,m.decision_id FROM dataset_materials m JOIN dataset_versions v ON v.id=m.dataset_version_id WHERE v.project_id=?1")
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let rows = statement
+            .query_map([source_project_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                ))
+            })
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        rows
+    };
+    for (version_id, material_id, source_label, resolution, decision_id) in material_association_rows {
+        connection
+            .execute(
+                "INSERT INTO dataset_materials(dataset_version_id,material_id,source_label,resolution,decision_id) VALUES(?1,?2,?3,?4,?5)",
                 params![
-                    uuid::Uuid::new_v4().to_string(),
-                    target_conversation_id,
-                    message.role,
-                    message.content,
-                    message.reasoning,
-                    message.created_at
+                    version_map[&version_id],
+                    materials[&material_id],
+                    source_label,
+                    resolution,
+                    decision_id.and_then(|id| identity_decisions.get(&id).cloned())
                 ],
             )
             .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
     }
-    touch_conversation(connection, target_conversation_id)?;
-    Ok(())
+    for (version_id, trait_id, source_label) in association_rows("SELECT v.id,t.trait_id,t.source_label FROM dataset_traits t JOIN dataset_versions v ON v.id=t.dataset_version_id WHERE v.project_id=?1")? {
+        connection
+            .execute("INSERT INTO dataset_traits(dataset_version_id,trait_id,source_label) VALUES(?1,?2,?3)", params![version_map[&version_id], traits[&trait_id], source_label])
+            .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    }
+    for (version_id, environment_id, source_label) in association_rows("SELECT v.id,e.environment_id,e.source_label FROM dataset_environments e JOIN dataset_versions v ON v.id=e.dataset_version_id WHERE v.project_id=?1")? {
+        connection
+            .execute("INSERT INTO dataset_environments(dataset_version_id,environment_id,source_label) VALUES(?1,?2,?3)", params![version_map[&version_id], environments[&environment_id], source_label])
+            .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    }
+
+    let identity_rows = {
+        let mut statement = connection
+            .prepare("SELECT id,entity_kind,source_value,decision,target_id,reason,actor,created_at FROM identity_decisions WHERE project_id=?1")
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let rows = statement
+            .query_map([source_project_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, String>(6)?,
+                    row.get::<_, String>(7)?,
+                ))
+            })
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        rows
+    };
+    for (source_id, entity_kind, source_value, decision, target_id, reason, actor, created_at) in identity_rows {
+        connection
+            .execute(
+                "INSERT INTO identity_decisions(id,project_id,entity_kind,source_value,decision,target_id,reason,actor,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+                params![identity_decisions[&source_id], target_project_id, entity_kind, source_value, decision, target_id.and_then(|id| ids.get(&id).cloned()), reason, actor, created_at],
+            )
+            .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    }
+    let alias_rows = {
+        let mut statement = connection
+            .prepare("SELECT id,material_id,alias,exact_key,decision_id,created_at FROM material_aliases WHERE project_id=?1")
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let rows = statement
+            .query_map([source_project_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                    row.get::<_, String>(5)?,
+                ))
+            })
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        rows
+    };
+    for (source_id, material_id, alias, exact_key, decision_id, created_at) in alias_rows {
+        connection
+            .execute(
+                "INSERT INTO material_aliases(id,project_id,material_id,alias,exact_key,decision_id,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7)",
+                params![material_aliases[&source_id], target_project_id, materials[&material_id], alias, exact_key, decision_id.and_then(|id| identity_decisions.get(&id).cloned()), created_at],
+            )
+            .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    }
+
+    let import_rows = {
+        let mut statement = connection
+            .prepare("SELECT id,inspection_json,status,created_at,completed_at FROM import_sessions WHERE project_id=?1")
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let rows = statement
+            .query_map([source_project_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                ))
+            })
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        rows
+    };
+    for (source_id, inspection, status, created_at, completed_at) in import_rows {
+        connection
+            .execute(
+                "INSERT INTO import_sessions(id,project_id,inspection_json,status,created_at,completed_at) VALUES(?1,?2,?3,?4,?5,?6)",
+                params![import_sessions[&source_id], target_project_id, remap_json(&parse_json(inspection), &ids).to_string(), status, created_at, completed_at],
+            )
+            .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    }
+
+    let plan_rows = {
+        let mut statement = connection
+            .prepare("SELECT id,dataset_id,plan_json,status,created_at FROM task_plans WHERE project_id=?1")
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let rows = statement
+            .query_map([source_project_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                ))
+            })
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        rows
+    };
+    for (source_id, dataset_id, plan_json, status, created_at) in plan_rows {
+        let clone_status = if matches!(status.as_str(), "running" | "pending" | "paused") {
+            "awaiting_confirmation"
+        } else {
+            status.as_str()
+        };
+        let mut source_plan = parse_json(plan_json);
+        prune_missing_artifact_refs(&mut source_plan, &artifacts, &source_artifact_ids);
+        let mut plan = remap_json(&source_plan, &ids);
+        if let Value::Object(values) = &mut plan {
+            values.insert("id".into(), Value::String(task_plans[&source_id].clone()));
+            values.insert("projectId".into(), Value::String(target_project_id.into()));
+            values.insert(
+                "datasetId".into(),
+                datasets
+                    .get(&dataset_id)
+                    .cloned()
+                    .map(Value::String)
+                    .unwrap_or(Value::Null),
+            );
+            values.insert("status".into(), Value::String(clone_status.into()));
+        }
+        connection
+            .execute(
+                "INSERT INTO task_plans(id,project_id,dataset_id,plan_json,status,created_at) VALUES(?1,?2,?3,?4,?5,?6)",
+                params![task_plans[&source_id], target_project_id, datasets[&dataset_id], plan.to_string(), clone_status, created_at],
+            )
+            .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    }
+
+    let workflow_rows = {
+        let mut statement = connection
+            .prepare("SELECT id,task_plan_id,status,error_code,error_message,started_at,finished_at FROM workflow_runs WHERE project_id=?1")
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let rows = statement
+            .query_map([source_project_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, Option<String>>(6)?,
+                ))
+            })
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        rows
+    };
+    for (source_id, plan_id, status, error_code, error_message, started_at, finished_at) in workflow_rows {
+        let Some(target_id) = workflow_runs.get(&source_id) else { continue };
+        connection
+            .execute(
+                "INSERT INTO workflow_runs(id,task_plan_id,project_id,status,error_code,error_message,started_at,finished_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",
+                params![target_id, task_plans.get(&plan_id), target_project_id, status, error_code, error_message, started_at, finished_at],
+            )
+            .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    }
+    let task_plan_run_rows = {
+        let mut statement = connection
+            .prepare("SELECT id,task_plan_id,status,error_code,error_message,started_at,finished_at FROM task_plan_runs WHERE project_id=?1")
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let rows = statement
+            .query_map([source_project_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, Option<String>>(6)?,
+                ))
+            })
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        rows
+    };
+    for (source_id, plan_id, status, error_code, error_message, started_at, finished_at) in task_plan_run_rows {
+        let Some(target_id) = task_plan_runs.get(&source_id) else { continue };
+        connection
+            .execute(
+                "INSERT INTO task_plan_runs(id,task_plan_id,project_id,status,error_code,error_message,started_at,finished_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",
+                params![target_id, task_plans.get(&plan_id), target_project_id, status, error_code, error_message, started_at, finished_at],
+            )
+            .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    }
+
+    let tool_rows = {
+        let mut statement = connection
+            .prepare("SELECT id,workflow_run_id,tool_id,tool_version,input_json,output_json,status,log_text,started_at,finished_at FROM tool_runs WHERE workflow_run_id IN (SELECT id FROM workflow_runs WHERE project_id=?1)")
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let rows = statement
+            .query_map([source_project_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                    row.get::<_, String>(6)?,
+                    row.get::<_, String>(7)?,
+                    row.get::<_, String>(8)?,
+                    row.get::<_, Option<String>>(9)?,
+                ))
+            })
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        rows
+    };
+    let mut tool_ids = HashMap::new();
+    for (source_id, _, _, _, _, _, status, _, _, _) in &tool_rows {
+        if is_terminal_status(status) {
+            let target_id = clone_id();
+            ids.insert(source_id.clone(), target_id.clone());
+            tool_ids.insert(source_id.clone(), target_id);
+        }
+    }
+    for (source_id, run_id, tool_id, tool_version, input, output, status, log, started_at, finished_at) in tool_rows {
+        let Some(target_tool_id) = tool_ids.get(&source_id) else { continue };
+        let Some(target_run_id) = workflow_runs.get(&run_id) else { continue };
+        connection
+            .execute(
+                "INSERT INTO tool_runs(id,workflow_run_id,tool_id,tool_version,input_json,output_json,status,log_text,started_at,finished_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+                params![target_tool_id, target_run_id, tool_id, tool_version, remap_json(&parse_json(input), &ids).to_string(), output.map(|value| remap_json(&parse_json(value), &ids).to_string()), status, log, started_at, finished_at],
+            )
+            .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    }
+
+    let execution_rows = {
+        let mut statement = connection
+            .prepare("SELECT id,task_plan_run_id,step_id,tool_id,tool_version,inputs_json,parameters_json,runtime_json,status,fingerprint,exit_code,error_code,error_message,stdout_json,stderr_json,logs_truncated,started_at,finished_at FROM executions WHERE project_id=?1")
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let rows = statement
+            .query_map([source_project_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, String>(6)?,
+                    row.get::<_, String>(7)?,
+                    row.get::<_, String>(8)?,
+                    row.get::<_, String>(9)?,
+                    row.get::<_, Option<i64>>(10)?,
+                    row.get::<_, Option<String>>(11)?,
+                    row.get::<_, Option<String>>(12)?,
+                    row.get::<_, Option<String>>(13)?,
+                    row.get::<_, Option<String>>(14)?,
+                    row.get::<_, i64>(15)?,
+                    row.get::<_, String>(16)?,
+                    row.get::<_, Option<String>>(17)?,
+                ))
+            })
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        rows
+    };
+    for (source_id, run_id, step_id, tool_id, tool_version, inputs, parameters, runtime, status, fingerprint, exit_code, error_code, error_message, stdout, stderr, truncated, started_at, finished_at) in execution_rows {
+        if !is_terminal_status(&status) || !task_plan_runs.contains_key(&run_id) {
+            continue;
+        }
+        let target_id = executions.get(&source_id).cloned().unwrap_or_else(clone_id);
+        connection
+            .execute(
+                "INSERT INTO executions(id,task_plan_run_id,project_id,step_id,tool_id,tool_version,inputs_json,parameters_json,runtime_json,status,fingerprint,exit_code,error_code,error_message,stdout_json,stderr_json,logs_truncated,started_at,finished_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19)",
+                params![target_id, task_plan_runs[&run_id], target_project_id, ids.get(&step_id).cloned().unwrap_or(step_id), tool_id, tool_version, remap_json(&parse_json(inputs), &ids).to_string(), remap_json(&parse_json(parameters), &ids).to_string(), remap_json(&parse_json(runtime), &ids).to_string(), status, fingerprint, exit_code, error_code, error_message, stdout.map(|value| remap_json(&parse_json(value), &ids).to_string()), stderr.map(|value| remap_json(&parse_json(value), &ids).to_string()), truncated, started_at, finished_at],
+            )
+            .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    }
+
+    let artifact_rows = {
+        let mut statement = connection
+            .prepare("SELECT id,dataset_id,artifact_type,name,status,files_json,checksum,directory,produced_by_run_id,metadata_json,created_at FROM artifacts WHERE project_id=?1")
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let rows = statement
+            .query_map([source_project_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, String>(6)?,
+                    row.get::<_, String>(7)?,
+                    row.get::<_, Option<String>>(8)?,
+                    row.get::<_, String>(9)?,
+                    row.get::<_, String>(10)?,
+                ))
+            })
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        rows
+    };
+    for (source_id, dataset_id, artifact_type, name, status, files, checksum, directory, produced_by_run_id, metadata, created_at) in artifact_rows {
+        let Some(target_id) = artifacts.get(&source_id) else { continue };
+        connection
+            .execute(
+                "INSERT INTO artifacts(id,project_id,dataset_id,artifact_type,name,status,files_json,checksum,directory,produced_by_run_id,metadata_json,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
+                params![target_id, target_project_id, dataset_id.and_then(|id| datasets.get(&id).cloned()), artifact_type, name, status, remap_json(&parse_json(files), &ids).to_string(), checksum, directory, produced_by_run_id.and_then(|id| workflow_runs.get(&id).or_else(|| task_plan_runs.get(&id)).cloned()), remap_json(&parse_json(metadata), &ids).to_string(), created_at],
+            )
+            .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    }
+    let artifact_edge_rows = {
+        let mut statement = connection
+            .prepare("SELECT artifact_id,upstream_id FROM artifact_edges WHERE artifact_id IN (SELECT id FROM artifacts WHERE project_id=?1)")
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let rows = statement
+            .query_map([source_project_id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        rows
+    };
+    for (artifact_id, upstream_id) in artifact_edge_rows {
+        let (Some(target_artifact_id), Some(target_upstream_id)) =
+            (artifacts.get(&artifact_id), artifacts.get(&upstream_id))
+        else {
+            continue;
+        };
+        connection
+            .execute(
+                "INSERT OR IGNORE INTO artifact_edges(artifact_id,upstream_id) VALUES(?1,?2)",
+                params![target_artifact_id, target_upstream_id],
+            )
+            .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    }
+
+    let node_rows = {
+        let mut statement = connection
+            .prepare("SELECT id,kind,entity_id,label,metadata_json,created_at FROM research_nodes WHERE project_id=?1")
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let rows = statement
+            .query_map([source_project_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                ))
+            })
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        rows
+    };
+    for (source_id, kind, entity_id, label, metadata, created_at) in node_rows {
+        connection
+            .execute(
+                "INSERT INTO research_nodes(id,project_id,kind,entity_id,label,metadata_json,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7)",
+                params![research_nodes[&source_id], target_project_id, kind, ids.get(&entity_id).cloned().unwrap_or(entity_id), label, remap_json(&parse_json(metadata), &ids).to_string(), created_at],
+            )
+            .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    }
+    let lineage_rows = {
+        let mut statement = connection
+            .prepare("SELECT upstream_node_id,downstream_node_id,relation,created_at FROM lineage_edges WHERE project_id=?1")
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let rows = statement
+            .query_map([source_project_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            })
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        rows
+    };
+    for (upstream, downstream, relation, created_at) in lineage_rows {
+        let (Some(target_upstream), Some(target_downstream)) =
+            (research_nodes.get(&upstream), research_nodes.get(&downstream))
+        else {
+            continue;
+        };
+        connection
+            .execute(
+                "INSERT INTO lineage_edges(id,project_id,upstream_node_id,downstream_node_id,relation,created_at) VALUES(?1,?2,?3,?4,?5,?6)",
+                params![clone_id(), target_project_id, target_upstream, target_downstream, relation, created_at],
+            )
+            .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+    }
+
+    Ok(ProjectCloneMappings {
+        task_plans,
+    })
 }
 
 /// 项目内全部会话的消息（兼容旧 project 维度快照）。
@@ -1223,6 +2189,233 @@ mod tests {
         .unwrap();
         let messages = conversation_messages(&connection, &conversation.id).unwrap();
         assert_eq!(messages[0].reasoning.as_deref(), Some("真实模型思考"));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn project_clone_remaps_context_and_skips_running_records() {
+        let root = test_root();
+        let path = root.join("lian.db");
+        std::fs::create_dir_all(root.join("managed")).unwrap();
+        let source_file = root.join("managed/source.csv");
+        std::fs::write(&source_file, b"material,height\nA001,10\n").unwrap();
+        let mut connection = open(&path).unwrap();
+        let source = ensure_draft_project(&connection, Some("克隆源项目")).unwrap();
+        let target_project_id = "clone-target-project";
+        connection
+            .execute(
+                "INSERT INTO projects(id,name,status,created_at,updated_at) VALUES(?1,?2,?3,?4,?5)",
+                params![target_project_id, "克隆目标项目", "active", now(), now()],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO source_files(id,project_id,original_name,managed_path,format,sha256,size,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",
+                params![
+                    "source-1",
+                    source.id,
+                    "source.csv",
+                    source_file.to_string_lossy(),
+                    "csv",
+                    "source-checksum",
+                    24_i64,
+                    now()
+                ],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO research_schemas(id,project_id,dataset_type,version,layout,fields_json,roles_json,checksum,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+                params![
+                    "schema-1",
+                    source.id,
+                    "phenotype",
+                    1_i64,
+                    "long",
+                    "{}",
+                    "{}",
+                    "schema-checksum",
+                    now()
+                ],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO research_datasets(id,project_id,name,dataset_type,current_version_id,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?7)",
+                params![
+                    "research-dataset-1",
+                    source.id,
+                    "表型数据",
+                    "phenotype",
+                    "version-1",
+                    now(),
+                    now()
+                ],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO dataset_versions(id,dataset_id,project_id,version,source_file_id,schema_id,canonical_path,canonical_checksum,quality_status,supersedes_version_id,metadata_json,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
+                params![
+                    "version-1",
+                    "research-dataset-1",
+                    source.id,
+                    1_i64,
+                    "source-1",
+                    "schema-1",
+                    source_file.to_string_lossy(),
+                    "source-checksum",
+                    "passed",
+                    Option::<String>::None,
+                    "{}",
+                    now()
+                ],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO datasets(id,project_id,name,dataset_type,version,schema_json,source_json,metadata_json,quality_status,canonical_path,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
+                params![
+                    "dataset-legacy",
+                    source.id,
+                    "表型数据",
+                    "phenotype",
+                    1_i64,
+                    "{}",
+                    json!({"sourceId":"source-1"}).to_string(),
+                    "{}",
+                    "passed",
+                    source_file.to_string_lossy(),
+                    now()
+                ],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO task_plans(id,project_id,dataset_id,plan_json,status,created_at) VALUES(?1,?2,?3,?4,?5,?6)",
+                params![
+                    "plan-1",
+                    source.id,
+                    "dataset-legacy",
+                    json!({
+                        "id":"plan-1",
+                        "projectId":source.id,
+                        "datasetId":"dataset-legacy",
+                        "expectedArtifacts":["report.analysis"],
+                        "status":"running"
+                    })
+                    .to_string(),
+                    "running",
+                    now()
+                ],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO workflow_runs(id,task_plan_id,project_id,status,started_at,finished_at) VALUES(?1,?2,?3,?4,?5,?6)",
+                params!["run-running", "plan-1", source.id, "running", now(), Option::<String>::None],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO workflow_runs(id,task_plan_id,project_id,status,started_at,finished_at) VALUES(?1,?2,?3,?4,?5,?6)",
+                params!["run-done", "plan-1", source.id, "succeeded", now(), now()],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO task_plan_runs(id,task_plan_id,project_id,status,started_at,finished_at) VALUES(?1,?2,?3,?4,?5,?6)",
+                params!["run-running", "plan-1", source.id, "running", now(), Option::<String>::None],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO task_plan_runs(id,task_plan_id,project_id,status,started_at,finished_at) VALUES(?1,?2,?3,?4,?5,?6)",
+                params!["run-done", "plan-1", source.id, "completed", now(), now()],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO artifacts(id,project_id,dataset_id,artifact_type,name,status,files_json,checksum,directory,produced_by_run_id,metadata_json,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
+                params![
+                    "artifact-1",
+                    source.id,
+                    "dataset-legacy",
+                    "report.analysis",
+                    "分析报告",
+                    "succeeded",
+                    "[]",
+                    "artifact-checksum",
+                    root.join("managed/artifacts").to_string_lossy(),
+                    "run-done",
+                    "{}",
+                    now()
+                ],
+            )
+            .unwrap();
+
+        let transaction = connection.transaction().unwrap();
+        let mappings = clone_project_context(&transaction, &source.id, target_project_id).unwrap();
+        transaction.commit().unwrap();
+
+        assert_ne!(mappings.task_plans["plan-1"], "plan-1");
+        let cloned_workflow_run_id: String = connection
+            .query_row(
+                "SELECT id FROM workflow_runs WHERE project_id=?1",
+                [target_project_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_ne!(cloned_workflow_run_id, "run-done");
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM workflow_runs WHERE project_id=?1",
+                    [target_project_id],
+                    |row| row.get::<_, i64>(0)
+                )
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM task_plan_runs WHERE project_id=?1 AND status='running'",
+                    [target_project_id],
+                    |row| row.get::<_, i64>(0)
+                )
+                .unwrap(),
+            0
+        );
+        let cloned_dataset_id: String = connection
+            .query_row(
+                "SELECT id FROM datasets WHERE project_id=?1",
+                [target_project_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_ne!(cloned_dataset_id, "dataset-legacy");
+        let cloned_plan_status: String = connection
+            .query_row(
+                "SELECT status FROM task_plans WHERE project_id=?1",
+                [target_project_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(cloned_plan_status, "awaiting_confirmation");
+        let cloned_plan_json: String = connection
+            .query_row(
+                "SELECT plan_json FROM task_plans WHERE project_id=?1",
+                [target_project_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<Value>(&cloned_plan_json).unwrap()["expectedArtifacts"],
+            json!(["report.analysis"])
+        );
+
+        drop(connection);
         std::fs::remove_dir_all(root).unwrap();
     }
 

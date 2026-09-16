@@ -62,7 +62,8 @@ export default function useWorkspaceLifecycle(
             return;
           }
           if (isAgentReplyDelta(payload)) {
-            if (payload.conversationId === conversationId) onReplyDelta(payload);
+            // 订阅会话切换时仍接收其他会话的增量，以便后台更新缓存；渲染层只展示当前会话。
+            onReplyDelta(payload);
             return;
           }
           const lifecycle = payload as LifecycleEvent;

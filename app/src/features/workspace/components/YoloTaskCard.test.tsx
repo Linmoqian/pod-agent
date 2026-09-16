@@ -108,3 +108,34 @@ test('工具事件只渲染卡片，不重复推理，失败不可由本地重�
   expect(result.current.photos[0].status).toBe('error');
   expect(vi.mocked(invoke).mock.calls.some(([command]) => command === 'yolo_detect_image' || command === 'yolo_detect_images')).toBe(false);
 });
+
+test('工具事件按会话隔离，切回源会话可恢复任务进度', async () => {
+  vi.mocked(invoke).mockImplementation(async (command) => command === 'yolo_models' ? [] : [1]);
+  const { result, rerender } = renderHook(
+    ({ conversationId }: { conversationId: string }) => useYoloTask(conversationId),
+    { initialProps: { conversationId: 'source-conversation' } },
+  );
+  await waitFor(() => expect(listen).toHaveBeenCalled());
+  const calls = vi.mocked(listen).mock.calls;
+  const receive = calls[calls.length - 1][1];
+
+  await act(async () => {
+    receive({ payload: {
+      id: 'source-image-1',
+      status: 'running',
+      conversationId: 'source-conversation',
+      imagePath: '/source-image.png',
+      modelId: 'python-model',
+    } } as never);
+  });
+  await waitFor(() => expect(result.current.photos).toHaveLength(1));
+
+  rerender({ conversationId: 'clone-conversation' });
+  expect(result.current.photos).toHaveLength(0);
+
+  rerender({ conversationId: 'source-conversation' });
+  await waitFor(() => expect(result.current.photos[0]).toMatchObject({
+    id: 'source-image-1',
+    status: 'running',
+  }));
+});

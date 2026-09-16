@@ -57,6 +57,7 @@ export type RuntimeYoloProgressItem = {
 export type RuntimeYoloEvent = {
   id: string;
   status: 'queued' | 'running' | 'done' | 'error';
+  conversationId?: string;
   imagePath?: string;
   modelId?: string;
   message?: string;

@@ -34,7 +34,7 @@ export default function AppLayout() {
   const { experienceMode } = useSettings();
   const developerMode = experienceMode === 'developer' || isBrowserDebugRuntime();
   const tabLayout = useWorkspaceTabLayout(controller.tabs);
-  const yoloTask = useYoloTask();
+  const yoloTask = useYoloTask(snapshot?.conversation.id);
   const workbenchTasks = useMemo(
     () => createWorkbenchTasks(yoloTask.photos),
     [yoloTask.photos],
@@ -109,6 +109,13 @@ export default function AppLayout() {
   const activateConversation = (id: string) => {
     setActiveView('conversation');
     void controller.activateTab(id);
+  };
+  const cloneConversation = async (id: string) => {
+    // 克隆只打开新的会话视图，不把当前图片结果页状态带入副本。
+    setYoloResultsOpen(false);
+    setYoloResultsFocusId(undefined);
+    setActiveView('conversation');
+    await controller.cloneConversation(id);
   };
   const startNewConversation = () => {
     setActiveView('conversation');
@@ -188,7 +195,7 @@ export default function AppLayout() {
           onUngroupTab={tabLayout.ungroupTab}
           onSetTabGroup={tabLayout.setTabGroup}
           onCloseTab={(id) => void controller.closeTab(id)}
-          onCopyConversation={(id) => controller.cloneConversation(id)}
+          onCloneConversation={cloneConversation}
           onRenameTab={tabLayout.renameTab}
           onRenameGroup={tabLayout.renameGroup}
           onSetGroupColor={tabLayout.setGroupColor}

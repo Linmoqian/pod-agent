@@ -56,7 +56,7 @@ type ContextHeaderProps = {
   onUngroupTab: (tabId: string) => void;
   onSetTabGroup: (tabId: string, groupId: string | null) => void;
   onCloseTab: (tabId: string) => void;
-  onCopyConversation: (conversationId: string) => Promise<void>;
+  onCloneConversation: (conversationId: string) => Promise<void>;
   onRenameTab: (tabId: string, name: string) => void;
   onRenameGroup: (groupId: string, name: string) => void;
   onSetGroupColor: (groupId: string, color: WorkspaceTabGroupColor) => void;
@@ -803,14 +803,13 @@ export default function ContextHeader(props: ContextHeaderProps) {
             type="button"
             role="menuitem"
             className={styles.tabContextMenuItem}
-            disabled={props.busy}
             onClick={() => {
-              void props.onCopyConversation(contextTab.id);
+              void props.onCloneConversation(contextTab.id);
               closeContextMenu();
             }}
           >
             <Copy size={15} aria-hidden />
-            <span>复制对话</span>
+            <span>复制会话</span>
           </button>
           <button
             type="button"

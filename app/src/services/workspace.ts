@@ -6,6 +6,7 @@
 
 import type {
   ArtifactDetail,
+  CloneMessageSnapshot,
   Dataset,
   ImportInspection,
   Project,
@@ -55,8 +56,11 @@ export const workspaceApi = {
   newTemporaryConversation() {
     return getFrontendRuntime().invoke<WorkspaceSnapshot>('new_temporary_conversation');
   },
-  cloneConversation(conversationId: string) {
-    return getFrontendRuntime().invoke<WorkspaceSnapshot>('clone_conversation', { conversationId });
+  cloneConversation(conversationId: string, messages?: CloneMessageSnapshot[]) {
+    return getFrontendRuntime().invoke<WorkspaceSnapshot>('clone_conversation', {
+      conversationId,
+      ...(messages ? { messages } : {}),
+    });
   },
   sendMessage(
     conversationId: string,

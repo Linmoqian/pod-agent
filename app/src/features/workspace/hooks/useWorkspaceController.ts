@@ -17,11 +17,17 @@ import {
 } from '../../../services/workspace';
 import { isBrowserPreviewRuntime } from '../../../services/runtime';
 import type { FieldMapping } from '../components/SourceReview';
-import type { ImportInspection, Project, WorkspaceSnapshot } from '../types';
+import type {
+  CloneMessageSnapshot,
+  ImportInspection,
+  Project,
+  TimelineMessage,
+  WorkspaceSnapshot,
+} from '../types';
 import type { AgentModelRequest } from '../../providers/types';
 import useImportActions from './useImportActions';
 import useWorkspaceLifecycle from './useWorkspaceLifecycle';
-import useReplyStream from './useReplyStream';
+import useReplyStream, { type AgentReplyDelta } from './useReplyStream';
 
 export type WorkspaceTab = {
   id: string;
@@ -46,19 +52,58 @@ function upsertTab(tabs: WorkspaceTab[], nextTab: WorkspaceTab) {
 function nextCloneTitle(sourceTitle: string, usedTitles: string[]) {
   const title = sourceTitle.trim() || '临时会话';
   const used = new Set(usedTitles);
-  let suffixStart = title.length;
-  for (let index = title.length - 1; index >= 0; index -= 1) {
-    if (/\d/.test(title[index])) suffixStart = index;
-    else break;
+  const base = `${title}（副本）`;
+  if (!used.has(base)) return base;
+  let number = 2;
+  while (used.has(`${title}（副本 ${number}）`)) number += 1;
+  return `${title}（副本 ${number}）`;
+}
+
+function cloneMessageSnapshot(messages: TimelineMessage[]): CloneMessageSnapshot[] {
+  return messages.flatMap((message) => {
+    if (message.role !== 'user' && message.role !== 'assistant') return [];
+    const content = message.content.trim();
+    const reasoning = message.reasoning?.trim() ?? '';
+    // pending 助手只是一枚前端占位，不应进入独立副本。
+    if (message.role === 'assistant' && !content && !reasoning) return [];
+    return [{
+      taskPlanId: message.taskPlanId,
+      role: message.role,
+      content: message.content,
+      reasoning: message.reasoning ?? null,
+      createdAt: message.createdAt,
+    }];
+  });
+}
+
+function applyReplyDelta(
+  snapshot: WorkspaceSnapshot,
+  delta: AgentReplyDelta,
+): WorkspaceSnapshot {
+  let messageIndex = -1;
+  for (let index = snapshot.messages.length - 1; index >= 0; index -= 1) {
+    const message = snapshot.messages[index];
+    if (
+      message.role === 'assistant' &&
+      message.status &&
+      message.requestId === delta.requestId
+    ) {
+      messageIndex = index;
+      break;
+    }
   }
-  const prefix = title.slice(0, suffixStart);
-  const suffix = title.slice(suffixStart);
-  let number = Number.parseInt(suffix, 10);
-  if (!Number.isSafeInteger(number)) number = 2;
-  else number += 1;
-  const base = prefix.trim() ? prefix : title;
-  while (used.has(`${base}${number}`)) number += 1;
-  return `${base}${number}`;
+  if (messageIndex < 0) return snapshot;
+  const messages = [...snapshot.messages];
+  const message = messages[messageIndex];
+  messages[messageIndex] = {
+    ...message,
+    status: 'streaming',
+    content: delta.kind === 'text' ? message.content + delta.delta : message.content,
+    reasoning: delta.kind === 'thinking'
+      ? `${message.reasoning ?? ''}${delta.delta}`
+      : message.reasoning,
+  };
+  return { ...snapshot, messages };
 }
 
 function useConversationBootstrap(
@@ -90,13 +135,13 @@ export default function useWorkspaceController() {
   const [inspection, setInspection] = useState<ImportInspection | null>(null);
   const [intent, setIntent] = useState('');
   const [busy, setBusy] = useState(false);
-  const [activeAgentRequestId, setActiveAgentRequestId] = useState<string | null>(null);
+  const [agentRequests, setAgentRequests] = useState<Record<string, string>>({});
   const [workbenchOpen, setWorkbenchOpen] = useState(true);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [mappingEdits, setMappingEdits] = useState<
     Record<string, FieldMapping>
   >({});
-  const submittingQuestion = useRef(false);
+  const submittingQuestions = useRef(new Set<string>());
   const importNameResolver = useRef<((projectId: string | null) => void) | null>(null);
   const previewSnapshots = useRef(new Map<string, WorkspaceSnapshot>());
   const previewTabCount = useRef(0);
@@ -121,15 +166,46 @@ export default function useWorkspaceController() {
     (error: unknown) => toast.error(errorText(error)),
     [],
   );
-  const refresh = useCallback(async (conversationId: string) => {
-    setSnapshot(await workspaceApi.getConversationContext(conversationId));
-  }, []);
-  const activateSnapshot = useCallback((next: WorkspaceSnapshot) => {
+  const cacheSnapshot = useCallback((next: WorkspaceSnapshot) => {
     previewSnapshots.current.set(next.conversation.id, next);
-    setSnapshot(next);
     const nextTab = tabFromSnapshot(next);
     setTabs((current) => upsertTab(current, nextTab));
   }, []);
+  const refresh = useCallback(async (conversationId: string) => {
+    const next = await workspaceApi.getConversationContext(conversationId);
+    cacheSnapshot(next);
+    setSnapshot((current) =>
+      current?.conversation.id === conversationId ? next : current,
+    );
+  }, [cacheSnapshot]);
+  const activateSnapshot = useCallback((next: WorkspaceSnapshot) => {
+    cacheSnapshot(next);
+    setSnapshot(next);
+  }, [cacheSnapshot]);
+  const updateCachedSnapshot = useCallback(
+    (conversationId: string, update: (current: WorkspaceSnapshot) => WorkspaceSnapshot) => {
+      const current = previewSnapshots.current.get(conversationId);
+      if (!current) return;
+      const next = update(current);
+      cacheSnapshot(next);
+      setSnapshot((active) =>
+        active?.conversation.id === conversationId ? next : active,
+      );
+    },
+    [cacheSnapshot],
+  );
+  const setConversationAgentRequest = useCallback(
+    (conversationId: string, requestId: string | null) => {
+      setAgentRequests((current) => {
+        if (requestId) return { ...current, [conversationId]: requestId };
+        if (!(conversationId in current)) return current;
+        const next = { ...current };
+        delete next[conversationId];
+        return next;
+      });
+    },
+    [],
+  );
   const createPreviewConversation = useCallback(() => {
     const preview = createBrowserPreviewSnapshot();
     previewTabCount.current += 1;
@@ -154,7 +230,24 @@ export default function useWorkspaceController() {
 
   const conversationId = snapshot?.conversation.id;
   const projectId = snapshot?.project?.id;
-  const appendReplyDelta = useReplyStream(setSnapshot);
+  const activeAgentRequestId = conversationId
+    ? agentRequests[conversationId] ?? null
+    : null;
+  const agentBusy = activeAgentRequestId !== null;
+  useEffect(() => {
+    if (snapshot) cacheSnapshot(snapshot);
+  }, [cacheSnapshot, snapshot]);
+  const handleBackgroundReplyDelta = useCallback(
+    (delta: AgentReplyDelta) => {
+      updateCachedSnapshot(delta.conversationId, (current) => applyReplyDelta(current, delta));
+    },
+    [updateCachedSnapshot],
+  );
+  const appendReplyDelta = useReplyStream(
+    setSnapshot,
+    conversationId,
+    handleBackgroundReplyDelta,
+  );
   useWorkspaceLifecycle(
     projectId,
     conversationId,
@@ -171,7 +264,7 @@ export default function useWorkspaceController() {
       targetConversationId: string,
     ) => {
       const requestId = crypto.randomUUID();
-      setActiveAgentRequestId(requestId);
+      setConversationAgentRequest(targetConversationId, requestId);
       try {
         await workspaceApi.submitIntent(
           targetProjectId,
@@ -182,15 +275,13 @@ export default function useWorkspaceController() {
           agentModel,
         );
         await refresh(targetConversationId);
-        setIntent('');
+        if (conversationId === targetConversationId) setIntent('');
         setWorkbenchOpen(true);
       } finally {
-        setActiveAgentRequestId((current) =>
-          current === requestId ? null : current,
-        );
+        setConversationAgentRequest(targetConversationId, null);
       }
     },
-    [agentModel, refresh],
+    [agentModel, conversationId, refresh, setConversationAgentRequest],
   );
 
   const resolveImportTarget = useCallback(
@@ -243,15 +334,16 @@ export default function useWorkspaceController() {
   });
 
   const submitQuestion = async (questionOverride?: string) => {
-    if (busy || submittingQuestion.current) return;
+    if (busy || !conversationId || submittingQuestions.current.has(conversationId)) return;
+    if (agentRequests[conversationId]) return;
     const question = questionOverride?.trim() || intent.trim();
     if (!question || !snapshot) return;
     if (isBrowserPreviewRuntime()) {
       toast.warning('当前为浏览器预览，发送消息请在 Tauri 桌面端运行');
       return;
     }
-    submittingQuestion.current = true;
-    setBusy(true);
+    const targetConversationId = conversationId;
+    submittingQuestions.current.add(targetConversationId);
     const requestId = crypto.randomUUID();
     let optimisticAssistantId: string | null = null;
     try {
@@ -270,7 +362,7 @@ export default function useWorkspaceController() {
         const optimisticPrefix = `pending:${Date.now()}`;
         const assistantId = `${optimisticPrefix}:assistant`;
         optimisticAssistantId = assistantId;
-        setActiveAgentRequestId(requestId);
+        setConversationAgentRequest(targetConversationId, requestId);
         setSnapshot((current) =>
           current
             ? {
@@ -301,41 +393,37 @@ export default function useWorkspaceController() {
         );
         setIntent('');
         const context = await workspaceApi.sendMessage(
-          snapshot.conversation.id,
+          targetConversationId,
           question,
           requestId,
           agentModel,
         );
-        setSnapshot(context);
+        cacheSnapshot(context);
+        setSnapshot((current) =>
+          current?.conversation.id === targetConversationId ? context : current,
+        );
       }
     } catch (error) {
       const message = errorText(error);
       if (optimisticAssistantId) {
-        setSnapshot((current) =>
-          current
-          ? {
-              ...current,
-              messages: current.messages.map((item) =>
-                item.id === optimisticAssistantId
-                  ? {
-                      ...item,
-                      status: 'error',
-                      errorMessage: message,
-                      retryContent: question,
-                    }
-                  : item,
-              ),
-            }
-          : current,
-        );
+        updateCachedSnapshot(targetConversationId, (current) => ({
+          ...current,
+          messages: current.messages.map((item) =>
+            item.id === optimisticAssistantId
+              ? {
+                  ...item,
+                  status: 'error',
+                  errorMessage: message,
+                  retryContent: question,
+                }
+              : item,
+          ),
+        }));
       }
       toast.error(message);
     } finally {
-      setActiveAgentRequestId((current) =>
-        current === requestId ? null : current,
-      );
-      submittingQuestion.current = false;
-      setBusy(false);
+      setConversationAgentRequest(targetConversationId, null);
+      submittingQuestions.current.delete(targetConversationId);
     }
   };
 
@@ -425,9 +513,10 @@ export default function useWorkspaceController() {
       setBusy(false);
     }
   };
+  const cloningConversationId = useRef<string | null>(null);
   const cloneConversation = async (targetConversationId: string) => {
-    if (!targetConversationId) return;
-    setBusy(true);
+    if (!targetConversationId || cloningConversationId.current) return;
+    cloningConversationId.current = targetConversationId;
     try {
       if (isBrowserPreviewRuntime()) {
         const source = previewSnapshots.current.get(targetConversationId);
@@ -456,16 +545,24 @@ export default function useWorkspaceController() {
             content: message.content,
             reasoning: message.reasoning ?? null,
             createdAt: message.createdAt,
-          })),
+          })).filter((message) =>
+            message.role !== 'assistant' || message.content.trim() || message.reasoning?.trim(),
+          ),
         };
         activateSnapshot(cloned);
         return;
       }
-      activateSnapshot(await workspaceApi.cloneConversation(targetConversationId));
+      const messageSnapshot =
+        targetConversationId === conversationId && snapshot
+          ? cloneMessageSnapshot(snapshot.messages)
+          : undefined;
+      const cloned = await workspaceApi.cloneConversation(targetConversationId, messageSnapshot);
+      activateSnapshot(cloned);
+      if (cloned.project) setProjects(await workspaceApi.listProjects());
     } catch (error) {
       reportError(error);
     } finally {
-      setBusy(false);
+      cloningConversationId.current = null;
     }
   };
   const promoteConversation = async (
@@ -528,6 +625,13 @@ export default function useWorkspaceController() {
         if (preview) activateSnapshot(preview);
         return;
       }
+      if (agentRequests[tabId]) {
+        const cached = previewSnapshots.current.get(tabId);
+        if (cached) {
+          activateSnapshot(cached);
+          return;
+        }
+      }
       activateSnapshot(await workspaceApi.getConversationContext(tabId));
     } catch (error) {
       reportError(error);
@@ -556,7 +660,7 @@ export default function useWorkspaceController() {
     projects,
     inspection,
     intent,
-    busy,
+    busy: busy || agentBusy,
     canCancel: activeAgentRequestId !== null,
     workbenchOpen,
     activeRunId,

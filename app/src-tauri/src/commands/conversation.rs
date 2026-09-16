@@ -5,6 +5,7 @@
  * @author: https://github.com/Linmoqian
  */
 
+use serde::Deserialize;
 use serde_json::{json, Value};
 use tauri::{Emitter, State};
 
@@ -39,33 +40,126 @@ fn cloned_conversation_title(
     } else {
         title
     };
-    let mut suffix_start = title.len();
-    for (index, character) in title.char_indices().rev() {
-        if character.is_ascii_digit() {
-            suffix_start = index;
-        } else {
-            break;
-        }
+    let base = format!("{title}（副本）");
+    if !db::conversation_title_exists(connection, &base)? {
+        return Ok(base);
     }
-    let prefix = &title[..suffix_start];
-    let suffix = &title[suffix_start..];
-    let mut number = suffix
-        .parse::<u64>()
-        .ok()
-        .and_then(|value| value.checked_add(1))
-        .unwrap_or(2);
-    let base = if prefix.trim().is_empty() {
-        title
-    } else {
-        prefix
-    };
+    let mut number = 2_u64;
     loop {
-        let candidate = format!("{base}{number}");
+        let candidate = format!("{title}（副本 {number}）");
         if !db::conversation_title_exists(connection, &candidate)? {
             return Ok(candidate);
         }
         number = number.saturating_add(1);
     }
+}
+
+fn cloned_project_title(
+    connection: &rusqlite::Connection,
+    source_title: &str,
+) -> AppResult<String> {
+    let title = source_title.trim();
+    let title = if title.is_empty() { "未命名育种项目" } else { title };
+    let base = format!("{title}（副本）");
+    let exists = |name: &str| -> AppResult<bool> {
+        connection
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM projects WHERE name=?1)",
+                [name],
+                |row| row.get(0),
+            )
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))
+    };
+    if !exists(&base)? {
+        return Ok(base);
+    }
+    let mut number = 2_u64;
+    loop {
+        let candidate = format!("{title}（副本 {number}）");
+        if !exists(&candidate)? {
+            return Ok(candidate);
+        }
+        number = number.saturating_add(1);
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CloneMessageInput {
+    #[serde(default)]
+    pub task_plan_id: Option<String>,
+    pub role: String,
+    #[serde(default)]
+    pub content: String,
+    #[serde(default)]
+    pub reasoning: Option<String>,
+    #[serde(default)]
+    pub created_at: Option<String>,
+}
+
+fn normalized_clone_messages(
+    messages: Vec<CloneMessageInput>,
+) -> AppResult<Vec<CloneMessageInput>> {
+    let mut normalized = Vec::with_capacity(messages.len());
+    for mut message in messages {
+        if !matches!(message.role.as_str(), "user" | "assistant") {
+            return Err(AppError::new("CLONE_MESSAGE_INVALID", "会话副本包含不支持的消息角色"));
+        }
+        if message.content.len() > 4 * 1024 * 1024 {
+            return Err(AppError::new("CLONE_MESSAGE_TOO_LARGE", "会话消息超过允许大小"));
+        }
+        if message
+            .reasoning
+            .as_deref()
+            .map(str::len)
+            .unwrap_or_default()
+            > 4 * 1024 * 1024
+        {
+            return Err(AppError::new("CLONE_MESSAGE_TOO_LARGE", "会话思考文本超过允许大小"));
+        }
+        if message.role == "assistant"
+            && message.content.trim().is_empty()
+            && message
+                .reasoning
+                .as_deref()
+                .unwrap_or_default()
+                .trim()
+                .is_empty()
+        {
+            continue;
+        }
+        if message.created_at.as_deref().unwrap_or_default().is_empty() {
+            message.created_at = Some(db::now());
+        }
+        normalized.push(message);
+    }
+    Ok(normalized)
+}
+
+fn validate_shared_project_paths(
+    connection: &rusqlite::Connection,
+    root: &std::path::Path,
+    project_id: &str,
+) -> AppResult<()> {
+    for (table, column) in [
+        ("source_files", "managed_path"),
+        ("datasets", "canonical_path"),
+        ("dataset_versions", "canonical_path"),
+        ("artifacts", "directory"),
+    ] {
+        let mut statement = connection
+            .prepare(&format!("SELECT {column} FROM {table} WHERE project_id=?1"))
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        let paths = statement
+            .query_map([project_id], |row| row.get::<_, String>(0))
+            .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+        for path in paths {
+            let path = path
+                .map_err(|error| AppError::new("DB_QUERY_FAILED", error.to_string()))?;
+            storage::validate_managed_path(root, &path)?;
+        }
+    }
+    Ok(())
 }
 
 /// 组装渐进式上下文：conversation 永远存在，project 为空时其余字段全部为空。
@@ -175,10 +269,11 @@ pub fn new_temporary_conversation(state: State<'_, AppState>) -> AppResult<Conve
     build_context(&connection, &conversation)
 }
 
-/// 克隆当前会话的消息上下文，并生成一个独立的临时会话。
+/// 以 git clone 语义复制会话；项目会话同时复制独立的项目上下文。
 #[tauri::command]
 pub fn clone_conversation(
     conversation_id: String,
+    messages: Option<Vec<CloneMessageInput>>,
     state: State<'_, AppState>,
 ) -> AppResult<ConversationContext> {
     let mut connection = state
@@ -186,17 +281,122 @@ pub fn clone_conversation(
         .lock()
         .map_err(|_| AppError::retryable("DB_BUSY", "数据库暂时不可用"))?;
     let source = db::conversation(&connection, &conversation_id)?;
-    let title = cloned_conversation_title(&connection, &source.title)?;
-    let cloned = new_conversation(None, &title);
-    let transaction = connection
-        .transaction()
-        .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
-    db::insert_conversation(&transaction, &cloned)?;
-    db::copy_conversation_messages(&transaction, &source.id, &cloned.id)?;
-    transaction
-        .commit()
-        .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
-    build_context(&connection, &cloned)
+    let source_project = source
+        .project_id
+        .as_ref()
+        .map(|project_id| db::project(&connection, project_id))
+        .transpose()?;
+    let source_messages = match messages {
+        Some(messages) => normalized_clone_messages(messages)?,
+        None => normalized_clone_messages(
+            db::conversation_messages(&connection, &source.id)?
+                .into_iter()
+                .map(|message| CloneMessageInput {
+                    task_plan_id: message.task_plan_id,
+                    role: message.role,
+                    content: message.content,
+                    reasoning: message.reasoning,
+                    created_at: Some(message.created_at),
+                })
+                .collect(),
+        )?,
+    };
+    let cloned_project = if let Some(project) = &source_project {
+        Some(Project {
+            id: uuid::Uuid::new_v4().to_string(),
+            name: cloned_project_title(&connection, &project.name)?,
+            status: "active".into(),
+            created_at: db::now(),
+            updated_at: db::now(),
+        })
+    } else {
+        None
+    };
+    if let Some(project) = &source_project {
+        validate_shared_project_paths(&connection, &state.data_root, &project.id)?;
+    }
+    let cloned_conversation = Conversation {
+        id: uuid::Uuid::new_v4().to_string(),
+        project_id: cloned_project.as_ref().map(|project| project.id.clone()),
+        title: cloned_conversation_title(&connection, &source.title)?,
+        status: "active".into(),
+        created_at: db::now(),
+        updated_at: db::now(),
+    };
+    let project_directory = if let Some(project) = &cloned_project {
+        match storage::ensure_project_dirs(&state.data_root, &project.id) {
+            Ok(directory) => Some(directory),
+            Err(error) => {
+                let partial_directory = state.data_root.join("projects").join(&project.id);
+                let _ = std::fs::remove_dir_all(partial_directory);
+                return Err(error);
+            }
+        }
+    } else {
+        None
+    };
+    let clone_result = (|| {
+        let transaction = connection
+            .transaction()
+            .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+        if let Some(project) = &cloned_project {
+            transaction
+                .execute(
+                    "INSERT INTO projects(id,name,status,created_at,updated_at) VALUES(?1,?2,?3,?4,?5)",
+                    rusqlite::params![
+                        project.id,
+                        project.name,
+                        project.status,
+                        project.created_at,
+                        project.updated_at
+                    ],
+                )
+                .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+        }
+        let mappings = if let (Some(source_project), Some(target_project)) =
+            (&source_project, &cloned_project)
+        {
+            db::clone_project_context(&transaction, &source_project.id, &target_project.id)?
+        } else {
+            db::ProjectCloneMappings::default()
+        };
+        db::insert_conversation(&transaction, &cloned_conversation)?;
+        for message in source_messages {
+            let task_plan_id = if cloned_project.is_some() {
+                message
+                    .task_plan_id
+                    .as_ref()
+                    .and_then(|id| mappings.task_plans.get(id))
+            } else {
+                None
+            };
+            transaction
+                .execute(
+                    "INSERT INTO messages(id,conversation_id,task_plan_id,role,content,reasoning,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7)",
+                    rusqlite::params![
+                        uuid::Uuid::new_v4().to_string(),
+                        cloned_conversation.id,
+                        task_plan_id,
+                        message.role,
+                        message.content,
+                        message.reasoning,
+                        message.created_at.unwrap_or_else(db::now)
+                    ],
+                )
+                .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+        }
+        transaction
+            .commit()
+            .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
+        Ok::<(), AppError>(())
+    })();
+    if let Err(error) = clone_result {
+        if let Some(directory) = project_directory {
+            let _ = std::fs::remove_dir_all(directory);
+        }
+        return Err(error);
+    }
+    build_context(&connection, &cloned_conversation)
 }
 
 /// 讨论模式的上下文摘要：明确告知 Agent 当前拥有什么、没有什么。

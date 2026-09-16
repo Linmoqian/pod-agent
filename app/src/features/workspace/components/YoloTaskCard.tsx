@@ -65,6 +65,7 @@ type ResultReveal = {
   photoId: string;
   path: string;
   result: YoloResponse;
+  conversationId: string;
 };
 
 type NavigatorWithMemory = Navigator & {
@@ -88,6 +89,13 @@ type ThumbnailJob = {
   id: string;
   path: string;
   external: boolean;
+  conversationId: string;
+};
+
+type YoloTaskSession = {
+  photos: YoloPhoto[];
+  modelId: string;
+  paused: boolean;
 };
 
 type AddConfirmationRequest = {
@@ -158,19 +166,21 @@ export function useYoloToolEvents(onEvent: (event: YoloEvent) => void) {
   }, []);
 }
 
-export function useYoloTask() {
+export function useYoloTask(conversationId = 'global') {
   const runtime = getFrontendRuntime();
   const [photos, setPhotos] = useState<YoloPhoto[]>([]);
   const [models, setModels] = useState<Model[]>([]);
-  const [modelId, setModelId] = useState('');
+  const [modelId, setModelIdState] = useState('');
   const [paused, setPausedState] = useState(false);
   const [addingCount, setAddingCount] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState('');
   const [addConfirmation, setAddConfirmation] = useState<number | null>(null);
   const [revision, setRevision] = useState(0);
-  const active = useRef(false);
+  const activeSessions = useRef(new Set<string>());
   const mounted = useRef(true);
+  const activeConversationId = useRef(conversationId);
+  const sessions = useRef(new Map<string, YoloTaskSession>());
   const urls = useRef<string[]>([]);
   const externalIds = useRef(new Set<string>());
   const thumbnailQueue = useRef<ThumbnailJob[]>([]);
@@ -191,8 +201,46 @@ export function useYoloTask() {
   const pausedRef = useRef(false);
   photosRef.current = photos;
 
+  const ensureSession = (id: string) => {
+    const existing = sessions.current.get(id);
+    if (existing) return existing;
+    const created: YoloTaskSession = { photos: [], modelId: '', paused: false };
+    sessions.current.set(id, created);
+    return created;
+  };
+
+  const updateSessionPhotos = (
+    id: string,
+    update: (current: YoloPhoto[]) => YoloPhoto[],
+  ) => {
+    const session = ensureSession(id);
+    const next = update(session.photos);
+    session.photos = next;
+    if (activeConversationId.current === id) {
+      photosRef.current = next;
+      setPhotos(next);
+    }
+  };
+
+  const setModelId = (next: string) => {
+    ensureSession(activeConversationId.current).modelId = next;
+    setModelIdState(next);
+  };
+
+  useEffect(() => {
+    activeConversationId.current = conversationId;
+    const session = ensureSession(conversationId);
+    setPhotos(session.photos);
+    photosRef.current = session.photos;
+    pausedRef.current = session.paused;
+    setPausedState(session.paused);
+    setModelIdState(session.modelId || models.find((model) => model.available)?.id || '');
+  }, [conversationId, models]);
+
   // 桌面端在批次边界暂停；浏览器调试运行时可在模拟队列中暂停下一张。
   const setPaused = (next: boolean) => {
+    const session = ensureSession(activeConversationId.current);
+    session.paused = next;
     pausedRef.current = next;
     setPausedState(next);
     runtime.debug?.setInferencePaused(next);
@@ -211,14 +259,15 @@ export function useYoloTask() {
 
   const readThumbnail = async (job: ThumbnailJob) => {
     const generation = thumbnailGeneration.current;
+    const targetSession = ensureSession(job.conversationId);
     try {
       const image = await runtime.readThumbnail(job.path);
       if (!mounted.current || generation !== thumbnailGeneration.current) return;
       const previewLimit = getImageReadPlan(runtimeMemoryGb.current).previewLimit;
       const protectedIds = new Set([
         thumbnailFocusId.current,
-        ...photosRef.current.filter((photo) => photo.status === 'done').slice(-3).map((photo) => photo.id),
-        ...photosRef.current.filter((photo) => photo.status === 'running').slice(0, 3).map((photo) => photo.id),
+        ...targetSession.photos.filter((photo) => photo.status === 'done').slice(-3).map((photo) => photo.id),
+        ...targetSession.photos.filter((photo) => photo.status === 'running').slice(0, 3).map((photo) => photo.id),
       ]);
       const shouldEvict = thumbnailUrls.current.size >= previewLimit;
       const oldest = shouldEvict
@@ -230,7 +279,7 @@ export function useYoloTask() {
       thumbnailUrls.current.set(job.id, url);
       retainedPreviewCount.current = thumbnailUrls.current.size;
       urls.current.push(url);
-      setPhotos((list) => list.map((photo) => {
+      updateSessionPhotos(job.conversationId, (list) => list.map((photo) => {
         if (photo.id !== job.id) return photo;
         return { ...photo, url };
       }));
@@ -289,7 +338,7 @@ export function useYoloTask() {
   };
 
   const ensureThumbnail = async (job: ThumbnailJob) => {
-    if (photosRef.current.some((photo) => photo.id === job.id && photo.url)) return;
+    if (ensureSession(job.conversationId).photos.some((photo) => photo.id === job.id && photo.url)) return;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       if (thumbnailUrls.current.has(job.id)) return;
       enqueueThumbnailReads([job], true);
@@ -302,7 +351,12 @@ export function useYoloTask() {
     const cached = thumbnailUrls.current.get(photo.id);
     if (cached) return cached;
     if (runtime.mode === 'browser-preview') return undefined;
-    await ensureThumbnail({ id: photo.id, path: photo.path, external: Boolean(photo.external) });
+    await ensureThumbnail({
+      id: photo.id,
+      path: photo.path,
+      external: Boolean(photo.external),
+      conversationId: activeConversationId.current,
+    });
     const url = thumbnailUrls.current.get(photo.id);
     if (!url) throw new Error('缩略图加载失败');
     return url;
@@ -327,13 +381,18 @@ export function useYoloTask() {
         if (!next) continue;
         thumbnailFocusId.current = next.photoId;
         try {
-          await ensureThumbnail({ id: next.photoId, path: next.path, external: false });
+          await ensureThumbnail({
+            id: next.photoId,
+            path: next.path,
+            external: false,
+            conversationId: next.conversationId,
+          });
         } finally {
           thumbnailFocusId.current = null;
         }
         if (!mounted.current) return;
         const finishedAt = Date.now();
-        setPhotos((list) => list.map((photo) => {
+        updateSessionPhotos(next.conversationId, (list) => list.map((photo) => {
           if (photo.id !== next.photoId) return photo;
           if (!next.result.ok) return {
             ...photo,
@@ -367,6 +426,7 @@ export function useYoloTask() {
   };
 
   useYoloToolEvents((event) => {
+    const targetConversationId = event.conversationId ?? activeConversationId.current;
     const path = event.imagePath;
     if (path) {
       const isNew = !externalIds.current.has(event.id);
@@ -375,7 +435,7 @@ export function useYoloTask() {
       if (isNew) {
         externalIds.current.add(event.id);
         const now = Date.now();
-        setPhotos((list) => list.some((p) => p.id === event.id) ? list : [...list, {
+        updateSessionPhotos(targetConversationId, (list) => list.some((p) => p.id === event.id) ? list : [...list, {
           id: event.id,
           path,
           name: path.split(/[/\\]/).pop() ?? path,
@@ -390,7 +450,7 @@ export function useYoloTask() {
           detections: event.detections,
         }]);
       } else {
-        setPhotos((list) => list.map((p) => p.id === event.id ? {
+        updateSessionPhotos(targetConversationId, (list) => list.map((p) => p.id === event.id ? {
           ...p,
           status,
           startedAt: event.status === 'queued'
@@ -406,15 +466,25 @@ export function useYoloTask() {
         } : p));
       }
       if (event.status === 'done') {
-        enqueueThumbnailReads([{ id: event.id, path, external: true }], true);
+        enqueueThumbnailReads([{
+          id: event.id,
+          path,
+          external: true,
+          conversationId: targetConversationId,
+        }], true);
       } else if (isNew) {
-        enqueueThumbnailReads([{ id: event.id, path, external: true }]);
+        enqueueThumbnailReads([{
+          id: event.id,
+          path,
+          external: true,
+          conversationId: targetConversationId,
+        }]);
       }
       return;
     }
     if (event.status === 'queued') return;
     const status = event.status === 'done' || event.status === 'error' ? event.status : 'running';
-    setPhotos((list) => list.map((p) => p.id === event.id ? {
+    updateSessionPhotos(targetConversationId, (list) => list.map((p) => p.id === event.id ? {
       ...p,
       status,
       finishedAt: event.status === 'done' || event.status === 'error' ? Date.now() : p.finishedAt,
@@ -434,13 +504,18 @@ export function useYoloTask() {
     mounted.current = true;
     if (runtime.mode !== 'browser-preview') void runtime.invoke<Model[]>('yolo_models').then((list) => {
       if (!mounted.current) return;
-      setModels(list); setModelId(list.find((model) => model.available)?.id ?? '');
+      const nextModelId = list.find((model) => model.available)?.id ?? '';
+      setModels(list);
+      const session = ensureSession(activeConversationId.current);
+      if (!session.modelId) session.modelId = nextModelId;
+      setModelIdState(session.modelId || nextModelId);
     }).catch(() => setError('模型清单加载失败'));
     let debugUnlisten: (() => void) | undefined;
     let debugStateUnsubscribe: (() => void) | undefined;
     if (runtime.mode === 'browser-debug') {
       const syncDebugState = () => {
         const nextPaused = runtime.debug?.getState().paused ?? false;
+        ensureSession(activeConversationId.current).paused = nextPaused;
         pausedRef.current = nextPaused;
         setPausedState(nextPaused);
       };
@@ -453,6 +528,9 @@ export function useYoloTask() {
         thumbnailUrls.current.clear();
         thumbnailGeneration.current += 1;
         externalIds.current.clear();
+        sessions.current.clear();
+        ensureSession(activeConversationId.current);
+        activeSessions.current.clear();
         resultRevealQueue.current = [];
         setPhotos([]);
         setError('');
@@ -479,43 +557,56 @@ export function useYoloTask() {
     };
   }, [runtime]);
 
-  const appendBatch = (batch: YoloPhoto[]) => {
+  const appendBatch = (batch: YoloPhoto[], targetConversationId: string) => {
     const { appendChunkSize } = getImageReadPlan(runtimeMemoryGb.current);
     let offset = 0;
     const appendNext = () => {
       if (!mounted.current || offset >= batch.length) return;
       const chunk = batch.slice(offset, offset + appendChunkSize);
       offset += chunk.length;
-      setPhotos((list) => [...list, ...chunk]);
+      updateSessionPhotos(targetConversationId, (list) => [...list, ...chunk]);
       // 预览只读取当前队列最前面的有限数量，其余图片直接进入推理队列。
-      enqueueThumbnailReads(chunk.map((photo) => ({ id: photo.id, path: photo.path, external: false })));
+      enqueueThumbnailReads(chunk.map((photo) => ({
+        id: photo.id,
+        path: photo.path,
+        external: false,
+        conversationId: targetConversationId,
+      })));
       if (offset < batch.length) void yieldToUi().then(appendNext);
     };
     appendNext();
   };
 
   useEffect(() => {
-    if (paused || pausedRef.current || active.current || !modelId) return;
-    const batch = photos
+    const targetConversationId = activeConversationId.current;
+    const session = ensureSession(targetConversationId);
+    const requestModelId = session.modelId || modelId;
+    if (session.paused || pausedRef.current || activeSessions.current.has(targetConversationId) || !requestModelId) return;
+    const batch = session.photos
       .filter((photo) => !photo.external && photo.status === 'waiting')
       .slice(0, getImageReadPlan(runtimeMemoryGb.current).inferenceBatchSize);
     if (!batch.length) return;
     // 当前 Batch 优先补齐系统缩略图，确保处理中卡片持续显示真实图片而不是占位图。
     enqueueThumbnailReads(
-      batch.map((photo) => ({ id: photo.id, path: photo.path, external: false })),
+      batch.map((photo) => ({
+        id: photo.id,
+        path: photo.path,
+        external: false,
+        conversationId: targetConversationId,
+      })),
       true,
     );
     const ids = new Set(batch.map((photo) => photo.id));
-    const requestModelId = batch[0].modelId ?? modelId;
-    active.current = true;
-    setPhotos((list) => list.map((p) => ids.has(p.id) ? {
+    const batchModelId = batch[0].modelId ?? requestModelId;
+    activeSessions.current.add(targetConversationId);
+    updateSessionPhotos(targetConversationId, (list) => list.map((p) => ids.has(p.id) ? {
       ...p,
       status: 'running',
       startedAt: Date.now(),
       finishedAt: undefined,
     } : p));
     void runtime.detectImages(
-      requestModelId,
+      batchModelId,
       batch.map((photo) => photo.path),
       (item) => {
         if (!mounted.current) return;
@@ -525,6 +616,7 @@ export function useYoloTask() {
           photoId: photo.id,
           path: photo.path,
           result: item.result,
+          conversationId: targetConversationId,
         }]);
       },
     ).catch((reason) => {
@@ -534,11 +626,19 @@ export function useYoloTask() {
         photoId: photo.id,
         path: photo.path,
         result: { ok: false, message },
+        conversationId: targetConversationId,
       })));
-    }).finally(() => { active.current = false; if (mounted.current) setRevision((value) => value + 1); });
-  }, [photos, paused, modelId, revision]);
+    }).finally(() => {
+      activeSessions.current.delete(targetConversationId);
+      if (mounted.current) setRevision((value) => value + 1);
+    });
+  // 推理控制函数只依赖 refs 与当前运行时；避免把每次渲染新建的 helper 放入依赖，重复启动批次。
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, photos, paused, modelId, revision]);
   const add = async (folder = false, dropped?: Array<string | RuntimeFile>) => {
-    if (!modelId) { setError('请先选择可用的推理模型'); return; }
+    const targetConversationId = activeConversationId.current;
+    const targetModelId = ensureSession(targetConversationId).modelId || modelId;
+    if (!targetModelId) { setError('请先选择可用的推理模型'); return; }
     setAddingCount((count) => count + 1);
     setError('');
     try {
@@ -576,9 +676,9 @@ export function useYoloTask() {
         path,
         name: path.split(/[/\\]/).pop() ?? path,
         status: 'waiting',
-        modelId,
+        modelId: targetModelId,
       }));
-      appendBatch(batch);
+      appendBatch(batch, targetConversationId);
     } catch { setError('图片添加失败，请检查文件是否可读'); }
     finally { setAddingCount((count) => Math.max(0, count - 1)); }
   };
@@ -609,13 +709,15 @@ export function useYoloTask() {
   }, [runtime]);
   const loadResultPreview = async (photo: YoloPhoto) => {
     if (photo.resultUrl) return photo.resultUrl;
+    const targetConversationId = activeConversationId.current;
     const image = await runtime.readResultPreview(photo.path, photo.detections ?? []);
     const resultUrl = URL.createObjectURL(new Blob([new Uint8Array(image.bytes)], { type: image.mimeType }));
     urls.current.push(resultUrl);
-    setPhotos((list) => list.map((item) => item.id === photo.id ? { ...item, resultUrl } : item));
+    updateSessionPhotos(targetConversationId, (list) => list.map((item) => item.id === photo.id ? { ...item, resultUrl } : item));
     return resultUrl;
   };
   const loadImagePreview = async (photo: YoloPhoto, options: ImagePreviewOptions = {}) => {
+    const targetConversationId = activeConversationId.current;
     const forceFallback = options.forceFallback === true;
     if (!forceFallback && photo.previewUrl) return photo.previewUrl;
     if (!forceFallback && runtime.mode === 'tauri') {
@@ -623,7 +725,7 @@ export function useYoloTask() {
         await runtime.invoke('yolo_prepare_image_preview', { imagePath: photo.path });
         const nativeUrl = runtime.getNativeAssetUrl(photo.path);
         if (nativeUrl) {
-          setPhotos((list) => list.map((item) => item.id === photo.id
+          updateSessionPhotos(targetConversationId, (list) => list.map((item) => item.id === photo.id
             ? { ...item, previewUrl: nativeUrl, previewSource: 'native' }
             : item));
           return nativeUrl;
@@ -632,13 +734,13 @@ export function useYoloTask() {
         // 资产协议不可用时继续走现有解码链路，避免原图预览中断。
       }
     }
-    setPhotos((list) => list.map((item) => item.id === photo.id
+    updateSessionPhotos(targetConversationId, (list) => list.map((item) => item.id === photo.id
       ? { ...item, previewUrl: undefined, previewSource: undefined }
       : item));
     const image = await runtime.readImagePreview(photo.path);
     const previewUrl = URL.createObjectURL(new Blob([new Uint8Array(image.bytes)], { type: image.mimeType }));
     urls.current.push(previewUrl);
-    setPhotos((list) => list.map((item) => item.id === photo.id
+    updateSessionPhotos(targetConversationId, (list) => list.map((item) => item.id === photo.id
       ? { ...item, previewUrl, previewSource: 'decoded' }
       : item));
     return previewUrl;
@@ -663,10 +765,12 @@ export function useYoloTask() {
     });
   };
   const retry = () => {
-    if (runtime.mode === 'browser-debug' && photosRef.current.some((photo) => photo.external && photo.status === 'error')) {
+    const targetConversationId = activeConversationId.current;
+    const session = ensureSession(targetConversationId);
+    if (runtime.mode === 'browser-debug' && session.photos.some((photo) => photo.external && photo.status === 'error')) {
       runtime.debug?.retryFailedInference();
     }
-    setPhotos((list) => list.map((p) => !p.external && p.status === 'error' ? {
+    updateSessionPhotos(targetConversationId, (list) => list.map((p) => !p.external && p.status === 'error' ? {
       ...p,
       status: 'waiting',
       startedAt: undefined,

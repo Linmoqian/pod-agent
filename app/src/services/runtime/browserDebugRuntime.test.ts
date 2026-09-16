@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
   RuntimeAgentReplyDelta,
   RuntimeDropEvent,
+  RuntimeYoloEvent,
   RuntimeYoloProgressItem,
 } from './types';
 import type {
@@ -246,6 +247,115 @@ describe('BrowserDebugRuntime', () => {
     expect(events.some((event) => event.id === failedId && event.status === 'queued')).toBe(true);
     runtime.debug.stepInference(8);
     expect(runtime.debug.getState()).toMatchObject({ queued: 0, completed: 8, failed: 0 });
+  });
+
+  it('YOLO 监听器晚于场景挂载时会回放当前任务状态', async () => {
+    vi.useFakeTimers();
+    const runtime = new BrowserDebugRuntime();
+    runtime.debug.loadScenario('yolo');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const events: RuntimeYoloEvent[] = [];
+    await runtime.listen('lian-yolo-event', (event) => events.push(event));
+
+    expect(events).toHaveLength(8);
+    expect(events.filter((event) => event.status === 'queued')).toHaveLength(7);
+    expect(events.some((event) => event.status === 'running')).toBe(true);
+  });
+
+  it('复制临时会话时保留消息快照并隔离源会话的流式回复', async () => {
+    vi.useFakeTimers();
+    const runtime = new BrowserDebugRuntime();
+    const sourceId = 'browser-debug';
+    const request = runtime.invoke('send_message', {
+      conversationId: sourceId,
+      content: '请检查这一批图片',
+      requestId: 'source-agent-request',
+    });
+
+    await vi.advanceTimersByTimeAsync(70);
+    const createdAt = new Date().toISOString();
+    const clone = await runtime.invoke<WorkspaceSnapshot>('clone_conversation', {
+      conversationId: sourceId,
+      messages: [
+        {
+          role: 'user',
+          content: '请检查这一批图片',
+          reasoning: null,
+          createdAt,
+        },
+        {
+          role: 'assistant',
+          content: '我正在处理中',
+          reasoning: '已接收图片输入',
+          createdAt,
+        },
+        {
+          role: 'assistant',
+          content: '',
+          reasoning: null,
+          createdAt,
+        },
+      ],
+    });
+
+    expect(clone.conversation.id).not.toBe(sourceId);
+    expect(clone.conversation.title).toBe('浏览器调试会话（副本）');
+    expect(clone.messages).toHaveLength(2);
+    expect(clone.messages[1]).toMatchObject({
+      content: '我正在处理中',
+      reasoning: '已接收图片输入',
+    });
+
+    await vi.advanceTimersByTimeAsync(140);
+    await request;
+
+    expect((await runtime.invoke<WorkspaceSnapshot>('get_workspace_snapshot')).conversation.id)
+      .toBe(clone.conversation.id);
+    const source = await runtime.invoke<WorkspaceSnapshot>('get_conversation_context', {
+      conversationId: sourceId,
+    });
+    expect(source.messages[source.messages.length - 1]).toMatchObject({
+      role: 'assistant',
+      content: '我已将这批图片加入图片识别任务，右侧会逐张显示处理进度。',
+    });
+  });
+
+  it('复制项目会话时重新生成项目数据 ID，并排除运行中的任务记录', async () => {
+    vi.useFakeTimers();
+    const runtime = new BrowserDebugRuntime();
+    runtime.debug.loadScenario('full');
+    await Promise.resolve();
+
+    const source = await runtime.invoke<WorkspaceSnapshot>('get_workspace_snapshot');
+    const plan = source.taskPlans[0];
+    await runtime.invoke('confirm_task_plan', { planId: plan.id });
+    const running = await runtime.invoke<WorkflowRun>('start_task_plan_run', {
+      planId: plan.id,
+    });
+    const clone = await runtime.invoke<WorkspaceSnapshot>('clone_conversation', {
+      conversationId: source.conversation.id,
+    });
+
+    expect(clone.project?.id).not.toBe(source.project?.id);
+    expect(clone.project?.name).toBe('浏览器调试育种项目（副本）');
+    expect(clone.datasets[0]?.id).not.toBe(source.datasets[0]?.id);
+    expect(clone.taskPlans[0]?.id).not.toBe(plan.id);
+    expect(clone.taskPlans[0]?.status).toBe('confirmed');
+    expect(clone.taskPlans[0]?.expectedArtifacts).toEqual(['debug-report.json']);
+    expect(clone.workflowRuns).toHaveLength(0);
+    const cloneRun = await runtime.invoke<WorkflowRun>('confirm_task_plan', {
+      planId: clone.taskPlans[0]?.id,
+    });
+    expect(cloneRun.projectId).toBe(clone.project?.id);
+
+    await vi.advanceTimersByTimeAsync(500);
+    const sourceAfter = await runtime.invoke<WorkspaceSnapshot>('get_conversation_context', {
+      conversationId: source.conversation.id,
+    });
+    expect(sourceAfter.workflowRuns.find((item) => item.id === running.id)?.status)
+      .toBe('succeeded');
   });
 
   it('全流程场景提供可确认并完成的模拟任务计划', async () => {

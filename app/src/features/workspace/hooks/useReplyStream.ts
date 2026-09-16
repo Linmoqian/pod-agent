@@ -18,9 +18,15 @@ export type AgentReplyDelta = {
 
 export default function useReplyStream(
   setSnapshot: Dispatch<SetStateAction<WorkspaceSnapshot | null>>,
+  activeConversationId: string | undefined,
+  onBackgroundDelta?: (delta: AgentReplyDelta) => void,
 ) {
   const queue = useRef<AgentReplyDelta[]>([]);
   const frame = useRef<number | null>(null);
+  const activeConversationIdRef = useRef<string | undefined>(activeConversationId);
+  const backgroundDeltaRef = useRef(onBackgroundDelta);
+  activeConversationIdRef.current = activeConversationId;
+  backgroundDeltaRef.current = onBackgroundDelta;
 
   const flush = useCallback(() => {
     frame.current = null;
@@ -28,6 +34,10 @@ export default function useReplyStream(
     queue.current = [];
     if (!deltas.length) return;
 
+    const activeId = activeConversationIdRef.current;
+    deltas
+      .filter((delta) => delta.conversationId !== activeId)
+      .forEach((delta) => backgroundDeltaRef.current?.(delta));
     setSnapshot((current) => {
       if (!current) return current;
       const relevant = deltas.filter(

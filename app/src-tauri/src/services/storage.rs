@@ -26,6 +26,18 @@ pub fn ensure_project_dirs(root: &Path, project_id: &str) -> AppResult<PathBuf> 
     Ok(project)
 }
 
+pub fn validate_managed_path(root: &Path, path: &str) -> AppResult<()> {
+    let managed_root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+    let candidate = Path::new(path);
+    if !candidate.is_absolute() || !candidate.starts_with(&managed_root) {
+        return Err(AppError::new(
+            "STORAGE_PATH_OUTSIDE_ROOT",
+            "项目副本引用了受管目录之外的文件",
+        ));
+    }
+    Ok(())
+}
+
 pub fn sha256_file(path: &Path) -> AppResult<String> {
     let mut file = File::open(path)
         .map_err(|error| AppError::new("SOURCE_OPEN_FAILED", format!("读取数据源失败: {error}")))?;

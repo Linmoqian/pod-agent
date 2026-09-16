@@ -47,6 +47,7 @@ const DEBUG_WORKFLOW_DELAY_MS = 480;
 type InferenceItem = {
   id: string;
   imagePath: string;
+  conversationId?: string;
   modelId: string;
   index: number;
   total: number;
@@ -99,6 +100,39 @@ function isDataName(name: string) {
 function cloneSnapshot(snapshot: WorkspaceSnapshot): WorkspaceSnapshot {
   return structuredClone(snapshot);
 }
+
+function nextCloneTitle(sourceTitle: string, usedTitles: string[]) {
+  const title = sourceTitle.trim() || '临时会话';
+  const base = `${title}（副本）`;
+  const used = new Set(usedTitles);
+  if (!used.has(base)) return base;
+  let number = 2;
+  while (used.has(`${title}（副本 ${number}）`)) number += 1;
+  return `${title}（副本 ${number}）`;
+}
+
+function isTerminalStatus(status: string) {
+  return ['completed', 'succeeded', 'failed', 'cancelled', 'interrupted'].includes(status);
+}
+
+function remapValue(value: unknown, ids: Map<string, string>): unknown {
+  if (typeof value === 'string') return ids.get(value) ?? value;
+  if (Array.isArray(value)) return value.map((item) => remapValue(item, ids));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, remapValue(item, ids)]),
+    );
+  }
+  return value;
+}
+
+type CloneMessageInput = {
+  taskPlanId?: string | null;
+  role?: string;
+  content?: string;
+  reasoning?: string | null;
+  createdAt?: string;
+};
 
 function makeProject(id: string, name: string): Project {
   const timestamp = nowIso();
@@ -252,6 +286,7 @@ export default class BrowserDebugRuntime implements FrontendRuntime {
   private readonly canceledAgents = new Set<string>();
   private readonly inferenceRequests = new Set<InferenceRequest>();
   private readonly yoloStatuses = new Map<string, RuntimeYoloEvent['status']>();
+  private readonly yoloEvents = new Map<string, RuntimeYoloEvent>();
   private readonly retryableExternalItems = new Map<string, InferenceItem>();
   private readonly eventLog: string[] = [];
   private inferenceQueue: InferenceItem[] = [];
@@ -327,8 +362,10 @@ export default class BrowserDebugRuntime implements FrontendRuntime {
   }
 
   private updateSnapshot(snapshot: WorkspaceSnapshot, eventType = 'snapshot.changed') {
-    this.currentSnapshot = snapshot;
     this.snapshots.set(snapshot.conversation.id, snapshot);
+    if (this.currentSnapshot.conversation.id === snapshot.conversation.id) {
+      this.currentSnapshot = snapshot;
+    }
     this.emit('lian-debug-event', {
       type: 'snapshot.changed',
       message: eventType,
@@ -341,11 +378,23 @@ export default class BrowserDebugRuntime implements FrontendRuntime {
     if (snapshot.project && !this.projects.some((project) => project.id === snapshot.project?.id)) {
       this.projects = [...this.projects, snapshot.project];
     }
-    this.updateSnapshot(snapshot);
+    this.activateSnapshot(snapshot);
+  }
+
+  private activateSnapshot(snapshot: WorkspaceSnapshot, eventType = 'snapshot.changed') {
+    this.currentSnapshot = snapshot;
+    this.snapshots.set(snapshot.conversation.id, snapshot);
+    this.emit('lian-debug-event', {
+      type: 'snapshot.changed',
+      message: eventType,
+      timestamp: nowIso(),
+    });
+    this.notifyDebug();
   }
 
   private emitYolo(event: RuntimeYoloEvent) {
     this.yoloStatuses.set(event.id, event.status);
+    this.yoloEvents.set(event.id, event);
     this.emit('lian-yolo-event', event);
     const detail = event.imagePath ? `${fileName(event.imagePath)} ${event.status}` : `${event.id} ${event.status}`;
     this.log(`YOLO ${detail}`);
@@ -385,6 +434,7 @@ export default class BrowserDebugRuntime implements FrontendRuntime {
       item.onExternalEvent({
         id: item.id,
         status: result.ok ? 'done' : 'error',
+        conversationId: item.conversationId,
         imagePath: item.imagePath,
         modelId: item.modelId,
         message: result.message,
@@ -416,6 +466,7 @@ export default class BrowserDebugRuntime implements FrontendRuntime {
       this.emitYolo({
         id: item.id,
         status: 'running',
+        conversationId: item.conversationId,
         imagePath: item.imagePath,
         modelId: item.modelId,
       });
@@ -481,7 +532,11 @@ export default class BrowserDebugRuntime implements FrontendRuntime {
     });
   }
 
-  private enqueueExternalInference(imagePaths: string[], modelId: string) {
+  private enqueueExternalInference(
+    imagePaths: string[],
+    modelId: string,
+    conversationId: string,
+  ) {
     if (!imagePaths.length) return;
     const taskId = ++this.taskCounter;
     imagePaths.forEach((imagePath, index) => {
@@ -489,12 +544,14 @@ export default class BrowserDebugRuntime implements FrontendRuntime {
       this.emitYolo({
         id,
         status: 'queued',
+        conversationId,
         imagePath,
         modelId,
       });
       this.inferenceQueue.push({
         id,
         imagePath,
+        conversationId,
         modelId,
         index,
         total: imagePaths.length,
@@ -520,16 +577,24 @@ export default class BrowserDebugRuntime implements FrontendRuntime {
     return files;
   }
 
-  private async addScenarioImages(count = DEBUG_BATCH_SIZE) {
+  private async addScenarioImages(
+    count = DEBUG_BATCH_SIZE,
+    conversationId: string,
+  ) {
     const generation = this.generation;
     const files = await this.presetImages(count);
     if (generation !== this.generation) return;
     this.fileCounter += files.length;
-    this.enqueueExternalInference(files.map((file) => file.path), 'yolov8n-coco');
+    this.enqueueExternalInference(
+      files.map((file) => file.path),
+      'yolov8n-coco',
+      conversationId,
+    );
   }
 
   private scenarioSnapshot(scenario: BrowserDebugScenario) {
-    const snapshot = this.createSnapshot(`browser-debug-${++this.conversationCounter}`);
+    // 调试场景是当前会话的可重复夹具，不应偷偷创建一个控制器无法激活的新会话。
+    const snapshot = this.createSnapshot(this.currentSnapshot.conversation.id);
     if (scenario === 'workspace' || scenario === 'agent' || scenario === 'full') {
       const project = makeProject(
         `browser-debug-project-${++this.projectCounter}`,
@@ -576,7 +641,9 @@ export default class BrowserDebugRuntime implements FrontendRuntime {
       timestamp: nowIso(),
     });
     this.log(`加载场景：${scenario}`);
-    if (scenario === 'yolo' || scenario === 'full') void this.addScenarioImages();
+    if (scenario === 'yolo' || scenario === 'full') {
+      void this.addScenarioImages(undefined, snapshot.conversation.id);
+    }
   }
 
   private clearInference() {
@@ -599,6 +666,7 @@ export default class BrowserDebugRuntime implements FrontendRuntime {
     this.projects = [];
     this.canceledAgents.clear();
     this.yoloStatuses.clear();
+    this.yoloEvents.clear();
     this.retryableExternalItems.clear();
     this.eventLog.length = 0;
     this.inferencePaused = false;
@@ -710,6 +778,222 @@ export default class BrowserDebugRuntime implements FrontendRuntime {
     };
   }
 
+  private cloneConversationSnapshot(
+    source: WorkspaceSnapshot,
+    rawMessages: CloneMessageInput[] | undefined,
+  ) {
+    const conversationId = `browser-debug-${++this.conversationCounter}`;
+    const ids = new Map<string, string>();
+    const remapId = (oldId: string, prefix: string) => {
+      const current = ids.get(oldId);
+      if (current) return current;
+      const next = `browser-debug-${prefix}-${this.generation}-${Date.now()}-${ids.size}`;
+      ids.set(oldId, next);
+      return next;
+    };
+    const project = source.project
+      ? makeProject(
+          `browser-debug-project-${++this.projectCounter}`,
+          nextCloneTitle(source.project.name, this.projects.map((item) => item.name)),
+        )
+      : null;
+    const clone = this.createSnapshot(conversationId);
+    const conversationTitle = nextCloneTitle(
+      source.conversation.title,
+      [...this.snapshots.values()].map((item) => item.conversation.title),
+    );
+    clone.conversation = {
+      ...source.conversation,
+      id: conversationId,
+      projectId: project?.id ?? null,
+      title: conversationTitle,
+      status: 'active',
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    clone.project = project;
+
+    const datasetIds = new Map(
+      source.datasets.map((item) => [item.id, remapId(item.id, 'dataset')]),
+    );
+    const schemaIds = new Map(
+      (source.schemas ?? []).map((item) => [item.id, remapId(item.id, 'schema')]),
+    );
+    const materialIds = new Map(
+      (source.materials ?? []).map((item) => [item.id, remapId(item.id, 'material')]),
+    );
+    const traitIds = new Map(
+      (source.traits ?? []).map((item) => [item.id, remapId(item.id, 'trait')]),
+    );
+    const environmentIds = new Map(
+      (source.environments ?? []).map((item) => [item.id, remapId(item.id, 'environment')]),
+    );
+    const planIds = new Map(
+      source.taskPlans.map((item) => [item.id, remapId(item.id, 'plan')]),
+    );
+    const terminalWorkflowRuns = source.workflowRuns.filter((item) => isTerminalStatus(item.status));
+    const terminalTaskPlanRuns = (source.taskPlanRuns ?? []).filter((item) => isTerminalStatus(item.status));
+    const runIds = new Map(
+      [...terminalWorkflowRuns, ...terminalTaskPlanRuns].map((item) => [
+        item.id,
+        remapId(item.id, 'run'),
+      ]),
+    );
+    const executionIds = new Map(
+      (source.executions ?? [])
+        .filter((item) => isTerminalStatus(item.status) && runIds.has(item.taskPlanRunId))
+        .map((item) => [item.id, remapId(item.id, 'execution')]),
+    );
+    const artifactCandidates = source.artifacts.filter(
+      (item) =>
+        !['running', 'pending', 'partial', 'incomplete'].includes(item.status) &&
+        (!item.producedByRunId || runIds.has(item.producedByRunId)),
+    );
+    const artifactSourceIds = new Set(source.artifacts.map((item) => item.id));
+    const artifactIds = new Map(
+      artifactCandidates.map((item) => [item.id, remapId(item.id, 'artifact')]),
+    );
+    const remapArtifactReference = (id: string) => {
+      const mapped = artifactIds.get(id);
+      if (mapped) return mapped;
+      return artifactSourceIds.has(id) ? null : id;
+    };
+
+    clone.datasets = source.datasets.map((item) => ({
+      ...item,
+      id: datasetIds.get(item.id) ?? remapId(item.id, 'dataset'),
+      projectId: project?.id ?? item.projectId,
+      schema: remapValue(item.schema, ids) as typeof item.schema,
+      source: remapValue(item.source, ids) as typeof item.source,
+      metadata: remapValue(item.metadata, ids) as typeof item.metadata,
+      supersedesId: item.supersedesId ? datasetIds.get(item.supersedesId) ?? null : null,
+    }));
+    clone.schemas = (source.schemas ?? []).map((item) => ({
+      ...item,
+      id: schemaIds.get(item.id) ?? remapId(item.id, 'schema'),
+      projectId: project?.id ?? item.projectId,
+      fields: remapValue(item.fields, ids),
+      roles: remapValue(item.roles, ids),
+    }));
+    clone.materials = (source.materials ?? []).map((item) => ({
+      ...item,
+      id: materialIds.get(item.id) ?? remapId(item.id, 'material'),
+      projectId: project?.id ?? item.projectId,
+      metadata: remapValue(item.metadata, ids) as typeof item.metadata,
+    }));
+    clone.traits = (source.traits ?? []).map((item) => ({
+      ...item,
+      id: traitIds.get(item.id) ?? remapId(item.id, 'trait'),
+      projectId: project?.id ?? item.projectId,
+    }));
+    clone.environments = (source.environments ?? []).map((item) => ({
+      ...item,
+      id: environmentIds.get(item.id) ?? remapId(item.id, 'environment'),
+      projectId: project?.id ?? item.projectId,
+      treatment: remapValue(item.treatment, ids),
+      metadata: remapValue(item.metadata, ids),
+    }));
+    clone.taskPlans = source.taskPlans.map((item) => ({
+      ...item,
+      id: planIds.get(item.id) ?? remapId(item.id, 'plan'),
+      projectId: project?.id ?? item.projectId,
+      datasetId: datasetIds.get(item.datasetId) ?? item.datasetId,
+      traitId: traitIds.get(item.traitId) ?? item.traitId,
+      inputs: item.inputs?.map((input) => ({
+        ...input,
+        id: ids.get(input.id) ?? input.id,
+      })),
+      status: ['running', 'pending', 'paused'].includes(item.status)
+        ? 'awaiting_confirmation'
+        : item.status,
+      planner: remapValue(item.planner, ids) as typeof item.planner,
+      modelSpec: remapValue(item.modelSpec, ids) as typeof item.modelSpec,
+      expectedArtifacts: item.expectedArtifacts
+        .map(remapArtifactReference)
+        .filter((id): id is string => Boolean(id)),
+      steps: item.steps.map((step) => ({
+        ...step,
+        id: remapId(step.id, 'step'),
+        dependsOn: step.dependsOn?.map((id) => ids.get(id) ?? id),
+        parameters: remapValue(step.parameters, ids) as typeof step.parameters,
+        expectedArtifacts: step.expectedArtifacts
+          ?.map(remapArtifactReference)
+          .filter((id): id is string => Boolean(id)),
+      })),
+    }));
+    clone.workflowRuns = terminalWorkflowRuns.map((item) => ({
+      ...item,
+      id: runIds.get(item.id) ?? remapId(item.id, 'run'),
+      taskPlanId: planIds.get(item.taskPlanId) ?? item.taskPlanId,
+      projectId: project?.id ?? item.projectId,
+    }));
+    clone.taskPlanRuns = terminalTaskPlanRuns.map((item) => ({
+      ...item,
+      id: runIds.get(item.id) ?? remapId(item.id, 'run'),
+      taskPlanId: planIds.get(item.taskPlanId) ?? item.taskPlanId,
+      projectId: project?.id ?? item.projectId,
+    }));
+    clone.executions = (source.executions ?? [])
+      .filter((item) => isTerminalStatus(item.status) && runIds.has(item.taskPlanRunId))
+      .map((item) => ({
+        ...item,
+        id: executionIds.get(item.id) ?? remapId(item.id, 'execution'),
+        taskPlanRunId: runIds.get(item.taskPlanRunId) ?? item.taskPlanRunId,
+        projectId: project?.id ?? item.projectId,
+        inputs: remapValue(item.inputs, ids),
+        parameters: remapValue(item.parameters, ids),
+        runtime: remapValue(item.runtime, ids),
+      }));
+    clone.artifacts = artifactCandidates.map((item) => ({
+      ...item,
+      id: artifactIds.get(item.id) ?? remapId(item.id, 'artifact'),
+      projectId: project?.id ?? item.projectId,
+      upstreamIds: item.upstreamIds
+        .map((id) => artifactIds.get(id))
+        .filter((id): id is string => Boolean(id)),
+      producedByRunId: item.producedByRunId
+        ? runIds.get(item.producedByRunId) ?? null
+        : null,
+      metadata: remapValue(item.metadata, ids) as typeof item.metadata,
+    }));
+    const messages = Array.isArray(rawMessages)
+      ? rawMessages
+      : source.messages;
+    clone.messages = messages.flatMap((item, index) => {
+      const role = item.role;
+      if (role !== 'user' && role !== 'assistant') return [];
+      const content = String(item.content ?? '');
+      const reasoning = item.reasoning ? String(item.reasoning) : null;
+      if (role === 'assistant' && !content.trim() && !reasoning?.trim()) return [];
+      return [{
+        id: `${conversationId}:message:${index}`,
+        conversationId,
+        taskPlanId: project
+          ? item.taskPlanId
+            ? planIds.get(item.taskPlanId) ?? null
+            : null
+          : null,
+        role,
+        content,
+        reasoning,
+        createdAt: item.createdAt || nowIso(),
+      }];
+    });
+    clone.overview = project
+      ? {
+          project,
+          materialCount: clone.materials?.length ?? 0,
+          datasetCount: clone.datasets.length,
+          executionCount: clone.executions?.length ?? 0,
+          artifactCount: clone.artifacts.length,
+          pendingResolutionCount: source.overview?.pendingResolutionCount ?? 0,
+          facts: source.overview?.facts ?? [],
+        }
+      : undefined;
+    if (project) this.projects = [...this.projects, project];
+    return clone;
+  }
+
   async listen<K extends RuntimeEventName>(
     eventName: K,
     callback: (payload: RuntimeEventMap[K]) => void,
@@ -718,6 +1002,10 @@ export default class BrowserDebugRuntime implements FrontendRuntime {
     if (!callbacks) throw new Error(`未知运行时事件：${eventName}`);
     const listener = callback as (payload: unknown) => void;
     callbacks.add(listener);
+    // 组件可能在场景已经启动后才完成挂载；回放每张图片的最新状态，避免任务卡丢失。
+    if (eventName === 'lian-yolo-event') {
+      this.yoloEvents.forEach((event) => listener(event));
+    }
     return () => callbacks.delete(listener);
   }
 
@@ -765,20 +1053,11 @@ export default class BrowserDebugRuntime implements FrontendRuntime {
       }
       case 'clone_conversation': {
         const source = this.snapshots.get(String(args.conversationId ?? '')) ?? this.currentSnapshot;
-        const clone = cloneSnapshot(source);
-        clone.conversation = {
-          ...clone.conversation,
-          id: `browser-debug-${++this.conversationCounter}`,
-          title: `${clone.conversation.title} 2`,
-          createdAt: nowIso(),
-          updatedAt: nowIso(),
-        };
-        clone.messages = clone.messages.map((message, index) => ({
-          ...message,
-          id: `${clone.conversation.id}:message:${index}`,
-          conversationId: clone.conversation.id,
-        }));
-        this.updateSnapshot(clone);
+        const messages = Array.isArray(args.messages)
+          ? args.messages as CloneMessageInput[]
+          : undefined;
+        const clone = this.cloneConversationSnapshot(source, messages);
+        this.activateSnapshot(clone, '会话副本已创建');
         return cloneSnapshot(clone) as T;
       }
       case 'send_message':
@@ -910,7 +1189,11 @@ export default class BrowserDebugRuntime implements FrontendRuntime {
       const selected = [...this.virtualFiles.values()].filter((file) => isImageName(file.name));
       const files = selected.length ? selected : await this.presetImages();
       this.fileCounter += selected.length ? 0 : files.length;
-      this.enqueueExternalInference(files.map((file) => file.path), 'yolov8n-coco');
+      this.enqueueExternalInference(
+        files.map((file) => file.path),
+        'yolov8n-coco',
+        conversationId,
+      );
     }
     source.messages = [
       ...source.messages,
@@ -1050,7 +1333,9 @@ export default class BrowserDebugRuntime implements FrontendRuntime {
     run.startedAt = nowIso();
     this.updateSnapshot(source);
     const timer = window.setTimeout(() => {
-      const latest = cloneSnapshot(this.currentSnapshot);
+      const latest = cloneSnapshot(
+        this.snapshots.get(source.conversation.id) ?? source,
+      );
       const latestRun = latest.workflowRuns.find((item) => item.id === run.id);
       if (!latestRun || latestRun.status === 'cancelled') return;
       latestRun.status = 'succeeded';
