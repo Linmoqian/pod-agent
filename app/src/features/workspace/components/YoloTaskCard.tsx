@@ -180,7 +180,6 @@ export function useYoloTask() {
   const [addingCount, setAddingCount] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState('');
-  const [readProgress, setReadProgress] = useState({ completed: 0, total: 0 });
   const [addConfirmation, setAddConfirmation] = useState<number | null>(null);
   const [revision, setRevision] = useState(0);
   const active = useRef(false);
@@ -221,24 +220,6 @@ export function useYoloTask() {
     setAddConfirmation(addConfirmationQueue.current[0]?.count ?? null);
   };
 
-  const registerReadJobs = (count: number) => {
-    if (count <= 0) return;
-    setReadProgress((current) => ({
-      completed: current.completed,
-      total: current.total + count,
-    }));
-  };
-
-  const completeReadJob = () => {
-    setReadProgress((current) => {
-      if (!current.total) return current;
-      const completed = Math.min(current.total, current.completed + 1);
-      return completed >= current.total
-        ? { completed: 0, total: 0 }
-        : { completed, total: current.total };
-    });
-  };
-
   const readThumbnail = async (job: ThumbnailJob) => {
     try {
       const bytes = await invoke<number[]>('yolo_thumbnail', { imagePath: job.path });
@@ -274,7 +255,6 @@ export function useYoloTask() {
       thumbnailPromises.current.delete(job.id);
       if (mounted.current) {
         reservedPreviewCount.current = Math.max(0, reservedPreviewCount.current - 1);
-        completeReadJob();
       }
     }
   };
@@ -315,7 +295,6 @@ export function useYoloTask() {
         thumbnailResolvers.current.set(job.id, resolve);
       }));
     });
-    registerReadJobs(selected.length);
     if (prioritize) thumbnailQueue.current.unshift(...selected);
     else thumbnailQueue.current.push(...selected);
     pumpThumbnailReads();
@@ -636,7 +615,6 @@ export function useYoloTask() {
   };
   return { photos, models, modelId, setModelId, paused, setPaused, adding: addingCount > 0, dragging, error, add,
     addConfirmation, resolveAddConfirmation,
-    readProgress,
     loadThumbnail, loadResultPreview, loadImagePreview, exportCsv,
     retry: () => setPhotos((list) => list.map((p) => !p.external && p.status === 'error' ? {
       ...p,
@@ -682,7 +660,7 @@ export default function YoloTaskCard({
   const running = runningPhotos[0];
   const localQueued = queued.filter((photo) => !photo.external);
   const canPause = localQueued.length > 0;
-  const reading = task.adding || task.readProgress.total > task.readProgress.completed;
+  const reading = task.adding;
   const left = queued.slice(0, 3);
   const completedVisible = done.slice(-3);
   const visible = [...left, ...completedVisible];
@@ -768,23 +746,8 @@ export default function YoloTaskCard({
       })}
     </div>
     <div className={styles.labels}><span><Clock3 size={12} aria-hidden />待处理 {queued.length}</span><span><CircleCheck size={12} aria-hidden />已完成 {done.length}</span>{failed.length > 0 && <span><CircleAlert size={12} aria-hidden />失败 {failed.length}</span>}</div>
-    {reading && <div className={styles.readProgressGroup} aria-live="polite">
-      <div className={styles.readProgressMeta}>
-        <span><Images size={12} aria-hidden />预览读取</span>
-        <span>{task.readProgress.total ? `${task.readProgress.completed} / ${task.readProgress.total}` : '扫描中…'}</span>
-      </div>
-      <progress
-        className={styles.readProgress}
-        max={Math.max(1, task.readProgress.total)}
-        value={task.readProgress.total ? task.readProgress.completed : undefined}
-        aria-label="预览读取进度"
-        aria-valuetext={task.readProgress.total
-          ? `已生成 ${task.readProgress.completed} 张预览，共 ${task.readProgress.total} 张`
-          : '正在生成预览'}
-      />
-    </div>}
     <progress max={Math.max(1, photos.length)} value={done.length + failed.length} aria-label="图片推理进度" aria-valuetext={`已完成 ${done.length} 张，失败 ${failed.length} 张，共 ${photos.length} 张`} />
-    <p className={styles.message} title={running?.name}>{task.error || (running ? running.name : reading ? (task.readProgress.total ? `正在生成预览 ${task.readProgress.completed} / ${task.readProgress.total}` : '正在生成预览') : failed[0]?.message || done[done.length - 1]?.message || '等待图片')}</p>
+    <p className={styles.message} title={running?.name}>{task.error || (running ? running.name : reading ? '正在添加图片' : failed[0]?.message || done[done.length - 1]?.message || '等待图片')}</p>
     <footer>
       <button title="添加图片" aria-label="添加推理图片" disabled={!isTauriRuntime() || !task.modelId} onClick={() => void task.add()}><Plus size={15} />添加图片</button>
       <button title="添加图片文件夹（包含子文件夹）" aria-label="添加图片文件夹" disabled={!isTauriRuntime() || !task.modelId} onClick={() => void task.add(true)}><FolderPlus size={15} /></button>
