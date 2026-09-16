@@ -8,9 +8,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
     collections::BTreeMap,
+    fs::OpenOptions,
+    io::Write,
     path::{Path, PathBuf},
     sync::{mpsc, Arc, Mutex, OnceLock},
     sync::atomic::{AtomicUsize, Ordering},
+    time::{Instant, SystemTime, UNIX_EPOCH},
 };
 use tauri::{AppHandle, Manager};
 
@@ -18,9 +21,35 @@ static ENDPOINT: OnceLock<Result<(String, String), String>> = OnceLock::new();
 static CACHE: Mutex<Option<(String, Session)>> = Mutex::new(None);
 static BATCH_CACHE: Mutex<Option<(String, Vec<Session>)>> = Mutex::new(None);
 static BATCH_SUPPORT_CACHE: Mutex<Option<(String, bool)>> = Mutex::new(None);
+static PERF_LOG: OnceLock<Mutex<Option<std::fs::File>>> = OnceLock::new();
 const MAX_BATCH_IMAGES: usize = 64;
 const PREP_QUEUE_CAPACITY: usize = 4;
 const MAX_PREP_WORKERS: usize = 4;
+
+fn perf_log(message: impl AsRef<str>) {
+    let Some(path) = std::env::var_os("LIAN_YOLO_PERF_LOG") else {
+        return;
+    };
+    let logger = PERF_LOG.get_or_init(|| {
+        Mutex::new(
+            OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+                .ok(),
+        )
+    });
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|value| value.as_millis())
+        .unwrap_or_default();
+    if let Ok(mut file) = logger.lock() {
+        if let Some(file) = file.as_mut() {
+            let _ = writeln!(file, "{timestamp}\t{}", message.as_ref());
+            let _ = file.flush();
+        }
+    }
+}
 
 fn folder_images(root: &Path) -> Result<Vec<String>, String> {
     if !root.is_absolute() || !root.is_dir() { return Err("请选择有效的图片文件夹".into()); }
@@ -84,10 +113,17 @@ pub async fn yolo_detect_images(model_id: String, image_paths: Vec<String>) -> R
     if image_paths.is_empty() {
         return Ok(Vec::new());
     }
-    tauri::async_runtime::spawn_blocking(move || {
+    let started = Instant::now();
+    let results = tauri::async_runtime::spawn_blocking(move || {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap();
         infer_batch(root, &model_id, &image_paths, None, 0.25)
-    }).await.map_err(|_| "批量推理任务中断".to_string())?
+    }).await.map_err(|_| "批量推理任务中断".to_string())??;
+    perf_log(format!(
+        "command.batch images={} total_ms={}",
+        results.len(),
+        started.elapsed().as_secs_f64() * 1000.,
+    ));
+    Ok(results)
 }
 
 #[tauri::command]
@@ -213,9 +249,16 @@ pub async fn yolo_memory_gb() -> Result<f64, String> {
 
 #[tauri::command]
 pub async fn yolo_thumbnail(image_path: String) -> Result<Vec<u8>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    let started = Instant::now();
+    let bytes = tauri::async_runtime::spawn_blocking(move || {
         thumbnail(Path::new(&image_path))
-    }).await.map_err(|_| "缩略图任务中断".to_string())?
+    }).await.map_err(|_| "缩略图任务中断".to_string())??;
+    perf_log(format!(
+        "thumbnail bytes={} total_ms={}",
+        bytes.len(),
+        started.elapsed().as_secs_f64() * 1000.,
+    ));
+    Ok(bytes)
 }
 
 #[derive(Deserialize)]
@@ -486,9 +529,16 @@ fn build_session(path: &Path, intra_threads: usize) -> Result<Session, String> {
 fn ensure_session(model: &ModelConfig, cache: &mut Option<(String, Session)>) -> Result<bool, String> {
     let reused = cache.as_ref().is_some_and(|(key, _)| key == &model.cache_key);
     if !reused {
+        let started = Instant::now();
         let session = build_session(&model.path, inference_thread_count())?;
         *cache = Some((model.cache_key.clone(), session));
+        perf_log(format!(
+            "session.create mode=single threads={} elapsed_ms={}",
+            inference_thread_count(),
+            started.elapsed().as_secs_f64() * 1000.,
+        ));
     }
+    perf_log(format!("session.single reused={reused}"));
     Ok(reused)
 }
 
@@ -498,12 +548,19 @@ fn take_batch_sessions(model: &ModelConfig, requested: usize) -> Result<(bool, V
         key == &model.cache_key && sessions.len() >= requested
     });
     if !reused {
+        let started = Instant::now();
         let sessions = (0..requested)
             .map(|_| build_session(&model.path, if requested > 1 { 1 } else { inference_thread_count() }))
             .collect::<Result<Vec<_>, _>>()?;
         *cache = Some((model.cache_key.clone(), sessions));
+        perf_log(format!(
+            "session.create mode=batch_parallel count={} elapsed_ms={}",
+            requested,
+            started.elapsed().as_secs_f64() * 1000.,
+        ));
     }
     let sessions = cache.as_mut().ok_or("推理服务不可用")?.1.drain(..).collect();
+    perf_log(format!("session.batch requested={} reused={reused}", requested));
     Ok((reused, sessions))
 }
 
@@ -628,7 +685,15 @@ fn infer_prepared(
     let input = std::mem::take(&mut prepared.input);
     let tensor = Tensor::from_array(([1, 3, size as usize, size as usize], input))
         .map_err(|_| "输入张量失败")?;
-    let output = session.run(ort::inputs![tensor]).map_err(|_| "ONNX 推理失败")?;
+    let started = Instant::now();
+    let output = session.run(ort::inputs![tensor]).map_err(|error| {
+        perf_log(format!("infer.session_run_failed mode=single error={error:?}"));
+        "ONNX 推理失败"
+    })?;
+    perf_log(format!(
+        "infer.session_run mode=single images=1 elapsed_ms={}",
+        started.elapsed().as_secs_f64() * 1000.,
+    ));
     let (shape, data) = output[0].try_extract_tensor::<f32>().map_err(|_| "输出类型不支持")?;
     if shape.len() != 3 || shape[0] != 1 || shape[1] != (model.classes.len() + 4) as i64 || shape[2] <= 0 {
         return Err("仅支持 YOLOv8 detect 原始输出 [1,4+类别数,N]，请使用 nms=False 导出".into());
@@ -718,7 +783,19 @@ fn infer_prepared_batch(
     }
     let tensor = Tensor::from_array(([prepared.len(), 3, size, size], input))
         .map_err(|_| "批量输入张量失败")?;
-    let output = session.run(ort::inputs![tensor]).map_err(|_| "ONNX 批量推理失败")?;
+    let started = Instant::now();
+    let output = session.run(ort::inputs![tensor]).map_err(|error| {
+        perf_log(format!(
+            "infer.session_run_failed mode=batch images={} error={error:?}",
+            prepared.len(),
+        ));
+        "ONNX 批量推理失败"
+    })?;
+    perf_log(format!(
+        "infer.session_run mode=batch images={} elapsed_ms={}",
+        prepared.len(),
+        started.elapsed().as_secs_f64() * 1000.,
+    ));
     let (shape, data) = output[0].try_extract_tensor::<f32>().map_err(|_| "输出类型不支持")?;
     if shape.len() != 3
         || shape[0] != prepared.len() as i64
@@ -733,7 +810,8 @@ fn infer_prepared_batch(
     if data.len() < image_output_len * prepared.len() {
         return Err("批量输出数据不完整".into());
     }
-    Ok(prepared.iter().enumerate().map(|(batch_index, (index, image))| {
+    let started = Instant::now();
+    let results = prepared.iter().enumerate().map(|(batch_index, (index, image))| {
         let start = batch_index * image_output_len;
         (*index, result_from_output(
             model,
@@ -745,7 +823,13 @@ fn infer_prepared_batch(
             min_confidence,
             session_reused,
         ))
-    }).collect())
+    }).collect();
+    perf_log(format!(
+        "infer.postprocess mode=batch images={} elapsed_ms={}",
+        prepared.len(),
+        started.elapsed().as_secs_f64() * 1000.,
+    ));
+    Ok(results)
 }
 
 fn infer_prepared_parallel(
@@ -754,6 +838,7 @@ fn infer_prepared_parallel(
     target_class: Option<&str>,
     min_confidence: f32,
 ) -> Result<Vec<Value>, String> {
+    let started = Instant::now();
     let requested_sessions = prepared.len().min(batch_session_count()).max(1);
     let (session_reused, sessions) = take_batch_sessions(model, requested_sessions)?;
     let (sender, receiver) = mpsc::sync_channel(PREP_QUEUE_CAPACITY);
@@ -810,6 +895,13 @@ fn infer_prepared_parallel(
         .map(|mut sessions| std::mem::take(&mut *sessions))
         .unwrap_or_default();
     return_batch_sessions(model, sessions);
+    perf_log(format!(
+        "infer.parallel images={} sessions={} reused={} elapsed_ms={}",
+        results.len(),
+        requested_sessions,
+        session_reused,
+        started.elapsed().as_secs_f64() * 1000.,
+    ));
     Ok(results)
 }
 
@@ -820,15 +912,33 @@ fn infer_batch(
     target_class: Option<&str>,
     min_confidence: f32,
 ) -> Result<Vec<Value>, String> {
+    let total_started = Instant::now();
     if !min_confidence.is_finite() || !(0.0..=1.0).contains(&min_confidence) {
         return Err("置信度无效".into());
     }
+    perf_log(format!("batch.start images={}", image_paths.len()));
+    let started = Instant::now();
     let model = load_model(root, model_id, target_class)?;
+    perf_log(format!(
+        "batch.model_load model={} elapsed_ms={}",
+        model_id,
+        started.elapsed().as_secs_f64() * 1000.,
+    ));
+    let started = Instant::now();
     let prepared = prepare_images(image_paths, model.size);
+    perf_log(format!(
+        "batch.prepare images={} workers={} elapsed_ms={}",
+        image_paths.len(),
+        image_paths.len()
+            .min(MAX_PREP_WORKERS)
+            .min(std::thread::available_parallelism().map(|value| value.get()).unwrap_or(1).max(1)),
+        started.elapsed().as_secs_f64() * 1000.,
+    ));
     let valid = prepared.iter().enumerate()
         .filter_map(|(index, result)| result.as_ref().ok().map(|image| (index, image)))
         .collect::<Vec<_>>();
     if valid.len() > 1 && batch_support(&model) != Some(false) {
+        perf_log(format!("batch.try_dynamic images={}", valid.len()));
         let (session_reused, mut session) = take_batch_session(&model)?;
         match infer_prepared_batch(
             &model,
@@ -848,15 +958,30 @@ fn infer_batch(
                 for (index, result) in batch_results {
                     results[index] = result;
                 }
+                perf_log(format!(
+                    "batch.finish mode=dynamic images={} total_ms={} images_per_sec={:.3}",
+                    image_paths.len(),
+                    total_started.elapsed().as_secs_f64() * 1000.,
+                    image_paths.len() as f64 / total_started.elapsed().as_secs_f64(),
+                ));
                 return Ok(results);
             }
-            Err(_) => {
+            Err(error) => {
                 remember_batch_support(&model, false);
+                perf_log(format!("batch.dynamic_fallback reason={error}"));
                 drop(session);
             }
         }
     }
-    infer_prepared_parallel(&model, prepared, target_class, min_confidence)
+    perf_log(format!("batch.use_parallel images={}", image_paths.len()));
+    let results = infer_prepared_parallel(&model, prepared, target_class, min_confidence);
+    perf_log(format!(
+        "batch.finish mode=parallel images={} total_ms={} images_per_sec={:.3}",
+        image_paths.len(),
+        total_started.elapsed().as_secs_f64() * 1000.,
+        image_paths.len() as f64 / total_started.elapsed().as_secs_f64(),
+    ));
+    results
 }
 
 fn draw_rect(image: &mut RgbImage, x: u32, y: u32, width: u32, height: u32) {
@@ -1031,5 +1156,57 @@ mod tests {
         assert_eq!(second["sessionReused"], true);
         assert_eq!(second["count"], 0);
         eprintln!("cold={cold:?}, warm={warm:?}");
+    }
+
+    #[test]
+    #[ignore = "需要本地 ONNX 权重与 100 张测试图片"]
+    fn benchmark_100_images_throughput() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap();
+        let image_root = root.join("测试图片").join("10.26白色图片");
+        let image_paths = folder_images(&image_root).unwrap().into_iter().take(100).collect::<Vec<_>>();
+        assert_eq!(image_paths.len(), 100, "测试图片不足 100 张");
+        let started = Instant::now();
+        let mut processed = 0;
+        perf_log(format!("benchmark.start images={} batch_size=32", image_paths.len()));
+        let inference_started = Instant::now();
+        for (batch_index, batch) in image_paths.chunks(32).enumerate() {
+            let batch_started = Instant::now();
+            let results = infer_batch(root, "yolov8n-coco", batch, None, 0.25).unwrap();
+            assert_eq!(results.len(), batch.len());
+            processed += batch.len();
+        perf_log(format!(
+            "benchmark.batch index={} images={} elapsed_ms={} images_per_sec={:.3}",
+                batch_index + 1,
+                batch.len(),
+                batch_started.elapsed().as_secs_f64() * 1000.,
+                batch.len() as f64 / batch_started.elapsed().as_secs_f64(),
+            ));
+        }
+        let inference_elapsed = inference_started.elapsed();
+        perf_log(format!(
+            "benchmark.inference images={} total_ms={} images_per_sec={:.3}",
+            processed,
+            inference_elapsed.as_secs_f64() * 1000.,
+            processed as f64 / inference_elapsed.as_secs_f64(),
+        ));
+        let thumbnail_started = Instant::now();
+        let mut thumbnail_bytes = 0;
+        for path in &image_paths {
+            thumbnail_bytes += thumbnail(Path::new(path)).unwrap().len();
+        }
+        perf_log(format!(
+            "benchmark.thumbnail images={} bytes={} total_ms={} images_per_sec={:.3}",
+            image_paths.len(),
+            thumbnail_bytes,
+            thumbnail_started.elapsed().as_secs_f64() * 1000.,
+            image_paths.len() as f64 / thumbnail_started.elapsed().as_secs_f64(),
+        ));
+        let elapsed = started.elapsed();
+        perf_log(format!(
+            "benchmark.finish_with_thumbnail images={} total_ms={} images_per_sec={:.3}",
+            processed,
+            elapsed.as_secs_f64() * 1000.,
+            processed as f64 / elapsed.as_secs_f64(),
+        ));
     }
 }
