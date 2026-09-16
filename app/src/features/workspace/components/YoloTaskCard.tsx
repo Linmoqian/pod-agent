@@ -7,7 +7,7 @@ import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { isYoloDropTarget } from '../hooks/yoloDropTarget';
-import { confirm, open, save } from '@tauri-apps/plugin-dialog';
+import { open, save } from '@tauri-apps/plugin-dialog';
 import { motion, useReducedMotion } from 'motion/react';
 import { ArrowUpRight, CircleAlert, CircleCheck, Clock3, FolderPlus, Images, Pause, Play, Plus, RotateCcw, ScanLine } from 'lucide-react';
 import { isTauriRuntime } from '../../../services/workspace';
@@ -18,6 +18,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../../components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../../components/ui/dialog';
+import { Button } from '../../../components/ui/button';
 import styles from './YoloTaskCard.module.css';
 
 export type YoloDetection = {
@@ -96,6 +105,11 @@ type ThumbnailJob = {
   external: boolean;
 };
 
+type AddConfirmationRequest = {
+  count: number;
+  resolve: (accepted: boolean) => void;
+};
+
 function resultRevealDelay(queueLength: number) {
   if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return 0;
   if (queueLength > 96) return 16;
@@ -167,6 +181,7 @@ export function useYoloTask() {
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState('');
   const [readProgress, setReadProgress] = useState({ completed: 0, total: 0 });
+  const [addConfirmation, setAddConfirmation] = useState<number | null>(null);
   const [revision, setRevision] = useState(0);
   const active = useRef(false);
   const mounted = useRef(true);
@@ -183,6 +198,7 @@ export function useYoloTask() {
   const thumbnailPromises = useRef(new Map<string, Promise<void>>());
   const thumbnailResolvers = useRef(new Map<string, () => void>());
   const thumbnailFocusId = useRef<string | null>(null);
+  const addConfirmationQueue = useRef<AddConfirmationRequest[]>([]);
   const resultRevealQueue = useRef<ResultReveal[]>([]);
   const revealingResults = useRef(false);
   const pausedRef = useRef(false);
@@ -192,6 +208,17 @@ export function useYoloTask() {
   const setPaused = (next: boolean) => {
     pausedRef.current = next;
     setPausedState(next);
+  };
+
+  const requestAddConfirmation = (count: number) => new Promise<boolean>((resolve) => {
+    addConfirmationQueue.current.push({ count, resolve });
+    setAddConfirmation((current) => current ?? count);
+  });
+
+  const resolveAddConfirmation = (accepted: boolean) => {
+    const request = addConfirmationQueue.current.shift();
+    request?.resolve(accepted);
+    setAddConfirmation(addConfirmationQueue.current[0]?.count ?? null);
   };
 
   const registerReadJobs = (count: number) => {
@@ -431,6 +458,7 @@ export function useYoloTask() {
     const scheduledThumbnailIds = thumbnailScheduledIds.current;
     const thumbnailPromiseCache = thumbnailPromises.current;
     const thumbnailResolverCache = thumbnailResolvers.current;
+    const addConfirmationQueueCache = addConfirmationQueue.current;
     mounted.current = true;
     if (isTauriRuntime()) void invoke<Model[]>('yolo_models').then((list) => {
       if (!mounted.current) return;
@@ -443,6 +471,7 @@ export function useYoloTask() {
       scheduledThumbnailIds.clear();
       thumbnailPromiseCache.clear();
       thumbnailResolverCache.clear();
+      addConfirmationQueueCache.splice(0).forEach(({ resolve }) => resolve(false));
       resultRevealQueue.current = [];
       reservedPreviewCount.current = 0;
       objectUrls.forEach((url) => URL.revokeObjectURL(url));
@@ -516,12 +545,7 @@ export function useYoloTask() {
       if (!paths.length) { setError('文件夹中没有 JPG、JPEG 或 PNG 图片'); return; }
       const sourceIsFolder = folder || Boolean(dropped?.some((path) => !isImagePath(path)));
       if (sourceIsFolder || paths.length >= 100) {
-        const accepted = await confirm(`发现 ${paths.length} 张图片，是否加入图片识别队列？`, {
-          title: '添加图片',
-          kind: 'info',
-          okLabel: '加入',
-          cancelLabel: '取消',
-        });
+        const accepted = await requestAddConfirmation(paths.length);
         if (!accepted) return;
       }
       await loadRuntimeMemory();
@@ -611,6 +635,7 @@ export function useYoloTask() {
     });
   };
   return { photos, models, modelId, setModelId, paused, setPaused, adding: addingCount > 0, dragging, error, add,
+    addConfirmation, resolveAddConfirmation,
     readProgress,
     loadThumbnail, loadResultPreview, loadImagePreview, exportCsv,
     retry: () => setPhotos((list) => list.map((p) => !p.external && p.status === 'error' ? {
@@ -684,6 +709,26 @@ export default function YoloTaskCard({
           ? CircleCheck
           : Clock3;
   return <section className={styles.card} data-yolo-drop-target data-dragging={task.dragging} aria-label="图片推理任务">
+    <Dialog
+      open={task.addConfirmation !== null}
+      onOpenChange={(open) => {
+        if (!open) task.resolveAddConfirmation(false);
+      }}
+    >
+      <DialogContent className={styles.addConfirmDialog}>
+        <DialogHeader className={styles.addConfirmHeader}>
+          <div className={styles.addConfirmIcon}><Images size={18} aria-hidden /></div>
+          <DialogTitle className={styles.addConfirmTitle}>添加图片</DialogTitle>
+          <DialogDescription className={styles.addConfirmDescription}>
+            发现 {task.addConfirmation ?? 0} 张图片，是否加入图片识别队列？
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className={styles.addConfirmFooter}>
+          <Button variant="outline" onClick={() => task.resolveAddConfirmation(false)}>取消</Button>
+          <Button onClick={() => task.resolveAddConfirmation(true)}>加入队列</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     <header><strong><ScanLine size={15} aria-hidden />图片识别</strong><button type="button" className={styles.resultStatus} title="打开图片识别结果" aria-label={`打开图片识别结果，当前状态：${status}`} onClick={() => onOpenResults()}><StatusIcon size={13} aria-hidden />{status}<ArrowUpRight size={12} aria-hidden /></button></header>
     <Select
       value={task.modelId || undefined}

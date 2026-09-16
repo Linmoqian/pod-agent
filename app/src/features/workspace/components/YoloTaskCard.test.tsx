@@ -6,7 +6,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { expect, test, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { confirm, open } from '@tauri-apps/plugin-dialog';
+import { open } from '@tauri-apps/plugin-dialog';
 import { useYoloTask } from './YoloTaskCard';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
@@ -14,7 +14,6 @@ vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async () => vi.fn()) }))
 vi.mock('@tauri-apps/api/webview', () => ({ getCurrentWebview: () => ({ onDragDropEvent: vi.fn(async () => vi.fn()) }) }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({
   open: vi.fn(async () => ['/a.png', '/b.png', '/c.png']),
-  confirm: vi.fn(async () => true),
 }));
 vi.mock('../../../services/workspace', () => ({ isTauriRuntime: () => true }));
 
@@ -63,15 +62,15 @@ test('文件夹扫描后保留坏图失败状态并推理其他图片', async ()
   });
   const { result } = renderHook(useYoloTask);
   await waitFor(() => expect(result.current.modelId).toBe('test'));
-  await act(async () => result.current.add(true));
+  const addPromise = result.current.add(true);
+  await waitFor(() => expect(result.current.addConfirmation).toBe(2));
+  act(() => result.current.resolveAddConfirmation(true));
+  await act(async () => addPromise);
   await waitFor(() => expect(result.current.photos.map((photo) => photo.status)).toEqual(['error', 'done']));
   expect(result.current.photos).toHaveLength(2);
   expect(result.current.photos[0].message).toBe('坏图');
   expect(open).toHaveBeenLastCalledWith({ directory: true, multiple: false });
-  expect(confirm).toHaveBeenCalledWith(
-    '发现 2 张图片，是否加入图片识别队列？',
-    expect.objectContaining({ title: '添加图片', okLabel: '加入', cancelLabel: '取消' }),
-  );
+  expect(result.current.addConfirmation).toBeNull();
 });
 
 test('Finder 混合路径通过原生扫描进入推理队列', async () => {

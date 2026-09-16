@@ -1,4 +1,36 @@
 .card { margin: 12px 0; padding: 12px; border: var(--border-default); border-radius: var(--radius-lg); min-width: 0; background: var(--color-surface-default); color: var(--color-text-primary); }
+.addConfirmDialog {
+  width: min(360px, calc(100vw - 32px));
+  max-width: 360px;
+  gap: 0;
+  padding: 24px;
+  border-color: color-mix(in srgb, var(--color-border-default) 88%, transparent);
+  border-radius: var(--radius-xl);
+  background: var(--material-modal);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-elevated);
+  -webkit-backdrop-filter: blur(var(--blur-modal));
+  backdrop-filter: blur(var(--blur-modal));
+}
+.addConfirmDialog > button[data-slot='dialog-close'] {
+  top: 14px;
+  right: 14px;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-tertiary);
+  opacity: 1;
+}
+.addConfirmDialog > button[data-slot='dialog-close']:hover { background: var(--color-surface-subtle); color: var(--color-text-primary); }
+.addConfirmHeader { align-items: flex-start; gap: 10px; text-align: left; }
+.addConfirmIcon { display: grid; width: 36px; height: 36px; place-items: center; border-radius: var(--radius-md); background: color-mix(in srgb, var(--color-brand-500) 14%, var(--color-surface-subtle)); color: var(--color-brand-600); }
+.addConfirmTitle { margin-top: 2px; font-size: var(--font-size-subtitle); line-height: var(--line-height-tight); }
+.addConfirmDescription { color: var(--color-text-tertiary); font-size: var(--font-size-caption); line-height: 1.6; }
+.addConfirmFooter { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 24px; }
+.addConfirmFooter button { width: 100%; min-height: 36px; border-radius: var(--radius-md); font-size: 12px; transition: transform var(--duration-press) var(--easing-standard), background-color var(--duration-fast) var(--easing-standard), border-color var(--duration-fast) var(--easing-standard); }
+.addConfirmFooter button:active:not(:disabled) { transform: scale(var(--press-scale)); }
+.addConfirmFooter button:last-child { border-color: var(--color-brand-500); background: var(--color-brand-500); color: var(--color-brand-strong); }
+.addConfirmFooter button:last-child:hover { background: var(--color-brand-600); }
 .card header, .labels, .card footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .card header { font-size: 12px; margin-bottom: 10px; }
 .card header strong, .card header span, .labels span { display: inline-flex; align-items: center; gap: 5px; }
