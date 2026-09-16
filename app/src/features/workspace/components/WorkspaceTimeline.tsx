@@ -179,7 +179,7 @@ function PendingReply() {
         transition={{ duration: 1.2, ease: 'easeInOut', repeat: Infinity }}
       />
       <LoaderCircle size={15} aria-hidden />
-      正在生成回复
+      我正在处理中，过程中有什么需要的可以接着提出
     </div>
   );
 }

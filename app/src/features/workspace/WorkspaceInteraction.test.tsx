@@ -100,7 +100,7 @@ it('忙碌时连续 Enter 只提交一次研究问题', async () => {
   releaseSubmission();
 });
 
-it('自由对话在 Agent 返回前立即展示提问和生成中回复', async () => {
+it('自由对话在 Agent 返回前立即展示提问和处理中提示', async () => {
   const noDataSnapshot = { ...snapshot, datasets: [], project: null };
   let releaseReply: (value: typeof noDataSnapshot) => void = () => {};
   mocks.invoke.mockImplementation(async (command: string) => {
@@ -124,7 +124,9 @@ it('自由对话在 Agent 返回前立即展示提问和生成中回复', async 
   const requestId = (sendCall?.[1] as { requestId?: string } | undefined)?.requestId;
   if (!requestId) throw new Error('未生成 Agent requestId');
   expect(await screen.findByText('如何安排田间重复？')).toBeInTheDocument();
-  expect(screen.getByText('正在生成回复')).toHaveAttribute('role', 'status');
+  expect(
+    screen.getByText('我正在处理中，过程中有什么需要的可以接着提出'),
+  ).toHaveAttribute('role', 'status');
   await waitFor(() =>
     expect(mocks.listen).toHaveBeenCalledWith(
       'lian-agent-event',
@@ -156,6 +158,8 @@ it('自由对话在 Agent 返回前立即展示提问和生成中回复', async 
       delta: '建议每个环境至少设置 3 个重复。',
     },
   });
+  const reasoningToggle = await screen.findByRole('button', { name: '模型思考' });
+  await user.click(reasoningToggle);
   expect(await screen.findByText('先确认试验目标。')).toBeInTheDocument();
   expect(
     screen.getByText('建议每个环境至少设置 3 个重复。'),
