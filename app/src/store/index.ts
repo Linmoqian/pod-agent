@@ -19,10 +19,13 @@ import type {
 import {
   applyCustomProviders,
   getModels,
+  isValidProviderId,
+  isValidCustomProviderUrl,
 } from "../features/providers/services/registry";
 import { migrateLegacyProviderKeys } from "../features/providers/services/credentials";
 
-const PROVIDERS_STORAGE_KEY = "pod-agent.providers";
+const PROVIDERS_STORAGE_KEY = "pod-agent.providers:v2";
+const LEGACY_PROVIDERS_STORAGE_KEY = "pod-agent.providers";
 
 type PersistedProviders = {
   customProviders: CustomProviderConfig[];
@@ -30,34 +33,85 @@ type PersistedProviders = {
   currentModel: ModelSelection | null;
 };
 
+function emptyPersistedProviders(): PersistedProviders {
+  return { customProviders: [], customYoloModels: [], currentModel: null };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isCustomProviderConfig(value: unknown): value is CustomProviderConfig {
+  if (!isRecord(value)) return false;
+  const modelIds = value.modelIds;
+  return (
+    typeof value.id === "string" &&
+    value.id.startsWith("custom-") &&
+    isValidProviderId(value.id) &&
+    typeof value.name === "string" &&
+    Boolean(value.name.trim()) &&
+    typeof value.baseUrl === "string" &&
+    isValidCustomProviderUrl(value.baseUrl) &&
+    (modelIds === undefined ||
+      (Array.isArray(modelIds) && modelIds.every((id) => typeof id === "string"))) &&
+    (value.modelId === undefined || typeof value.modelId === "string")
+  );
+}
+
+function isCustomYoloModelConfig(value: unknown): value is CustomYoloModelConfig {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    Boolean(value.id.trim()) &&
+    typeof value.name === "string" &&
+    Boolean(value.name.trim()) &&
+    typeof value.weightsPath === "string" &&
+    Boolean(value.weightsPath.trim())
+  );
+}
+
+function isModelSelection(value: unknown): value is ModelSelection {
+  return (
+    isRecord(value) &&
+    typeof value.providerId === "string" &&
+    isValidProviderId(value.providerId) &&
+    typeof value.modelId === "string" &&
+    Boolean(value.modelId.trim())
+  );
+}
+
 function loadPersistedProviders(): PersistedProviders {
   try {
-    const raw = window.localStorage.getItem(PROVIDERS_STORAGE_KEY);
+    const raw =
+      window.localStorage.getItem(PROVIDERS_STORAGE_KEY) ??
+      window.localStorage.getItem(LEGACY_PROVIDERS_STORAGE_KEY);
     if (!raw) {
-      return {
-        customProviders: [],
-        customYoloModels: [],
-        currentModel: null,
-      };
+      return emptyPersistedProviders();
     }
-    const parsed = JSON.parse(raw) as Partial<PersistedProviders>;
-    const currentModel = parsed.currentModel;
+    const parsed: unknown = JSON.parse(raw);
+    if (!isRecord(parsed)) return emptyPersistedProviders();
     return {
       customProviders: Array.isArray(parsed.customProviders)
-        ? parsed.customProviders
+        ? parsed.customProviders.filter(isCustomProviderConfig)
         : [],
       customYoloModels: Array.isArray(parsed.customYoloModels)
-        ? parsed.customYoloModels
+        ? parsed.customYoloModels.filter(isCustomYoloModelConfig)
         : [],
-      currentModel:
-        currentModel &&
-        typeof currentModel.providerId === "string" &&
-        typeof currentModel.modelId === "string"
-          ? currentModel
-          : null,
+      currentModel: isModelSelection(parsed.currentModel)
+        ? parsed.currentModel
+        : null,
     };
   } catch {
-    return { customProviders: [], customYoloModels: [], currentModel: null };
+    return emptyPersistedProviders();
+  }
+}
+
+function persistProviders(value: PersistedProviders): void {
+  try {
+    window.localStorage.setItem(PROVIDERS_STORAGE_KEY, JSON.stringify(value));
+    window.localStorage.removeItem(LEGACY_PROVIDERS_STORAGE_KEY);
+  } catch {
+    // 配置写盘失败不应打断当前会话；下次启动仍可使用当前内存状态。
   }
 }
 
@@ -74,6 +128,8 @@ store.dispatch(providersSlice.actions.setCustomYoloModels(persisted.customYoloMo
 store.dispatch(providersSlice.actions.setCurrentModel(persisted.currentModel));
 applyCustomProviders(persisted.customProviders);
 getModels();
+// 启动即写入净化后的 v2 配置，清除旧配置中可能存在的敏感 URL 或非法字段。
+persistProviders(persisted);
 void migrateLegacyProviderKeys();
 
 let persistTimer: number | undefined;
@@ -84,10 +140,7 @@ store.subscribe(() => {
   // 密集 dispatch 下合并写盘,避免每个流式 delta 都触发持久化
   window.clearTimeout(persistTimer);
   persistTimer = window.setTimeout(() => {
-    window.localStorage.setItem(
-      PROVIDERS_STORAGE_KEY,
-      JSON.stringify({ customProviders, customYoloModels, currentModel }),
-    );
+    persistProviders({ customProviders, customYoloModels, currentModel });
   }, 200);
 });
 

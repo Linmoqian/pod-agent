@@ -47,6 +47,16 @@ pub struct DiscussTurn {
     pub content: String,
 }
 
+/// 讨论请求的完整输入，避免在 Rust IPC 与 Agent 边界之间传递过长的参数列表。
+pub struct DiscussRequest<'a> {
+    pub request_id: &'a str,
+    pub conversation_id: &'a str,
+    pub model: Option<&'a AgentModelRequest>,
+    pub message: &'a str,
+    pub history: &'a [DiscussTurn],
+    pub context: &'a Value,
+}
+
 /// 讨论模式的真实模型输出。`reasoning` 仅在模型实际返回思考增量时存在。
 pub struct DiscussReply {
     pub text: String,
@@ -95,13 +105,25 @@ fn validate_model_request(model: &AgentModelRequest) -> AppResult<()> {
         let valid_url = !custom.base_url.is_empty()
             && !custom.base_url.chars().any(char::is_whitespace)
             && custom.base_url.len() <= 2048
-            && (custom.base_url.starts_with("http://") || custom.base_url.starts_with("https://"));
+            && reqwest::Url::parse(&custom.base_url).is_ok_and(|url| {
+                matches!(url.scheme(), "http" | "https")
+                    && url.host_str().is_some()
+                    && url.username().is_empty()
+                    && url.password().is_none()
+                    && url.query().is_none()
+                    && url.fragment().is_none()
+            });
         if !valid_url {
             return Err(AppError::new(
                 "PROVIDER_URL_INVALID",
                 "自定义 Provider 地址无效",
             ));
         }
+    } else if model.provider_id.starts_with("custom-") {
+        return Err(AppError::new(
+            "PROVIDER_URL_INVALID",
+            "自定义 Provider 缺少地址",
+        ));
     }
     Ok(())
 }
@@ -134,7 +156,11 @@ fn check_agent_ok(response: &Value) -> AppResult<()> {
     let message = response["error"].as_str().unwrap_or("Agent 调用失败");
     let retryable = !matches!(
         code,
-        "MODEL_REQUIRED" | "MODEL_INVALID" | "MODEL_NOT_FOUND" | "PROVIDER_URL_INVALID"
+        "MODEL_REQUIRED"
+            | "MODEL_INVALID"
+            | "MODEL_NOT_FOUND"
+            | "PROVIDER_ID_INVALID"
+            | "PROVIDER_URL_INVALID"
     );
     if retryable {
         Err(AppError::retryable(code, message))
@@ -214,30 +240,25 @@ pub fn propose(
 pub fn discuss(
     app: &AppHandle,
     manager: &AgentManager,
-    request_id: &str,
-    conversation_id: &str,
-    model: Option<&AgentModelRequest>,
-    message: &str,
-    history: &[DiscussTurn],
-    context: &Value,
+    input: DiscussRequest<'_>,
     on_progress: impl Fn(&AgentProgress),
 ) -> AppResult<DiscussReply> {
-    validate_request_id(request_id)?;
-    uuid::Uuid::parse_str(conversation_id)
+    validate_request_id(input.request_id)?;
+    uuid::Uuid::parse_str(input.conversation_id)
         .map_err(|_| AppError::new("CONVERSATION_ID_INVALID", "会话 ID 无效"))?;
     let request = json!({
         "protocol": 2,
         "type": "prompt",
-        "requestId": request_id,
-        "conversationId": conversation_id,
+        "requestId": input.request_id,
+        "conversationId": input.conversation_id,
         "mode": "discuss",
-        "model": model_payload(model)?,
-        "message": message,
-        "history": history
+        "model": model_payload(input.model)?,
+        "message": input.message,
+        "history": input.history
             .iter()
             .map(|turn| json!({"role": turn.role, "content": turn.content}))
             .collect::<Vec<_>>(),
-        "context": context
+        "context": input.context
     });
     let active = RefCell::new(HashSet::<String>::new());
     let response = manager.prompt(app, request, Duration::from_secs(15 * 60), |event| {

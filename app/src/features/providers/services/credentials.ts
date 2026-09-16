@@ -93,9 +93,7 @@ export function migrateLegacyProviderKeys(): Promise<boolean> {
     })
     .catch(() => {
       // 不删除旧值；调用方可以给出可见提示，用户仍可重试迁移。
-      window.setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('lian-credentials-migration-error'));
-      }, 0);
+      migrationPromise = null;
       return false;
     });
   return migrationPromise;

@@ -24,7 +24,9 @@ function CredentialMigrationNotice() {
     if (!isTauriRuntime()) return;
     void migrateLegacyProviderKeys().then((migrated) => {
       if (!migrated) {
-        toast.error("旧版 API Key 未能迁移到 macOS Keychain，请重试");
+        toast.error(
+          "KEYCHAIN_MIGRATION_FAILED: 旧版 API Key 未能迁移到 macOS Keychain，请重试",
+        );
       }
     });
   }, []);

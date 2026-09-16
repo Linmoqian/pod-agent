@@ -11,13 +11,14 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ProviderRow } from "../hooks/useProviderSettings";
+import { isValidCustomProviderUrl } from "../services/registry";
 import styles from "./ProviderSettingsModal.module.css";
 import ProviderKeyForm from "./ProviderKeyForm";
 
 type CustomProviderListProps = {
   customRows: ProviderRow[];
   onAdd: (name: string, baseUrl: string) => void;
-  onRemove: (providerId: string) => void;
+  onRemove: (providerId: string) => void | Promise<void>;
   onRefreshModels: (providerId: string) => Promise<string | null>;
   onSaveKey: (providerId: string, key: string) => Promise<void>;
   onClearKey: (providerId: string) => Promise<void>;
@@ -38,7 +39,7 @@ function CustomProviderList({
   const submit = () => {
     const trimmedName = name.trim();
     const trimmedUrl = baseUrl.trim();
-    if (!trimmedName || !/^https?:\/\/.+/.test(trimmedUrl)) {
+    if (!trimmedName || !isValidCustomProviderUrl(trimmedUrl)) {
       toast.warning("请填写端点名称与 http(s) 地址");
       return;
     }
@@ -92,7 +93,7 @@ function CustomProviderList({
                 variant="outline"
                 aria-label={`删除 ${row.name}`}
                 className="text-destructive hover:text-destructive"
-                onClick={() => onRemove(row.id)}
+                onClick={() => void onRemove(row.id)}
               >
                 <Trash2 size={14} strokeWidth={1.75} />
               </Button>

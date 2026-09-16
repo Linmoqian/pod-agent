@@ -56,6 +56,8 @@ fn choose_trait(schema: &Value, intent: &str) -> AppResult<String> {
         .ok_or_else(|| AppError::new("TRAIT_NOT_FOUND", "Dataset 中没有可分析的数值性状"))
 }
 
+// Tauri command 参数直接对应既有 IPC 字段，不能为消除 clippy 警告改成嵌套请求对象。
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn submit_agent_intent(
     project_id: String,
@@ -69,7 +71,7 @@ pub async fn submit_agent_intent(
 ) -> AppResult<TaskPlan> {
     uuid::Uuid::parse_str(&request_id)
         .map_err(|_| AppError::new("REQUEST_ID_INVALID", "Agent 请求 ID 必须是 UUID"))?;
-    let dataset = {
+    let (dataset, planner_conversation_id) = {
         let connection = state
             .connection
             .lock()
@@ -78,26 +80,34 @@ pub async fn submit_agent_intent(
         let dataset_id = dataset_ids
             .first()
             .ok_or_else(|| AppError::new("DATASET_REQUIRED", "请先导入一个表型 Dataset"))?;
-        db::dataset(&connection, dataset_id)?.0
+        let dataset = db::dataset(&connection, dataset_id)?.0;
+        if dataset.project_id != project_id {
+            return Err(AppError::new(
+                "DATASET_PROJECT_MISMATCH",
+                "Dataset 不属于当前项目",
+            ));
+        }
+        let planner_conversation_id = match conversation_id.as_deref().filter(|id| !id.is_empty()) {
+            Some(id) => {
+                uuid::Uuid::parse_str(id)
+                    .map_err(|_| AppError::new("CONVERSATION_ID_INVALID", "会话 ID 无效"))?;
+                let conversation = db::conversation(&connection, id)?;
+                if conversation.project_id.as_deref() != Some(project_id.as_str()) {
+                    return Err(AppError::new(
+                        "CONVERSATION_PROJECT_MISMATCH",
+                        "会话不属于当前项目",
+                    ));
+                }
+                id.to_string()
+            }
+            None => uuid::Uuid::new_v4().to_string(),
+        };
+        (dataset, planner_conversation_id)
     };
-    if dataset.project_id != project_id {
-        return Err(AppError::new(
-            "DATASET_PROJECT_MISMATCH",
-            "Dataset 不属于当前项目",
-        ));
-    }
     let intent = intent
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| "分析这批多环境表型数据".into());
     let fallback_trait = choose_trait(&dataset.schema, &intent)?;
-    let planner_conversation_id = match conversation_id.as_deref().filter(|id| !id.is_empty()) {
-        Some(id) => {
-            uuid::Uuid::parse_str(id)
-                .map_err(|_| AppError::new("CONVERSATION_ID_INVALID", "会话 ID 无效"))?;
-            id.to_string()
-        }
-        None => uuid::Uuid::new_v4().to_string(),
-    };
     let intent_for_agent = intent.clone();
     let dataset_for_agent = dataset.clone();
     let app_for_agent = app.clone();
@@ -210,9 +220,18 @@ pub async fn submit_agent_intent(
     let conversation = match conversation_id
         .as_deref()
         .filter(|id| !id.is_empty())
-        .and_then(|id| db::conversation(&connection, id).ok())
+        .map(|id| db::conversation(&connection, id))
     {
-        Some(conversation) => conversation,
+        Some(result) => {
+            let conversation = result?;
+            if conversation.project_id.as_deref() != Some(plan.project_id.as_str()) {
+                return Err(AppError::new(
+                    "CONVERSATION_PROJECT_MISMATCH",
+                    "会话不属于当前项目",
+                ));
+            }
+            conversation
+        }
         None => {
             let existing = db::latest_project_conversation(&connection, &plan.project_id)?;
             match existing {
@@ -259,6 +278,8 @@ pub async fn submit_agent_intent(
     Ok(plan)
 }
 
+// Tauri command 参数直接对应既有 IPC 字段，不能为消除 clippy 警告改成嵌套请求对象。
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn submit_research_intent(
     project_id: String,

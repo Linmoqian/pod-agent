@@ -6,7 +6,9 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { useAppDispatch, useAppSelector } from "../../../store";
+import { errorText } from "../../../services/errors";
 import {
   addCustomYoloModel,
   addCustomProvider,
@@ -20,6 +22,7 @@ import {
   CUSTOM_PROVIDER_PREFIX,
   generateCustomProviderId,
   getModels,
+  isValidCustomProviderUrl,
 } from "../services/registry";
 import type { CustomYoloModelConfig } from "../types";
 import {
@@ -119,6 +122,9 @@ export function useProviderSettings() {
 
   const addCustom = useCallback(
     (name: string, baseUrl: string) => {
+      if (!isValidCustomProviderUrl(baseUrl)) {
+        throw new Error("PROVIDER_URL_INVALID:自定义 Provider 地址无效");
+      }
       dispatch(
         addCustomProvider({
           id: generateCustomProviderId(),
@@ -133,7 +139,12 @@ export function useProviderSettings() {
 
   const addLlm = useCallback(
     async (name: string, baseUrl: string, key: string) => {
+      if (!isValidCustomProviderUrl(baseUrl) || !key.trim()) {
+        throw new Error("PROVIDER_URL_INVALID:自定义 Provider 地址或密钥无效");
+      }
       const id = generateCustomProviderId();
+      // 先确认密钥已落入 Keychain，避免 Keychain 失败后留下不可用的 Provider 配置。
+      await saveProviderKey(id, key);
       dispatch(
         addCustomProvider({
           id,
@@ -142,7 +153,6 @@ export function useProviderSettings() {
           modelIds: [name],
         }),
       );
-      await saveProviderKey(id, key);
       setRows(await collectProviderRows());
     },
     [dispatch],
@@ -161,9 +171,17 @@ export function useProviderSettings() {
   );
 
   const removeCustom = useCallback(
-    (providerId: string) => {
+    async (providerId: string) => {
+      if (isTauriRuntime()) {
+        try {
+          // 先清理 Keychain，清除失败时保留配置，避免无提示地遗留密钥。
+          await clearProviderKey(providerId);
+        } catch (error) {
+          toast.error(errorText(error));
+          return;
+        }
+      }
       dispatch(removeCustomProvider(providerId));
-      void clearProviderKey(providerId);
     },
     [dispatch],
   );
@@ -188,7 +206,7 @@ export function useProviderSettings() {
         setCatalogTick((tick) => tick + 1);
         return null;
       } catch (error) {
-        return error instanceof Error ? error.message : String(error);
+        return errorText(error);
       }
     },
     [customProviders, dispatch],

@@ -22,6 +22,9 @@ import { builtinModels } from '@earendil-works/pi-ai/providers/all';
 import { discussionTools } from './tools.ts';
 
 const PROTOCOL_VERSION = 2 as const;
+const MAX_PROVIDER_ID_LENGTH = 128;
+const MAX_MODEL_ID_LENGTH = 512;
+const MAX_PROVIDER_URL_LENGTH = 2048;
 
 type RuntimeModelRequest = {
   providerId: string;
@@ -125,24 +128,59 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function isUuid(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+  );
+}
+
+function isProviderUrl(value: unknown): value is string {
+  if (
+    typeof value !== 'string' ||
+    !value.trim() ||
+    value.length > MAX_PROVIDER_URL_LENGTH ||
+    /\s/.test(value)
+  ) return false;
+  try {
+    const url = new URL(value);
+    return (
+      (url.protocol === 'http:' || url.protocol === 'https:') &&
+      Boolean(url.hostname) &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash
+    );
+  } catch {
+    return false;
+  }
+}
+
 function isModelRequest(value: unknown): value is RuntimeModelRequest {
   if (!isRecord(value)) return false;
   // 开发态允许 Rust 用空对象表示“交给 agent/.env 默认模型”；发行态会在 Rust 边界提前拒绝。
   if (Object.keys(value).length === 0) return true;
   if (
     typeof value.providerId !== 'string' ||
-    typeof value.modelId !== 'string'
+    typeof value.modelId !== 'string' ||
+    !value.providerId.trim() ||
+    !value.modelId.trim() ||
+    value.providerId.length > MAX_PROVIDER_ID_LENGTH ||
+    value.modelId.length > MAX_MODEL_ID_LENGTH
   ) {
     return false;
   }
   if (value.customProvider !== undefined) {
     if (
       !isRecord(value.customProvider) ||
-      typeof value.customProvider.baseUrl !== 'string' ||
+      !isProviderUrl(value.customProvider.baseUrl) ||
       !value.providerId.startsWith('custom-')
     ) {
       return false;
     }
+  } else if (value.providerId.startsWith('custom-')) {
+    return false;
   }
   return value.apiKey === undefined || typeof value.apiKey === 'string';
 }
@@ -152,10 +190,8 @@ function isPromptRequest(value: unknown): value is PromptRequest {
   if (
     value.protocol !== PROTOCOL_VERSION ||
     value.type !== 'prompt' ||
-    typeof value.requestId !== 'string' ||
-    !value.requestId ||
-    typeof value.conversationId !== 'string' ||
-    !value.conversationId ||
+    !isUuid(value.requestId) ||
+    !isUuid(value.conversationId) ||
     (value.mode !== 'discuss' && value.mode !== 'plan') ||
     !isModelRequest(value.model) ||
     !Array.isArray(value.history) ||
@@ -243,7 +279,7 @@ function resolveModel(request: RuntimeModelRequest): {
   }
 
   if (request.customProvider) {
-    if (!/^https?:\/\/[^\s]+$/.test(request.customProvider.baseUrl)) {
+    if (!isProviderUrl(request.customProvider.baseUrl)) {
       throw new RequestFailure('PROVIDER_URL_INVALID', '自定义 Provider 地址无效');
     }
     models.setProvider(
@@ -403,9 +439,14 @@ function yoloTaskFromEnd(event: Record<string, unknown>) {
         )
       : undefined;
   let message = 'YOLO 推理失败或已取消';
+  let ok = event.isError !== true;
   if (summary) {
     try {
-      const parsed = JSON.parse(summary.text) as { message?: unknown };
+      const parsed = JSON.parse(summary.text) as {
+        ok?: unknown;
+        message?: unknown;
+      };
+      if (typeof parsed.ok === 'boolean') ok = parsed.ok;
       if (typeof parsed.message === 'string') message = parsed.message;
     } catch {
       // 工具摘要不是计数结果时保持稳定错误文案。
@@ -413,7 +454,7 @@ function yoloTaskFromEnd(event: Record<string, unknown>) {
   }
   return {
     id: typeof event.toolCallId === 'string' ? event.toolCallId : '',
-    status: event.isError === true ? 'error' : 'done',
+    status: ok ? 'done' : 'error',
     imagePath: typeof args.imagePath === 'string' ? args.imagePath : undefined,
     modelId: typeof args.modelId === 'string' ? args.modelId : undefined,
     message,
@@ -544,7 +585,11 @@ async function runAgent(
       model: modelKey,
     };
   } catch (error) {
-    throw failureFromUnknown(error);
+    if (active.aborted || (error instanceof Error && error.name === 'AbortError')) {
+      throw new RequestFailure('AGENT_ABORTED', '请求已取消');
+    }
+    if (error instanceof RequestFailure) throw error;
+    throw new RequestFailure('MODEL_REQUEST_FAILED', '模型请求失败，请检查模型与凭据');
   } finally {
     unsubscribe();
   }
@@ -706,11 +751,11 @@ async function handleRequest(value: unknown) {
     }
     return;
   }
-  if (value.type === 'abort' && typeof value.requestId === 'string') {
+  if (value.type === 'abort' && isUuid(value.requestId)) {
     await handleAbort(value.requestId);
     return;
   }
-  if (value.type === 'session.reset' && typeof value.conversationId === 'string') {
+  if (value.type === 'session.reset' && isUuid(value.conversationId)) {
     await handleSessionReset(value.conversationId);
     return;
   }

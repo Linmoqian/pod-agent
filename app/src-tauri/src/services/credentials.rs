@@ -30,7 +30,14 @@ fn validate_provider_id(provider_id: &str) -> AppResult<()> {
 fn validate_base_url(base_url: &str) -> AppResult<()> {
     let valid = base_url.len() <= MAX_BASE_URL_LENGTH
         && !base_url.chars().any(char::is_whitespace)
-        && (base_url.starts_with("http://") || base_url.starts_with("https://"));
+        && reqwest::Url::parse(base_url).is_ok_and(|url| {
+            matches!(url.scheme(), "http" | "https")
+                && url.host_str().is_some()
+                && url.username().is_empty()
+                && url.password().is_none()
+                && url.query().is_none()
+                && url.fragment().is_none()
+        });
     if valid {
         Ok(())
     } else {
@@ -133,6 +140,13 @@ pub async fn refresh_provider_models(
     provider_id: String,
     base_url: String,
 ) -> AppResult<Vec<String>> {
+    validate_provider_id(&provider_id)?;
+    if !provider_id.starts_with("custom-") {
+        return Err(AppError::new(
+            "PROVIDER_ID_INVALID",
+            "模型刷新只允许自定义 Provider",
+        ));
+    }
     validate_base_url(&base_url)?;
     let key = tauri::async_runtime::spawn_blocking({
         let provider_id = provider_id.clone();

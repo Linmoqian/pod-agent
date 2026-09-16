@@ -118,7 +118,7 @@ type AgentModelRequest = {
 | `EMPTY_IMPORT`、`SOURCE_NOT_FOUND`、`IMPORT_TOO_LARGE` | 导入输入为空、不存在或超过 100 个文件 | 否 | 重新选择有效范围 |
 | `PYTHON_RUNTIME_UNAVAILABLE` | 未找到 `lian-breeding-v1` 解释器 | 满足条件 | 安装环境或设置有效的 `LIAN_PYTHON_BIN` 后重试 |
 | `WORKER_FAILED`、`WORKER_PROTOCOL_ERROR` | Adapter/统计进程失败或响应非法 | 视原因 | 保留运行记录，检查 ToolRun 日志与环境 |
-| `DATASET_REQUIRED`、`TRAIT_NOT_FOUND`、`DATASET_PROJECT_MISMATCH` | 计划输入不合法 | 否 | 重新选择当前项目内的数值 Trait Dataset |
+| `DATASET_REQUIRED`、`TRAIT_NOT_FOUND`、`DATASET_PROJECT_MISMATCH`、`CONVERSATION_PROJECT_MISMATCH` | 计划输入或会话归属不合法 | 否 | 重新选择当前项目内的数值 Trait Dataset 与会话 |
 | `DATA_QUALITY_BLOCKED` | 主键、标识或单位等 QC 为 `fail` | 否 | 先修正来源映射或登记新版本 |
 | `ANALYSIS_NOT_IDENTIFIABLE` | 重复不足、奇异、不收敛或统计输出不成立 | 否 | 补充数据或改做描述分析 |
 | `TASK_PLAN_STATE_INVALID` | 当前计划状态不可开始 | 否 | 刷新后按最新状态操作 |
@@ -130,7 +130,7 @@ type AgentModelRequest = {
 | `TERMINAL_EXEC_FAILED`、`TERMINAL_TASK_FAILED` | Shell 启动或终端任务边界失败 | 是 | 检查本机 Shell 与当前工程环境后重试 |
 | `AGENT_UNAVAILABLE`、`AGENT_TIMEOUT`、`AGENT_PROCESS_EXITED`、`AGENT_PROCESS_RESTARTED`、`AGENT_PROTOCOL_ERROR`、`AGENT_OUTPUT_INVALID`、`MODEL_REQUEST_FAILED` | 常驻 Agent 不可用、超时、崩溃恢复、输出非法或模型请求失败 | 是 | 检查模型配置；下一次请求会自动重启 Agent 并从 SQLite 恢复最近历史 |
 | `AGENT_BUSY`、`AGENT_ABORTED` | 同一会话已有请求，或请求已取消 | 否/是 | 同一会话串行；点击停止后等待 `settled=aborted` |
-| `MODEL_REQUIRED`、`MODEL_INVALID`、`MODEL_NOT_FOUND`、`PROVIDER_URL_INVALID` | 未选择模型、模型引用/地址无效或模型目录不存在 | 否 | 在模型设置中选择或刷新有效模型 |
+| `MODEL_REQUIRED`、`MODEL_INVALID`、`MODEL_NOT_FOUND`、`PROVIDER_ID_INVALID`、`PROVIDER_URL_INVALID` | 未选择模型、Provider/模型引用或地址无效，或模型目录不存在 | 否 | 在模型设置中选择或刷新有效模型 |
 | `KEYCHAIN_UNAVAILABLE`、`KEYCHAIN_READ_FAILED`、`KEYCHAIN_WRITE_FAILED`、`KEYCHAIN_DELETE_FAILED`、`KEYCHAIN_MIGRATION_FAILED` | macOS Keychain 访问、写入、清除或迁移失败 | 是 | 不删除迁移源值，检查系统 Keychain 权限后重试 |
 | `MODEL_REFRESH_FAILED`、`MODEL_CATALOG_INVALID`、`MODEL_CATALOG_EMPTY` | 自定义 Provider 模型目录不可用或格式不合法 | 视原因 | 检查 Base URL、服务状态与 `/models` 响应 |
 | `DB_BUSY`、`WORKFLOW_BUSY`、`IMPORT_TASK_FAILED`、`REGISTER_TASK_FAILED`、`WORKFLOW_TASK_FAILED` | 暂时性执行边界失败 | 是 | 刷新状态后有限次数重试 |

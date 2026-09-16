@@ -29,7 +29,9 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { errorText } from "../../../services/errors";
 import useProviderSettings from "../hooks/useProviderSettings";
+import { isValidCustomProviderUrl } from "../services/registry";
 import type { ModelSelection } from "../types";
 import CustomProviderList from "./CustomProviderList";
 import ProviderKeyForm from "./ProviderKeyForm";
@@ -181,10 +183,11 @@ function AddModelForm({
   };
 
   const submit = async () => {
+    if (saving) return;
     const trimmedName = name.trim();
     if (!trimmedName || !type) return;
     if (type === "llm") {
-      if (!/^https?:\/\/.+/.test(baseUrl.trim()) || !apiKey.trim()) {
+      if (!isValidCustomProviderUrl(baseUrl.trim()) || !apiKey.trim()) {
         toast.warning("请填写 API Key 与有效的 Base URL");
         return;
       }
@@ -194,7 +197,7 @@ function AddModelForm({
         toast.success("LLM 模型已添加");
         reset();
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : String(error));
+        toast.error(errorText(error));
       } finally {
         setSaving(false);
       }
@@ -349,6 +352,10 @@ export function ProviderSettingsPanel() {
       return;
     }
     const separator = value.indexOf("/");
+    if (separator <= 0 || separator === value.length - 1) {
+      selectModel(null);
+      return;
+    }
     selectModel({
       providerId: value.slice(0, separator),
       modelId: value.slice(separator + 1),

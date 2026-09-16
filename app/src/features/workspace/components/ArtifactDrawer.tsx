@@ -18,15 +18,10 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { workspaceApi } from '../../../services/workspace';
+import { errorText } from '../../../services/errors';
 import { statusTone } from '../status';
 import type { Artifact, ArtifactDetail } from '../types';
 import styles from './ArtifactDrawer.module.css';
-
-function errorText(error: unknown) {
-  return typeof error === 'object' && error && 'message' in error
-    ? String(error.message)
-    : String(error);
-}
 
 function ArtifactContent({
   detail,

@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useAppSelector } from '../../../store';
+import { errorText } from '../../../services/errors';
 
 import {
   createBrowserPreviewSnapshot,
@@ -21,12 +22,6 @@ import type { AgentModelRequest } from '../../providers/types';
 import useImportActions from './useImportActions';
 import useWorkspaceLifecycle from './useWorkspaceLifecycle';
 import useReplyStream from './useReplyStream';
-
-function errorText(error: unknown) {
-  return typeof error === 'object' && error && 'message' in error
-    ? String(error.message)
-    : String(error);
-}
 
 export type WorkspaceTab = {
   id: string;

@@ -25,9 +25,32 @@ import type { CustomProviderConfig } from "../types";
 /** 自定义提供商 ID 前缀,与内置提供商命名空间隔离 */
 export const CUSTOM_PROVIDER_PREFIX = "custom-";
 
+/** Provider ID 用作运行时注册表与 Keychain 账户名，只允许有限 ASCII 字符。 */
+export function isValidProviderId(value: string): boolean {
+  return /^[A-Za-z0-9._-]{1,128}$/.test(value);
+}
+
+/** 自定义端点只允许无凭据、无查询参数的 HTTP(S) 根地址，避免把密钥带进配置。 */
+export function isValidCustomProviderUrl(value: string): boolean {
+  if (!value.trim() || /\s/.test(value) || value.length > 2048) return false;
+  try {
+    const url = new URL(value);
+    return (
+      (url.protocol === "http:" || url.protocol === "https:") &&
+      Boolean(url.hostname) &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash
+    );
+  } catch {
+    return false;
+  }
+}
+
 /** 生成自定义提供商的稳定 ID */
 export function generateCustomProviderId(): string {
-  return `${CUSTOM_PROVIDER_PREFIX}${Date.now().toString(36)}`;
+  return `${CUSTOM_PROVIDER_PREFIX}${crypto.randomUUID()}`;
 }
 
 const BUILTIN_FACTORIES = [

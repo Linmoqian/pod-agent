@@ -38,6 +38,7 @@ pub struct AgentManager {
     owner: Arc<()>,
 }
 
+#[derive(Default)]
 struct ManagerState {
     generation: u64,
     process: Option<AgentProcess>,
@@ -57,16 +58,6 @@ struct RuntimePaths {
     model_manifest: PathBuf,
     working_directory: PathBuf,
     use_env_file: bool,
-}
-
-impl Default for ManagerState {
-    fn default() -> Self {
-        Self {
-            generation: 0,
-            process: None,
-            pending: HashMap::new(),
-        }
-    }
 }
 
 impl AgentManager {
@@ -210,7 +201,10 @@ impl AgentManager {
                                 format!("Agent 响应超过 {} 秒", timeout.as_secs()),
                             ));
                         }
-                        return Ok(result.take().expect("result checked above"));
+                        let result = result.ok_or_else(|| {
+                            AppError::retryable("AGENT_PROTOCOL_ERROR", "Agent 缺少 result")
+                        })?;
+                        return Ok(result);
                     }
                     Some("ready") => {}
                     Some("error") => {
@@ -343,10 +337,7 @@ fn write_json_line(stdin: &Arc<Mutex<ChildStdin>>, value: &Value) -> AppResult<(
         .map_err(|error| AppError::retryable("AGENT_PROTOCOL_ERROR", error.to_string()))
 }
 
-fn spawn_process(
-    app: &AppHandle,
-    generation: u64,
-) -> AppResult<(AgentProcess, ChildStdout)> {
+fn spawn_process(app: &AppHandle, generation: u64) -> AppResult<(AgentProcess, ChildStdout)> {
     let paths = runtime_paths(app)?;
     let (yolo_url, yolo_token) = yolo::endpoint(&paths.resource_root)
         .map_err(|error| AppError::retryable("YOLO_UNAVAILABLE", error))?;
@@ -425,19 +416,37 @@ fn runtime_paths(app: &AppHandle) -> AppResult<RuntimePaths> {
 }
 
 fn validate_prompt_request(value: &Value) -> AppResult<()> {
-    if value["protocol"] != Value::from(PROTOCOL_VERSION) || value["type"] != "prompt" {
+    if value["protocol"].as_u64() != Some(PROTOCOL_VERSION)
+        || value["type"].as_str() != Some("prompt")
+    {
         return Err(AppError::new(
             "AGENT_PROTOCOL_ERROR",
             "prompt 协议版本或类型无效",
         ));
     }
     for field in ["requestId", "conversationId", "mode", "message"] {
-        if value[field].as_str().is_none_or(str::is_empty) {
+        let Some(field_value) = value[field].as_str() else {
+            return Err(AppError::new(
+                "AGENT_PROTOCOL_ERROR",
+                format!("prompt 缺少有效字段: {field}"),
+            ));
+        };
+        if field_value.is_empty() {
             return Err(AppError::new(
                 "AGENT_PROTOCOL_ERROR",
                 format!("prompt 缺少有效字段: {field}"),
             ));
         }
+    }
+    for field in ["requestId", "conversationId"] {
+        let field_value = value[field].as_str().ok_or_else(|| {
+            AppError::new(
+                "AGENT_PROTOCOL_ERROR",
+                format!("prompt 缺少有效字段: {field}"),
+            )
+        })?;
+        uuid::Uuid::parse_str(field_value)
+            .map_err(|_| AppError::new("AGENT_PROTOCOL_ERROR", format!("{field} 必须是 UUID")))?;
     }
     if !matches!(value["mode"].as_str(), Some("discuss" | "plan")) {
         return Err(AppError::new("AGENT_PROTOCOL_ERROR", "prompt mode 无效"));
@@ -453,7 +462,7 @@ fn validate_prompt_request(value: &Value) -> AppResult<()> {
 }
 
 fn validate_output(value: &Value) -> Result<(), String> {
-    if value["protocol"] != Value::from(PROTOCOL_VERSION) {
+    if value["protocol"].as_u64() != Some(PROTOCOL_VERSION) {
         return Err("protocol 不是 2".into());
     }
     match value["type"].as_str() {
@@ -506,9 +515,10 @@ fn validate_output(value: &Value) -> Result<(), String> {
 }
 
 fn require_request_id(value: &Value) -> Result<(), String> {
-    if value["requestId"].as_str().is_none_or(str::is_empty) {
+    let Some(request_id) = value["requestId"].as_str() else {
         return Err("缺少 requestId".into());
-    }
+    };
+    uuid::Uuid::parse_str(request_id).map_err(|_| "requestId 不是 UUID".to_string())?;
     Ok(())
 }
 

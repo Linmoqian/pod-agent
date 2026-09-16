@@ -276,12 +276,14 @@ pub async fn send_message(
         planner::discuss(
             &stream_app,
             &manager,
-            &stream_request_id,
-            &stream_conversation_id,
-            model.as_ref(),
-            &content,
-            &history,
-            &context_summary,
+            planner::DiscussRequest {
+                request_id: &stream_request_id,
+                conversation_id: &stream_conversation_id,
+                model: model.as_ref(),
+                message: &content,
+                history: &history,
+                context: &context_summary,
+            },
             move |progress| {
                 if progress.kind == "yolo.task" {
                     if let Ok(mut payload) =
