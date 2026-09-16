@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
   RuntimeAgentReplyDelta,
   RuntimeDropEvent,
+  RuntimeResourceSnapshot,
   RuntimeYoloEvent,
   RuntimeYoloProgressItem,
 } from './types';
@@ -70,6 +71,24 @@ describe('BrowserDebugRuntime', () => {
     expect(pwd).toMatchObject({ stdout: '/workspace/pod-agent\n', success: true });
     expect(unknown).toMatchObject({ success: false });
     expect(unknown.stderr).toContain('不执行命令');
+  });
+
+  it('提供可变化且可重置的浏览器资源监视数据', async () => {
+    const runtime = new BrowserDebugRuntime();
+    const first = await runtime.invoke<RuntimeResourceSnapshot>('system_resources');
+    const second = await runtime.invoke<RuntimeResourceSnapshot>('system_resources');
+
+    expect(first).toMatchObject({ totalMemoryBytes: 16 * 1024 ** 3 });
+    expect(first.cpuPercent).toBeGreaterThanOrEqual(0);
+    expect(first.cpuPercent).toBeLessThanOrEqual(100);
+    expect(first.memoryPercent).toBeGreaterThanOrEqual(0);
+    expect(first.memoryPercent).toBeLessThanOrEqual(100);
+    expect(second.cpuPercent).not.toBe(first.cpuPercent);
+    expect(second.memoryPercent).not.toBe(first.memoryPercent);
+
+    runtime.debug.reset();
+    const reset = await runtime.invoke<RuntimeResourceSnapshot>('system_resources');
+    expect(reset).toEqual(first);
   });
 
   it('Agent 图片请求产生增量回复并创建 YOLO 任务', async () => {

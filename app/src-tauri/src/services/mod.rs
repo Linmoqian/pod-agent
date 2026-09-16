@@ -3,6 +3,7 @@ pub mod credentials;
 pub mod db;
 pub mod planner;
 pub mod research;
+pub mod resources;
 pub mod storage;
 pub mod tools;
 pub mod worker;

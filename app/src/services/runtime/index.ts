@@ -22,6 +22,7 @@ export type {
   RuntimeFile,
   RuntimeImageData,
   RuntimePickOptions,
+  RuntimeResourceSnapshot,
   RuntimeSaveOptions,
   RuntimeUnlisten,
   RuntimeYoloDetection,

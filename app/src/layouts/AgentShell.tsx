@@ -29,6 +29,7 @@ import SettingsModal from '../features/settings/components/SettingsModal';
 import type { Project } from '../features/workspace/types';
 import styles from './AgentShell.module.css';
 import YoloTaskCard, { type YoloTask } from '../features/workspace/components/YoloTaskCard';
+import SystemResourceCard from '../features/workspace/components/SystemResourceCard';
 import {
   DEFAULT_PANEL_LAYOUT,
   PANEL_MAX_WIDTH,
@@ -523,6 +524,7 @@ export default function AgentShell({
             {layout.showImageRecognition && (
               <YoloTaskCard task={yoloTask} onOpenResults={onOpenYoloResults} />
             )}
+            <SystemResourceCard />
             {workbenchContent}
           </div>
         )}

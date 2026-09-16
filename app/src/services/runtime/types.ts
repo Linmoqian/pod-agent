@@ -24,6 +24,13 @@ export type RuntimeImageData = {
   mimeType: string;
 };
 
+export type RuntimeResourceSnapshot = {
+  cpuPercent: number;
+  memoryPercent: number;
+  usedMemoryBytes: number;
+  totalMemoryBytes: number;
+};
+
 export type RuntimeYoloDetection = {
   className: string;
   score: number;

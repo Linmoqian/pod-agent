@@ -1,0 +1,105 @@
+.card {
+  margin: 12px 0;
+  padding: 12px;
+  border: var(--border-default);
+  border-radius: var(--radius-lg);
+  min-width: 0;
+  background: var(--color-surface-default);
+  color: var(--color-text-primary);
+}
+
+.card header,
+.metricHeader,
+.card footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.card header {
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+
+.card header strong,
+.metricHeader span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.card header strong svg,
+.metricHeader span svg {
+  color: var(--color-brand-500);
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+}
+
+.status[data-status='error'] {
+  color: var(--color-state-danger, var(--color-danger-600, #b54747));
+}
+
+.status[data-status='preview'] {
+  color: var(--color-text-tertiary);
+}
+
+.metrics {
+  display: grid;
+  gap: 8px;
+}
+
+.metric {
+  padding: 9px 10px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+}
+
+.metricHeader {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.metricHeader strong {
+  color: var(--color-text-primary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-semibold);
+  text-align: right;
+}
+
+.track {
+  height: 4px;
+  margin-top: 8px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--color-border-default);
+}
+
+.track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-brand-500);
+  transition: width var(--duration-fast) var(--easing-standard), background-color var(--duration-fast) var(--easing-standard);
+}
+
+.track[data-tone='warning'] > span {
+  background: var(--color-state-warning, #c79638);
+}
+
+.track[data-tone='danger'] > span {
+  background: var(--color-state-danger, #b54747);
+}
+
+.card footer {
+  margin-top: 10px;
+  color: var(--color-text-tertiary);
+  font-size: 10px;
+}

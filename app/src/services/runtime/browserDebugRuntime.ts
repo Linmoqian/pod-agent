@@ -31,6 +31,7 @@ import type {
   RuntimeFile,
   RuntimeImageData,
   RuntimePickOptions,
+  RuntimeResourceSnapshot,
   RuntimeSaveOptions,
   RuntimeUnlisten,
   RuntimeYoloDetection,
@@ -314,6 +315,7 @@ export default class BrowserDebugRuntime implements FrontendRuntime {
   private conversationCounter = 0;
   private fileCounter = 0;
   private taskCounter = 0;
+  private resourceSample = 0;
   private currentSnapshot: WorkspaceSnapshot;
   private projects: Project[] = [];
   private terminalAccess = true;
@@ -368,6 +370,20 @@ export default class BrowserDebugRuntime implements FrontendRuntime {
       message,
       timestamp: nowIso(),
     });
+  }
+
+  private getDebugResources(): RuntimeResourceSnapshot {
+    this.resourceSample += 1;
+    const cpuPercent = 18 + ((this.resourceSample * 7) % 24);
+    const memoryPercent = 42 + ((this.resourceSample * 3) % 12);
+    const totalMemoryBytes = 16 * 1024 ** 3;
+    const usedMemoryBytes = Math.round(totalMemoryBytes * memoryPercent / 100);
+    return {
+      cpuPercent,
+      memoryPercent,
+      usedMemoryBytes,
+      totalMemoryBytes,
+    };
   }
 
   private notifyDebug() {
@@ -690,6 +706,7 @@ export default class BrowserDebugRuntime implements FrontendRuntime {
     this.conversationCounter = 0;
     this.fileCounter = 0;
     this.taskCounter = 0;
+    this.resourceSample = 0;
     this.terminalAccess = true;
     this.currentSnapshot = this.createSnapshot('browser-debug');
     this.snapshots.clear();
@@ -1146,6 +1163,8 @@ export default class BrowserDebugRuntime implements FrontendRuntime {
         ] as T;
       case 'yolo_memory_gb':
         return 4 as T;
+      case 'system_resources':
+        return this.getDebugResources() as T;
       case 'yolo_folder_images': {
         const folderPath = String(args.folderPath ?? '');
         return [...this.virtualFiles.values()]

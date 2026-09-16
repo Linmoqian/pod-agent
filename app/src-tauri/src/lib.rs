@@ -37,6 +37,7 @@ pub fn run() {
             services::yolo::yolo_thumbnail,
             services::yolo::yolo_folder_images,
             services::yolo::yolo_drop_images,
+            services::resources::system_resources,
             services::credentials::set_provider_key,
             services::credentials::clear_provider_key,
             services::credentials::get_provider_key_preview,
