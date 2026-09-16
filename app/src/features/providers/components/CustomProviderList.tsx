@@ -12,12 +12,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ProviderRow } from "../hooks/useProviderSettings";
 import styles from "./ProviderSettingsModal.module.css";
+import ProviderKeyForm from "./ProviderKeyForm";
 
 type CustomProviderListProps = {
   customRows: ProviderRow[];
   onAdd: (name: string, baseUrl: string) => void;
   onRemove: (providerId: string) => void;
   onRefreshModels: (providerId: string) => Promise<string | null>;
+  onSaveKey: (providerId: string, key: string) => Promise<void>;
+  onClearKey: (providerId: string) => Promise<void>;
 };
 
 function CustomProviderList({
@@ -25,6 +28,8 @@ function CustomProviderList({
   onAdd,
   onRemove,
   onRefreshModels,
+  onSaveKey,
+  onClearKey,
 }: CustomProviderListProps) {
   const [name, setName] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
@@ -60,37 +65,45 @@ function CustomProviderList({
     <div className={styles.customList}>
       {customRows.map((row) => (
         <div key={row.id} className={styles.customRow}>
-          <div className={styles.customMeta}>
-            <span className={styles.customName}>{row.name}</span>
-            <span className={styles.customUrl}>{row.baseUrl}</span>
-          </div>
-          <div className={styles.customActions}>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8"
-              disabled={refreshingId === row.id}
-              onClick={() => void refresh(row.id)}
-            >
-              <motion.span
-                aria-hidden
-                animate={refreshingId === row.id ? { rotate: 360 } : { rotate: 0 }}
-                transition={{ duration: 0.8, ease: 'linear', repeat: refreshingId === row.id ? Infinity : 0 }}
+          <div className={styles.customTop}>
+            <div className={styles.customMeta}>
+              <span className={styles.customName}>{row.name}</span>
+              <span className={styles.customUrl}>{row.baseUrl}</span>
+            </div>
+            <div className={styles.customActions}>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8"
+                disabled={refreshingId === row.id}
+                onClick={() => void refresh(row.id)}
               >
-                <RotateCw size={14} strokeWidth={1.75} />
-              </motion.span>
-              刷新模型
-            </Button>
-            <Button
-              size="icon-sm"
-              variant="outline"
-              aria-label={`删除 ${row.name}`}
-              className="text-destructive hover:text-destructive"
-              onClick={() => onRemove(row.id)}
-            >
-              <Trash2 size={14} strokeWidth={1.75} />
-            </Button>
+                <motion.span
+                  aria-hidden
+                  animate={refreshingId === row.id ? { rotate: 360 } : { rotate: 0 }}
+                  transition={{ duration: 0.8, ease: 'linear', repeat: refreshingId === row.id ? Infinity : 0 }}
+                >
+                  <RotateCw size={14} strokeWidth={1.75} />
+                </motion.span>
+                刷新模型
+              </Button>
+              <Button
+                size="icon-sm"
+                variant="outline"
+                aria-label={`删除 ${row.name}`}
+                className="text-destructive hover:text-destructive"
+                onClick={() => onRemove(row.id)}
+              >
+                <Trash2 size={14} strokeWidth={1.75} />
+              </Button>
+            </div>
           </div>
+          <ProviderKeyForm
+            providerId={row.id}
+            keyPreview={row.keyPreview}
+            onSave={onSaveKey}
+            onClear={onClearKey}
+          />
         </div>
       ))}
 

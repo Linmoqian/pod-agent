@@ -12,7 +12,13 @@ import type { AgentTool } from '@earendil-works/pi-agent-core';
 import { Type } from 'typebox';
 import { resolveEnvironment } from './conda-environments.ts';
 
-const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+const DEFAULT_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+const ROOT = process.env.POD_AGENT_RESOURCE_ROOT
+  ? resolve(process.env.POD_AGENT_RESOURCE_ROOT)
+  : DEFAULT_ROOT;
+const MODEL_MANIFEST = process.env.POD_AGENT_MODEL_MANIFEST
+  ? resolve(process.env.POD_AGENT_MODEL_MANIFEST)
+  : fileURLToPath(new URL('./yolo-models.json', import.meta.url));
 const SCRIPT = resolve(ROOT, 'tests/YOLO/yolo_tool.py');
 type ModelEntry = { id: string; name: string; path: string; description: string; onnxPath?: string; appleOnnxPath?: string; appleBatch8OnnxPath?: string; classes?: string[]; inputSize?: number };
 type Detection = {
@@ -73,7 +79,7 @@ async function folderImages(folderPath: string, signal?: AbortSignal) {
 }
 
 function modelList(): ModelEntry[] {
-  const entries = JSON.parse(readFileSync(new URL('./yolo-models.json', import.meta.url), 'utf8'));
+  const entries = JSON.parse(readFileSync(MODEL_MANIFEST, 'utf8'));
   if (!Array.isArray(entries) || entries.some((entry) =>
     !entry || ['id', 'name', 'path', 'description'].some((key) =>
       typeof entry[key] !== 'string' || !entry[key].trim())) ||

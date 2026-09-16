@@ -10,6 +10,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { WorkspaceSnapshot } from '../types';
 
 export type AgentReplyDelta = {
+  requestId: string;
   conversationId: string;
   kind: 'thinking' | 'text';
   delta: string;
@@ -36,7 +37,11 @@ export default function useReplyStream(
       let messageIndex = -1;
       for (let index = current.messages.length - 1; index >= 0; index -= 1) {
         const message = current.messages[index];
-        if (message.role === 'assistant' && message.status) {
+        if (
+          message.role === 'assistant' &&
+          message.status &&
+          relevant.some((delta) => delta.requestId === message.requestId)
+        ) {
           messageIndex = index;
           break;
         }

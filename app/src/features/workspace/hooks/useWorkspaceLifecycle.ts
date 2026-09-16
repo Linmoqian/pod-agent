@@ -22,6 +22,8 @@ function isAgentReplyDelta(value: unknown): value is AgentReplyDeltaEvent {
     value !== null &&
     'eventType' in value &&
     value.eventType === 'agent.reply.delta' &&
+    'requestId' in value &&
+    typeof value.requestId === 'string' &&
     'conversationId' in value &&
     typeof value.conversationId === 'string' &&
     'kind' in value &&

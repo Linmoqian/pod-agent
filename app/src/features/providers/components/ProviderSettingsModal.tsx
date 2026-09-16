@@ -1,6 +1,6 @@
 /*
  * 模型提供商设置面板:当前模型选择、内置提供商密钥、自定义 OpenAI 兼容端点。
- * 数据流见 hooks/useProviderSettings;密钥经 CredentialStore 持久化。
+ * 数据流见 hooks/useProviderSettings;密钥经 macOS Keychain 持久化。
  * Created on 2026-09-09
  * Updated on 2026-09-09
  * @author: https://github.com/Linmoqian
@@ -50,6 +50,7 @@ type AddModelType = "llm" | "yolo";
 
 type ConfiguredModel = {
   id: string;
+  providerId?: string;
   name: string;
   type: AddModelType;
   source: string;
@@ -73,7 +74,7 @@ function ModelList({ models, onRemoveLlm, onRemoveYolo }: ModelListProps) {
   });
 
   const removeModel = (model: ConfiguredModel) => {
-    if (model.type === "llm") onRemoveLlm(model.id);
+    if (model.type === "llm") onRemoveLlm(model.providerId ?? model.id);
     else onRemoveYolo(model.id);
   };
 
@@ -192,6 +193,8 @@ function AddModelForm({
         await onAddLlm(trimmedName, baseUrl.trim(), apiKey);
         toast.success("LLM 模型已添加");
         reset();
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : String(error));
       } finally {
         setSaving(false);
       }
@@ -316,14 +319,17 @@ export function ProviderSettingsPanel() {
   const customRows = rows.filter((row) => row.custom);
   const configuredModels: ConfiguredModel[] = [
     ...customProviders
-      .filter((provider) => Boolean(provider.modelId))
-      .map((provider) => ({
-        id: provider.id,
-        name: provider.modelId ?? provider.name,
-        type: "llm" as const,
-        source: provider.name,
-        detail: provider.baseUrl,
-      })),
+      .flatMap((provider) =>
+        (provider.modelIds ?? (provider.modelId ? [provider.modelId] : []))
+          .map((modelId) => ({
+            id: `${provider.id}/${modelId}`,
+            providerId: provider.id,
+            name: modelId,
+            type: "llm" as const,
+            source: provider.name,
+            detail: provider.baseUrl,
+          })),
+      ),
     ...customYoloModels.map((model) => ({
       id: model.id,
       name: model.name,
@@ -423,6 +429,8 @@ export function ProviderSettingsPanel() {
           onAdd={addCustom}
           onRemove={removeCustom}
           onRefreshModels={refreshCustomModels}
+          onSaveKey={saveKey}
+          onClearKey={clearKey}
         />
       </section>
 

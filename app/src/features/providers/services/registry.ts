@@ -1,6 +1,6 @@
 /*
  * 模型提供商注册表:pi-ai Models 集合的应用级单例封装。
- * 内置提供商按常用子集注册;自定义 OpenAI 兼容端点支持 /models 动态发现;
+ * 内置提供商按常用子集注册;自定义 OpenAI 兼容端点只使用 Rust 刷新的模型目录;
  * 配置签名去重,避免无关状态更新时重建并丢失已刷新的动态模型列表。
  * Created on 2026-09-09
  * @author: https://github.com/Linmoqian
@@ -21,7 +21,6 @@ import { moonshotaiProvider } from "@earendil-works/pi-ai/providers/moonshotai";
 import { openaiProvider } from "@earendil-works/pi-ai/providers/openai";
 import { openrouterProvider } from "@earendil-works/pi-ai/providers/openrouter";
 import type { CustomProviderConfig } from "../types";
-import { credentialStore } from "./credentials";
 
 /** 自定义提供商 ID 前缀,与内置提供商命名空间隔离 */
 export const CUSTOM_PROVIDER_PREFIX = "custom-";
@@ -55,16 +54,13 @@ let lastAppliedCustomSignature = "";
 
 export function getModels(): MutableModels {
   if (!modelsInstance) {
-    modelsInstance = createModels({ credentials: credentialStore });
+    // API Key 不进入 WebView 的 pi-ai registry；真正请求由 Rust 从 Keychain 注入 Agent。
+    modelsInstance = createModels();
     for (const factory of BUILTIN_FACTORIES) {
       modelsInstance.setProvider(factory());
     }
   }
   return modelsInstance;
-}
-
-function joinUrl(base: string, path: string): string {
-  return `${base.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
 }
 
 /** OpenAI 兼容端点的模型条目默认值;上下文等限制由端点自行裁剪 */
@@ -92,36 +88,16 @@ function createCustomProvider(config: CustomProviderConfig) {
     id: config.id,
     name: config.name,
     baseUrl: config.baseUrl,
-    // 本地推理服务普遍无鉴权,未存密钥时按已配置的无密钥端点处理
+    // 运行时请求不在 WebView 发出，Node Agent 会使用 Rust 注入的短生命周期密钥。
     auth: {
       apiKey: {
         name: `${config.name} API Key`,
-        resolve: async ({ credential }) =>
-          credential?.key
-            ? {
-                auth: { apiKey: credential.key },
-                source: "stored credential",
-              }
-            : { auth: {}, source: "keyless" },
+        resolve: async () => ({ auth: {}, source: "Rust request" }),
       },
     },
-    models: config.modelId
-      ? [openAiCompatibleModel(config.id, config.baseUrl, config.modelId)]
-      : [],
-    fetchModels: async ({ credential, signal }) => {
-      const key = credential?.type === "api_key" ? credential.key : undefined;
-      const response = await fetch(joinUrl(config.baseUrl, "models"), {
-        signal,
-        headers: key ? { Authorization: `Bearer ${key}` } : undefined,
-      });
-      if (!response.ok) {
-        throw new Error(`拉取模型列表失败: HTTP ${response.status}`);
-      }
-      const payload = (await response.json()) as { data?: Array<{ id: string }> };
-      return (payload.data ?? [])
-        .filter((item) => typeof item.id === "string" && item.id)
-        .map((item) => openAiCompatibleModel(config.id, config.baseUrl, item.id));
-    },
+    models: [...new Set(config.modelIds ?? (config.modelId ? [config.modelId] : []))]
+      .filter(Boolean)
+      .map((modelId) => openAiCompatibleModel(config.id, config.baseUrl, modelId)),
     api: openAICompletionsApi(),
   });
 }
@@ -143,13 +119,6 @@ export function applyCustomProviders(
     models.setProvider(createCustomProvider(config));
   }
   lastAppliedCustomSignature = signature;
-}
-
-/** 刷新指定自定义提供商(缺省为全部)的动态模型列表 */
-export async function refreshCustomProviders(
-  providerIds?: string[],
-): Promise<void> {
-  await getModels().refresh({ providers: providerIds });
 }
 
 /** 按引用解析运行时 Model 对象;未注册或未刷新到时返回 undefined */

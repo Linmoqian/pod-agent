@@ -6,8 +6,9 @@
  * @author: https://github.com/Linmoqian
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { useAppSelector } from '../../../store';
 
 import {
   createBrowserPreviewSnapshot,
@@ -16,6 +17,7 @@ import {
 } from '../../../services/workspace';
 import type { FieldMapping } from '../components/SourceReview';
 import type { ImportInspection, Project, WorkspaceSnapshot } from '../types';
+import type { AgentModelRequest } from '../../providers/types';
 import useImportActions from './useImportActions';
 import useWorkspaceLifecycle from './useWorkspaceLifecycle';
 import useReplyStream from './useReplyStream';
@@ -93,6 +95,7 @@ export default function useWorkspaceController() {
   const [inspection, setInspection] = useState<ImportInspection | null>(null);
   const [intent, setIntent] = useState('');
   const [busy, setBusy] = useState(false);
+  const [activeAgentRequestId, setActiveAgentRequestId] = useState<string | null>(null);
   const [workbenchOpen, setWorkbenchOpen] = useState(true);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [mappingEdits, setMappingEdits] = useState<
@@ -103,6 +106,21 @@ export default function useWorkspaceController() {
   const previewSnapshots = useRef(new Map<string, WorkspaceSnapshot>());
   const previewTabCount = useRef(0);
   const [pendingImportName, setPendingImportName] = useState<string | null>(null);
+  const { currentModel, customProviders } = useAppSelector(
+    (state) => state.providers,
+  );
+  const agentModel = useMemo<AgentModelRequest | undefined>(() => {
+    if (!currentModel) return undefined;
+    const customProvider = customProviders.find(
+      (provider) => provider.id === currentModel.providerId,
+    );
+    return {
+      ...currentModel,
+      ...(customProvider
+        ? { customProvider: { baseUrl: customProvider.baseUrl } }
+        : {}),
+    };
+  }, [currentModel, customProviders]);
 
   const reportError = useCallback(
     (error: unknown) => toast.error(errorText(error)),
@@ -157,17 +175,27 @@ export default function useWorkspaceController() {
       question: string,
       targetConversationId: string,
     ) => {
-      await workspaceApi.submitIntent(
-        targetProjectId,
-        question,
-        [datasetId],
-        targetConversationId,
-      );
-      await refresh(targetConversationId);
-      setIntent('');
-      setWorkbenchOpen(true);
+      const requestId = crypto.randomUUID();
+      setActiveAgentRequestId(requestId);
+      try {
+        await workspaceApi.submitIntent(
+          targetProjectId,
+          question,
+          [datasetId],
+          targetConversationId,
+          requestId,
+          agentModel,
+        );
+        await refresh(targetConversationId);
+        setIntent('');
+        setWorkbenchOpen(true);
+      } finally {
+        setActiveAgentRequestId((current) =>
+          current === requestId ? null : current,
+        );
+      }
     },
-    [refresh],
+    [agentModel, refresh],
   );
 
   const resolveImportTarget = useCallback(
@@ -229,6 +257,7 @@ export default function useWorkspaceController() {
     }
     submittingQuestion.current = true;
     setBusy(true);
+    const requestId = crypto.randomUUID();
     let optimisticAssistantId: string | null = null;
     try {
       const dataset = snapshot.datasets[0];
@@ -244,7 +273,9 @@ export default function useWorkspaceController() {
         // 无数据：lian 仍可讨论、解释、设计与规划。
         const timestamp = new Date().toISOString();
         const optimisticPrefix = `pending:${Date.now()}`;
-        optimisticAssistantId = `${optimisticPrefix}:assistant`;
+        const assistantId = `${optimisticPrefix}:assistant`;
+        optimisticAssistantId = assistantId;
+        setActiveAgentRequestId(requestId);
         setSnapshot((current) =>
           current
             ? {
@@ -260,12 +291,13 @@ export default function useWorkspaceController() {
                     createdAt: timestamp,
                   },
                   {
-                    id: optimisticAssistantId,
+                    id: assistantId,
                     conversationId: current.conversation.id,
                     taskPlanId: null,
                     role: 'assistant',
                     content: '',
                     status: 'pending',
+                    requestId,
                     createdAt: timestamp,
                   },
                 ],
@@ -276,6 +308,8 @@ export default function useWorkspaceController() {
         const context = await workspaceApi.sendMessage(
           snapshot.conversation.id,
           question,
+          requestId,
+          agentModel,
         );
         setSnapshot(context);
       }
@@ -302,10 +336,24 @@ export default function useWorkspaceController() {
       }
       toast.error(message);
     } finally {
+      setActiveAgentRequestId((current) =>
+        current === requestId ? null : current,
+      );
       submittingQuestion.current = false;
       setBusy(false);
     }
   };
+
+  const cancelAgent = useCallback(async () => {
+    const requestId = activeAgentRequestId;
+    if (!requestId) return;
+    try {
+      await workspaceApi.cancelAgent(requestId);
+      toast.info('正在停止 Agent 请求');
+    } catch (error) {
+      reportError(error);
+    }
+  }, [activeAgentRequestId, reportError]);
 
   const confirmPlan = async (planId: string) => {
     setBusy(true);
@@ -514,6 +562,7 @@ export default function useWorkspaceController() {
     inspection,
     intent,
     busy,
+    canCancel: activeAgentRequestId !== null,
     workbenchOpen,
     activeRunId,
     mappingEdits,
@@ -524,6 +573,7 @@ export default function useWorkspaceController() {
     submitQuestion,
     confirmPlan,
     cancelWorkflow,
+    cancelAgent,
     switchProject,
     createProject,
     archiveProject,

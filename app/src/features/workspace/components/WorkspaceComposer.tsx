@@ -5,7 +5,7 @@
  * @author: https://github.com/Linmoqian
  */
 
-import { Plus, ArrowUp, Loader2, X, FileUp, FolderOpen, Database, Keyboard } from 'lucide-react';
+import { Plus, ArrowUp, Loader2, X, FileUp, FolderOpen, Database, Keyboard, Square } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useLayoutEffect, useRef, useState } from 'react';
 
@@ -22,19 +22,24 @@ import styles from './WorkspaceComposer.module.css';
 type WorkspaceComposerProps = {
   intent: string;
   busy: boolean;
+  canCancel: boolean;
   onIntentChange: (value: string) => void;
   onChooseData: (directory: boolean) => void;
   onSubmit: () => void;
+  onCancel: () => void;
 };
 
 export default function WorkspaceComposer({
   intent,
   busy,
+  canCancel,
   onIntentChange,
   onChooseData,
   onSubmit,
+  onCancel,
 }: WorkspaceComposerProps) {
   const canSubmit = Boolean(intent.trim()) && !busy;
+  const canStop = busy && canCancel;
   const input = useRef<HTMLTextAreaElement>(null);
   const [guidanceVisible, setGuidanceVisible] = useState(true);
   useLayoutEffect(() => {
@@ -145,19 +150,22 @@ export default function WorkspaceComposer({
           )}
         </div>
         <button
-          aria-label="提交研究问题"
-          className={styles.send}
-          onClick={onSubmit}
-          disabled={!canSubmit}
+          aria-label={canStop ? '停止 Agent 请求' : '提交研究问题'}
+          title={canStop ? '停止 Agent 请求' : '提交研究问题'}
+          className={`${styles.send} ${canStop ? styles.stop : ''}`}
+          onClick={canStop ? onCancel : onSubmit}
+          disabled={busy ? !canStop : !canSubmit}
         >
           {busy ? (
-            <motion.span
-              aria-hidden
-              animate={{ rotate: 360 }}
-              transition={{ duration: 0.8, ease: 'linear', repeat: Infinity }}
-            >
-              <Loader2 size={16} />
-            </motion.span>
+            canStop ? <Square size={13} fill="currentColor" aria-hidden /> : (
+              <motion.span
+                aria-hidden
+                animate={{ rotate: 360 }}
+                transition={{ duration: 0.8, ease: 'linear', repeat: Infinity }}
+              >
+                <Loader2 size={16} />
+              </motion.span>
+            )
           ) : (
             <ArrowUp size={17} strokeWidth={2} />
           )}

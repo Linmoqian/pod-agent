@@ -1,20 +1,36 @@
 /*
- * lian 受控 Agent 进程通信：plan（结构化计划）与 discuss（自由讨论）两种请求。
+ * 受控 Agent 请求组装：把 SQLite 上下文与非敏感模型选择交给常驻 Node Agent。
  * Created on 2026-09-12
- * Updated on 2026-09-14
+ * Updated on 2026-09-16
  * @author: https://github.com/Linmoqian
  */
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::io::{BufRead, BufReader, Write};
-use std::path::Path;
-use std::process::{Command, Stdio};
-use std::sync::mpsc;
-use std::time::{Duration, Instant};
+use std::cell::RefCell;
+use std::collections::HashSet;
+use std::time::Duration;
+use tauri::AppHandle;
 
 use crate::domain::Dataset;
 use crate::error::{AppError, AppResult};
+use crate::services::{agent::AgentManager, credentials};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomProviderRequest {
+    pub base_url: String,
+}
+
+/// 前端只能提交 Provider/Model 引用；完整 API Key 由 Rust 从 Keychain 注入 Agent stdin。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentModelRequest {
+    pub provider_id: String,
+    pub model_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_provider: Option<CustomProviderRequest>,
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -25,200 +41,197 @@ pub struct AgentProposal {
     pub summary: String,
 }
 
-/// 讨论模式的历史消息（由 Rust 折叠后下发，Agent 进程不自行拉取）。
+/// 讨论模式的历史消息（由 Rust 从 SQLite 截取后下发）。
 pub struct DiscussTurn {
     pub role: String,
     pub content: String,
 }
 
-/// 讨论模式的真实模型输出。`reasoning` 仅在当前模型实际返回思考增量时存在。
+/// 讨论模式的真实模型输出。`reasoning` 仅在模型实际返回思考增量时存在。
 pub struct DiscussReply {
     pub text: String,
     pub reasoning: Option<String>,
 }
 
-/// Agent 推送的真实增量；只接受 Pi 产生的 thinking/text 片段。
+/// Agent 推送的真实增量；YOLO 事件的 JSON 负载仍只在 Rust 内部流转。
 pub struct AgentProgress {
     pub kind: String,
     pub delta: String,
 }
 
 fn clean_json(text: &str) -> &str {
-    text.trim()
+    let trimmed = text.trim();
+    let without_prefix = trimmed
         .strip_prefix("```json")
-        .or_else(|| text.trim().strip_prefix("```"))
-        .unwrap_or(text.trim())
-        .trim()
+        .or_else(|| trimmed.strip_prefix("```"))
+        .unwrap_or(trimmed)
+        .trim();
+    without_prefix
         .strip_suffix("```")
-        .unwrap_or(text.trim())
+        .unwrap_or(without_prefix)
         .trim()
 }
 
-/// 与受控 Agent 进程完成一次 JSONL 请求/响应，超时即终止进程。
-fn agent_request(
-    app_dir: &Path,
-    request: Value,
-    response_type: &str,
-    timeout: Duration,
-    on_progress: Option<&dyn Fn(&AgentProgress)>,
-) -> AppResult<Value> {
-    let script = app_dir.join("agent").join("agent.ts");
-    let (yolo_url, yolo_token) = super::yolo::endpoint(app_dir.parent().unwrap_or(app_dir))
-        .map_err(|error| AppError::new("YOLO_UNAVAILABLE", error))?;
-    let mut child = Command::new("node")
-        .env("YOLO_ONNX_URL", yolo_url)
-        .env("YOLO_ONNX_TOKEN", yolo_token)
-        .arg("--env-file-if-exists=agent/.env")
-        .arg(script)
-        .current_dir(app_dir)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .map_err(|error| AppError::retryable("AGENT_UNAVAILABLE", error.to_string()))?;
-    let request_id = request["requestId"]
-        .as_str()
-        .unwrap_or_default()
-        .to_string();
-    let mut stdin = child
-        .stdin
-        .take()
-        .ok_or_else(|| AppError::new("AGENT_PROTOCOL_ERROR", "无法写入 Agent 进程"))?;
-    stdin
-        .write_all(format!("{request}\n").as_bytes())
-        .map_err(|error| AppError::new("AGENT_PROTOCOL_ERROR", error.to_string()))?;
-    drop(stdin);
-    let stdout = child
-        .stdout
-        .take()
-        .ok_or_else(|| AppError::new("AGENT_PROTOCOL_ERROR", "无法读取 Agent 输出"))?;
-    let (line_sender, line_receiver) = mpsc::channel();
-    std::thread::spawn(move || {
-        for line in BufReader::new(stdout).lines() {
-            if line_sender.send(line).is_err() {
-                break;
-            }
-        }
-    });
-    let started = Instant::now();
-    let mut result = None;
-    while result.is_none() {
-        let elapsed = started.elapsed();
-        if elapsed > timeout {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err(AppError::retryable(
-                "AGENT_TIMEOUT",
-                format!("Agent 响应超过 {} 秒", timeout.as_secs()),
+fn validate_request_id(request_id: &str) -> AppResult<()> {
+    uuid::Uuid::parse_str(request_id)
+        .map(|_| ())
+        .map_err(|_| AppError::new("REQUEST_ID_INVALID", "Agent 请求 ID 必须是 UUID"))
+}
+
+fn validate_model_request(model: &AgentModelRequest) -> AppResult<()> {
+    if model.provider_id.trim().is_empty() || model.model_id.trim().is_empty() {
+        return Err(AppError::new("MODEL_REQUIRED", "请选择可用模型"));
+    }
+    if model.provider_id.len() > 128 || model.model_id.len() > 512 {
+        return Err(AppError::new("MODEL_INVALID", "模型引用长度无效"));
+    }
+    if let Some(custom) = &model.custom_provider {
+        if !model.provider_id.starts_with("custom-") {
+            return Err(AppError::new(
+                "MODEL_INVALID",
+                "自定义 Provider ID 必须使用 custom- 前缀",
             ));
         }
-        let remaining = timeout.saturating_sub(elapsed);
-        match line_receiver.recv_timeout(remaining.min(Duration::from_millis(100))) {
-            Ok(Ok(line)) => {
-                let Ok(value) = serde_json::from_str::<Value>(&line) else {
-                    continue;
-                };
-                if value["requestId"].as_str() != Some(&request_id) {
-                    continue;
-                }
-                if value["type"] == "discuss.delta" {
-                    let kind = value["kind"].as_str().unwrap_or_default();
-                    let delta = value["delta"].as_str().unwrap_or_default();
-                    if matches!(kind, "thinking" | "text") && !delta.is_empty() {
-                        if let Some(callback) = on_progress {
-                            callback(&AgentProgress {
-                                kind: kind.into(),
-                                delta: delta.into(),
-                            });
-                        }
-                    }
-                } else if value["type"] == "yolo.task" {
-                    if let Some(callback) = on_progress {
-                        callback(&AgentProgress { kind: "yolo.task".into(), delta: value.to_string() });
-                    }
-                } else if value["type"] == response_type {
-                    result = Some(value);
-                }
-            }
-            Ok(Err(error)) => {
-                return Err(AppError::retryable(
-                    "AGENT_PROTOCOL_ERROR",
-                    error.to_string(),
-                ));
-            }
-            Err(mpsc::RecvTimeoutError::Timeout) => {
-                if child
-                    .try_wait()
-                    .map_err(|error| AppError::retryable("AGENT_FAILED", error.to_string()))?
-                    .is_some()
-                {
-                    break;
-                }
-            }
-            Err(mpsc::RecvTimeoutError::Disconnected) => break,
+        let valid_url = !custom.base_url.is_empty()
+            && !custom.base_url.chars().any(char::is_whitespace)
+            && custom.base_url.len() <= 2048
+            && (custom.base_url.starts_with("http://") || custom.base_url.starts_with("https://"));
+        if !valid_url {
+            return Err(AppError::new(
+                "PROVIDER_URL_INVALID",
+                "自定义 Provider 地址无效",
+            ));
         }
-    }
-    child
-        .wait()
-        .map_err(|error| AppError::retryable("AGENT_FAILED", error.to_string()))?;
-    result.ok_or_else(|| AppError::new("AGENT_PROTOCOL_ERROR", "Agent 进程未返回结果"))
-}
-
-fn check_agent_ok(response: &Value) -> AppResult<()> {
-    if response["ok"] != Value::Bool(true) {
-        return Err(AppError::retryable(
-            "AGENT_FAILED",
-            response["error"].as_str().unwrap_or("Agent 调用失败"),
-        ));
     }
     Ok(())
 }
 
+fn model_payload(model: Option<&AgentModelRequest>) -> AppResult<Value> {
+    let Some(model) = model else {
+        if cfg!(debug_assertions) {
+            // 开发态允许 Node 从 agent/.env 取得默认模型；发行态由 UI 显式选择。
+            return Ok(json!({}));
+        }
+        return Err(AppError::new("MODEL_REQUIRED", "发行版必须先选择模型"));
+    };
+    validate_model_request(model)?;
+    let mut payload = serde_json::to_value(model)
+        .map_err(|error| AppError::new("MODEL_INVALID", error.to_string()))?;
+    if let Some(key) = credentials::read_provider_key(&model.provider_id)? {
+        if let Some(object) = payload.as_object_mut() {
+            // 该私有字段只存在于 Rust 到 Agent 的内存 JSONL；不会返回给 WebView、SQLite 或事件。
+            object.insert("apiKey".into(), Value::String(key));
+        }
+    }
+    Ok(payload)
+}
+
+fn check_agent_ok(response: &Value) -> AppResult<()> {
+    if response["ok"].as_bool() == Some(true) {
+        return Ok(());
+    }
+    let code = response["errorCode"].as_str().unwrap_or("AGENT_FAILED");
+    let message = response["error"].as_str().unwrap_or("Agent 调用失败");
+    let retryable = !matches!(
+        code,
+        "MODEL_REQUIRED" | "MODEL_INVALID" | "MODEL_NOT_FOUND" | "PROVIDER_URL_INVALID"
+    );
+    if retryable {
+        Err(AppError::retryable(code, message))
+    } else {
+        Err(AppError::new(code, message))
+    }
+}
+
+fn emit_progress(value: &Value, on_progress: &impl Fn(&AgentProgress)) {
+    match value["eventType"].as_str() {
+        Some("reply.delta") => {
+            let kind = value["kind"].as_str().unwrap_or_default();
+            let delta = value["delta"].as_str().unwrap_or_default();
+            if matches!(kind, "thinking" | "text") && !delta.is_empty() {
+                on_progress(&AgentProgress {
+                    kind: kind.into(),
+                    delta: delta.into(),
+                });
+            }
+        }
+        Some("yolo.task") => {
+            if let Some(task) = value.get("task") {
+                on_progress(&AgentProgress {
+                    kind: "yolo.task".into(),
+                    delta: task.to_string(),
+                });
+            }
+        }
+        _ => {}
+    }
+}
+
 pub fn propose(
-    app_dir: &Path,
+    app: &AppHandle,
+    manager: &AgentManager,
+    request_id: &str,
+    conversation_id: &str,
+    model: Option<&AgentModelRequest>,
     intent: &str,
     dataset: &Dataset,
 ) -> AppResult<(AgentProposal, String)> {
+    validate_request_id(request_id)?;
+    uuid::Uuid::parse_str(conversation_id)
+        .map_err(|_| AppError::new("CONVERSATION_ID_INVALID", "会话 ID 无效"))?;
     let request = json!({
-        "requestId": uuid::Uuid::new_v4().to_string(),
-        "type": "plan",
-        "intent": intent,
-        "dataset": {
-            "id": dataset.id,
-            "name": dataset.name,
-            "schema": dataset.schema,
-            "qualityStatus": dataset.quality_status
-        }
+        "protocol": 2,
+        "type": "prompt",
+        "requestId": request_id,
+        "conversationId": conversation_id,
+        "mode": "plan",
+        "model": model_payload(model)?,
+        "history": [],
+        "context": {},
+        "message": serde_json::to_string(&json!({
+            "intent": intent,
+            "dataset": {
+                "id": dataset.id,
+                "name": dataset.name,
+                "schema": dataset.schema,
+                "qualityStatus": dataset.quality_status
+            }
+        }))
+        .map_err(|error| AppError::new("AGENT_PROTOCOL_ERROR", error.to_string()))?
     });
-    let response = agent_request(
-        app_dir,
-        request,
-        "plan.result",
-        Duration::from_secs(45),
-        None,
-    )?;
+    let response = manager.prompt(app, request, Duration::from_secs(45), |_| {})?;
     check_agent_ok(&response)?;
-    let proposal = serde_json::from_str(clean_json(
-        response["proposal"].as_str().unwrap_or_default(),
-    ))
-    .map_err(|error| AppError::retryable("AGENT_OUTPUT_INVALID", error.to_string()))?;
-    Ok((
-        proposal,
-        response["model"].as_str().unwrap_or("unknown").to_string(),
-    ))
+    let reply = response["reply"]
+        .as_str()
+        .ok_or_else(|| AppError::retryable("AGENT_OUTPUT_INVALID", "Agent 计划回复缺少文本"))?;
+    let proposal = serde_json::from_str(clean_json(reply))
+        .map_err(|error| AppError::retryable("AGENT_OUTPUT_INVALID", error.to_string()))?;
+    let model_name = response["model"].as_str().unwrap_or("unknown").to_string();
+    Ok((proposal, model_name))
 }
 
 /// 讨论模式：无真实数据也可回答，但上下文里明确声明当前拥有什么，禁止虚构。
 pub fn discuss(
-    app_dir: &Path,
+    app: &AppHandle,
+    manager: &AgentManager,
+    request_id: &str,
+    conversation_id: &str,
+    model: Option<&AgentModelRequest>,
     message: &str,
     history: &[DiscussTurn],
     context: &Value,
     on_progress: impl Fn(&AgentProgress),
 ) -> AppResult<DiscussReply> {
+    validate_request_id(request_id)?;
+    uuid::Uuid::parse_str(conversation_id)
+        .map_err(|_| AppError::new("CONVERSATION_ID_INVALID", "会话 ID 无效"))?;
     let request = json!({
-        "requestId": uuid::Uuid::new_v4().to_string(),
-        "type": "discuss",
+        "protocol": 2,
+        "type": "prompt",
+        "requestId": request_id,
+        "conversationId": conversation_id,
+        "mode": "discuss",
+        "model": model_payload(model)?,
         "message": message,
         "history": history
             .iter()
@@ -226,29 +239,29 @@ pub fn discuss(
             .collect::<Vec<_>>(),
         "context": context
     });
-    let active = std::cell::RefCell::new(std::collections::HashSet::<String>::new());
-    let forward = |progress: &AgentProgress| {
-        if progress.kind == "yolo.task" {
-            if let Ok(event) = serde_json::from_str::<Value>(&progress.delta) {
-                if let Some(id) = event["id"].as_str() {
-                    if matches!(event["status"].as_str(), Some("queued" | "running")) { active.borrow_mut().insert(id.into()); }
-                    else { active.borrow_mut().remove(id); }
+    let active = RefCell::new(HashSet::<String>::new());
+    let response = manager.prompt(app, request, Duration::from_secs(15 * 60), |event| {
+        if event["eventType"] == "yolo.task" {
+            if let Some(task_id) = event["task"]["id"].as_str() {
+                if matches!(event["task"]["status"].as_str(), Some("queued" | "running")) {
+                    active.borrow_mut().insert(task_id.into());
+                } else {
+                    active.borrow_mut().remove(task_id);
                 }
             }
         }
-        on_progress(progress);
-    };
-    let response = agent_request(
-        app_dir,
-        request,
-        "discuss.result",
-        Duration::from_secs(15 * 60),
-        Some(&forward),
-    );
-    for id in active.borrow().iter() {
-        on_progress(&AgentProgress { kind: "yolo.task".into(), delta: json!({
-            "id": id, "status": "error", "message": "工具进程已结束，未收到识别结果"
-        }).to_string() });
+        emit_progress(event, &on_progress);
+    });
+    for task_id in active.borrow().iter() {
+        on_progress(&AgentProgress {
+            kind: "yolo.task".into(),
+            delta: json!({
+                "id": task_id,
+                "status": "error",
+                "message": "Agent 进程已结束，未收到识别结果"
+            })
+            .to_string(),
+        });
     }
     let response = response?;
     check_agent_ok(&response)?;
@@ -257,12 +270,10 @@ pub fn discuss(
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(str::to_string);
-    Ok(DiscussReply {
-        text: response["reply"]
-            .as_str()
-            .unwrap_or_default()
-            .trim()
-            .to_string(),
-        reasoning,
-    })
+    let text = response["reply"]
+        .as_str()
+        .ok_or_else(|| AppError::retryable("AGENT_OUTPUT_INVALID", "Agent 讨论回复缺少文本"))?
+        .trim()
+        .to_string();
+    Ok(DiscussReply { text, reasoning })
 }

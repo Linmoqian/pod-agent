@@ -1,59 +1,64 @@
 /*
- * Created on 2026-09-09
+ * Created on 2026-09-16
  * @author: https://github.com/Linmoqian
  */
 
-import { beforeEach, describe, expect, it } from "vitest";
-import type { Credential } from "@earendil-works/pi-ai";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
+
+vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }));
+
 import {
   clearProviderKey,
   getKeyPreview,
-  localStorageCredentialStore,
   saveProviderKey,
-} from "./credentials";
+} from './credentials';
 
-describe("localStorage 凭证存储", () => {
+describe('Keychain 凭据客户端', () => {
+  const keychain = new Map<string, string>();
+
   beforeEach(() => {
-    window.localStorage.clear();
+    keychain.clear();
+    invokeMock.mockReset();
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      configurable: true,
+      value: {},
+    });
+    invokeMock.mockImplementation(async (command: string, args?: unknown) => {
+      const payload = (args ?? {}) as { providerId?: string; key?: string };
+      if (command === 'set_provider_key' && payload.providerId && payload.key) {
+        keychain.set(payload.providerId, payload.key);
+        return undefined;
+      }
+      if (command === 'clear_provider_key' && payload.providerId) {
+        keychain.delete(payload.providerId);
+        return undefined;
+      }
+      if (command === 'get_provider_key_preview' && payload.providerId) {
+        const key = keychain.get(payload.providerId);
+        return key ? `••••${key.slice(-4)}` : null;
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
   });
 
-  it("保存后可读取,密钥尾缀预览正确", async () => {
-    await saveProviderKey("anthropic", "sk-ant-1234");
-    const credential = await localStorageCredentialStore().read("anthropic");
-    expect(credential).toEqual({ type: "api_key", key: "sk-ant-1234" });
-    expect(await getKeyPreview("anthropic")).toBe("••••1234");
+  it('保存只调用 Rust，并只返回密钥尾部预览', async () => {
+    await saveProviderKey('anthropic', ' sk-ant-1234 ');
+    expect(keychain.get('anthropic')).toBe('sk-ant-1234');
+    expect(await getKeyPreview('anthropic')).toBe('••••1234');
+    expect(invokeMock).toHaveBeenCalledWith('set_provider_key', {
+      providerId: 'anthropic',
+      key: 'sk-ant-1234',
+    });
   });
 
-  it("list 只暴露元数据,不含密钥本体", async () => {
-    await saveProviderKey("openai", "sk-secret");
-    const list = await localStorageCredentialStore().list();
-    expect(list).toEqual([{ providerId: "openai", type: "api_key" }]);
-  });
-
-  it("清除后读取为空,预览返回 null", async () => {
-    await saveProviderKey("deepseek", "sk-x");
-    await clearProviderKey("deepseek");
-    expect(await localStorageCredentialStore().read("deepseek")).toBeUndefined();
-    expect(await getKeyPreview("deepseek")).toBeNull();
-  });
-
-  it("保存空串等效于清除", async () => {
-    await saveProviderKey("google", "g-key");
-    await saveProviderKey("google", "  ");
-    expect(await localStorageCredentialStore().read("google")).toBeUndefined();
-  });
-
-  it("modify 是串行化读-改-写:并发写不丢失", async () => {
-    const store = localStorageCredentialStore();
-    // fn 使用入参 current,契约禁止在 fn 内重入 store 读取(会死锁)
-    const appendA = async (current: Credential | undefined) => {
-      const base = current?.type === "api_key" ? (current.key ?? "") : "";
-      // 在读与写之间插入延迟,放大竞态窗口
-      await new Promise((resolve) => setTimeout(resolve, 5));
-      return { type: "api_key" as const, key: `${base}a` };
-    };
-    await Promise.all([store.modify("p", appendA), store.modify("p", appendA)]);
-    const credential = await store.read("p");
-    expect(credential?.type === "api_key" && credential.key).toBe("aa");
+  it('清除和保存空串都不会留下本地凭据', async () => {
+    await saveProviderKey('deepseek', 'sk-x');
+    await saveProviderKey('deepseek', '  ');
+    expect(await getKeyPreview('deepseek')).toBeNull();
+    await saveProviderKey('openai', 'sk-y');
+    await clearProviderKey('openai');
+    expect(await getKeyPreview('openai')).toBeNull();
   });
 });

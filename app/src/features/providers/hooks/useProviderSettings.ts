@@ -13,6 +13,7 @@ import {
   removeCustomYoloModel,
   removeCustomProvider,
   setCurrentModel,
+  setCustomProviderModels,
 } from "../store/providersSlice";
 import type { ModelSelection } from "../types";
 import {
@@ -26,6 +27,7 @@ import {
   getKeyPreview,
   saveProviderKey,
 } from "../services/credentials";
+import { isTauriRuntime, workspaceApi } from "../../../services/workspace";
 
 /** 面板展示的提供商行数据 */
 export type ProviderRow = {
@@ -48,7 +50,7 @@ async function collectProviderRows(): Promise<ProviderRow[]> {
   const previews = new Map(
     await Promise.all(
       providers.map(async (provider) => {
-        const preview = await getKeyPreview(provider.id);
+        const preview = await getKeyPreview(provider.id).catch(() => null);
         return [provider.id, preview] as const;
       }),
     ),
@@ -137,7 +139,7 @@ export function useProviderSettings() {
           id,
           name,
           baseUrl: baseUrl.replace(/\/+$/, ""),
-          modelId: name,
+          modelIds: [name],
         }),
       );
       await saveProviderKey(id, key);
@@ -174,13 +176,22 @@ export function useProviderSettings() {
   /** 刷新自定义端点的动态模型目录;成功返回 null,失败返回错误文案 */
   const refreshCustomModels = useCallback(
     async (providerId: string): Promise<string | null> => {
-      const result = await getModels().refresh({ providers: [providerId] });
-      const error = result.errors.get(providerId);
-      if (error) return error.message;
-      setCatalogTick((tick) => tick + 1);
-      return null;
+      if (!isTauriRuntime()) return '模型刷新需要在 Tauri 桌面端执行';
+      const config = customProviders.find((provider) => provider.id === providerId);
+      if (!config) return '自定义 Provider 不存在';
+      try {
+        const modelIds = await workspaceApi.refreshProviderModels(
+          providerId,
+          config.baseUrl,
+        );
+        dispatch(setCustomProviderModels({ providerId, modelIds }));
+        setCatalogTick((tick) => tick + 1);
+        return null;
+      } catch (error) {
+        return error instanceof Error ? error.message : String(error);
+      }
     },
-    [],
+    [customProviders, dispatch],
   );
 
   const modelGroups = useMemo<ModelOptionGroup[]>(

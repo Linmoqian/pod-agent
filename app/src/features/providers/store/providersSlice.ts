@@ -1,6 +1,6 @@
 /*
  * 模型提供商状态:自定义端点配置与当前模型选择,均为可序列化数据。
- * 运行时 Model 对象与密钥不进 Redux,使用时经 registry/credentialStore 解析。
+ * 运行时 Model 对象与密钥不进 Redux；密钥仅由 Rust Keychain 注入 Agent。
  * Created on 2026-09-09
  * @author: https://github.com/Linmoqian
  */
@@ -40,6 +40,18 @@ export const providersSlice = createSlice({
     ) {
       state.customProviders.push(action.payload);
     },
+    setCustomProviderModels(
+      state,
+      action: PayloadAction<{ providerId: string; modelIds: string[] }>,
+    ) {
+      const provider = state.customProviders.find(
+        (config) => config.id === action.payload.providerId,
+      );
+      if (provider) {
+        provider.modelIds = action.payload.modelIds;
+        delete provider.modelId;
+      }
+    },
     setCustomYoloModels(
       state,
       action: PayloadAction<CustomYoloModelConfig[]>,
@@ -78,6 +90,7 @@ export const providersSlice = createSlice({
 export const {
   setCustomProviders,
   addCustomProvider,
+  setCustomProviderModels,
   setCustomYoloModels,
   addCustomYoloModel,
   removeCustomYoloModel,

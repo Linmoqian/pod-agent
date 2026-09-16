@@ -118,6 +118,11 @@ it('自由对话在 Agent 返回前立即展示提问和生成中回复', async 
   render(<Root />);
   const input = await screen.findByLabelText('研究问题');
   await user.type(input, '如何安排田间重复？{enter}');
+  const sendCall = mocks.invoke.mock.calls.find(
+    ([command]) => command === 'send_message',
+  );
+  const requestId = (sendCall?.[1] as { requestId?: string } | undefined)?.requestId;
+  if (!requestId) throw new Error('未生成 Agent requestId');
   expect(await screen.findByText('如何安排田间重复？')).toBeInTheDocument();
   expect(screen.getByText('正在生成回复')).toHaveAttribute('role', 'status');
   await waitFor(() =>
@@ -136,6 +141,7 @@ it('自由对话在 Agent 返回前立即展示提问和生成中回复', async 
   listener({
     payload: {
       eventType: 'agent.reply.delta',
+      requestId,
       conversationId: conversation.id,
       kind: 'thinking',
       delta: '先确认试验目标。',
@@ -144,6 +150,7 @@ it('自由对话在 Agent 返回前立即展示提问和生成中回复', async 
   listener({
     payload: {
       eventType: 'agent.reply.delta',
+      requestId,
       conversationId: conversation.id,
       kind: 'text',
       delta: '建议每个环境至少设置 3 个重复。',

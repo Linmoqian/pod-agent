@@ -75,5 +75,52 @@ jobs:
         with:
           workspaces: app/src-tauri
 
+      - name: 准备 Tauri 资源占位目录
+        run: |
+          mkdir -p ../dist-agent/agent-resources ../dist-agent/node-runtime
+          touch ../dist-agent/agent.mjs
+
       - name: cargo check（锁文件校验）
         run: cargo check --locked
+
+  agent-assets:
+    name: Agent 随包资源（${{ matrix.arch }}）
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            arch: arm64
+          - os: macos-13
+            arch: x64
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+
+      - name: 安装依赖（锁文件）
+        run: pnpm install --frozen-lockfile
+
+      - name: 构建 Agent bundle
+        run: pnpm build:agent
+
+      - name: 下载并校验 Node.js 运行时
+        run: pnpm fetch:node-runtime -- --arch=${{ matrix.arch }}
+
+      - name: 校验随包 Node.js 版本
+        run: pnpm fetch:node-runtime -- --arch=${{ matrix.arch }} --check

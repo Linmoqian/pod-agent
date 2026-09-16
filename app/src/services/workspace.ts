@@ -18,6 +18,7 @@ import type {
   WorkspaceFilePreview,
   WorkspaceSnapshot,
 } from '../features/workspace/types';
+import type { AgentModelRequest } from '../features/providers/types';
 
 /** 普通浏览器只用于 UI 预览;真实 IPC 仅在 Tauri WebView 中可用。 */
 export function isTauriRuntime() {
@@ -263,10 +264,17 @@ export const workspaceApi = {
   cloneConversation(conversationId: string) {
     return invoke<WorkspaceSnapshot>('clone_conversation', { conversationId });
   },
-  sendMessage(conversationId: string, content: string) {
+  sendMessage(
+    conversationId: string,
+    content: string,
+    requestId: string,
+    model?: AgentModelRequest,
+  ) {
     return invoke<WorkspaceSnapshot>('send_message', {
       conversationId,
       content,
+      requestId,
+      model,
     });
   },
   promoteConversation(conversationId: string, name: string) {
@@ -306,24 +314,40 @@ export const workspaceApi = {
     intent: string,
     datasetIds: string[],
     conversationId: string,
+    requestId: string,
+    model?: AgentModelRequest,
   ) {
     return invoke<TaskPlan>('submit_agent_intent', {
       projectId,
       intent,
       datasetIds,
       conversationId,
+      requestId,
+      model,
     });
   },
   submitResearchIntent(
     projectId: string,
     intent: string,
     inputs: Array<{ kind: string; id: string }>,
+    conversationId: string | undefined,
+    requestId: string,
+    model?: AgentModelRequest,
   ) {
     return invoke<TaskPlan>('submit_research_intent', {
       projectId,
       intent,
       inputs,
+      conversationId,
+      requestId,
+      model,
     });
+  },
+  cancelAgent(requestId: string) {
+    return invoke<void>('cancel_agent', { requestId });
+  },
+  refreshProviderModels(providerId: string, baseUrl: string) {
+    return invoke<string[]>('refresh_provider_models', { providerId, baseUrl });
   },
   confirmPlan(planId: string) {
     return invoke<WorkflowRun>('confirm_task_plan', { planId });

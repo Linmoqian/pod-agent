@@ -226,6 +226,8 @@ fn agent_context_summary(context: &ConversationContext) -> Value {
 pub async fn send_message(
     conversation_id: String,
     content: String,
+    request_id: String,
+    model: Option<planner::AgentModelRequest>,
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> AppResult<ConversationContext> {
@@ -233,6 +235,8 @@ pub async fn send_message(
     if content.is_empty() {
         return Err(AppError::new("MESSAGE_REQUIRED", "消息内容不能为空"));
     }
+    uuid::Uuid::parse_str(&request_id)
+        .map_err(|_| AppError::new("REQUEST_ID_INVALID", "Agent 请求 ID 必须是 UUID"))?;
     let (conversation, history, context_summary) = {
         let connection = state
             .connection
@@ -261,28 +265,40 @@ pub async fn send_message(
             .map_err(|_| AppError::retryable("DB_BUSY", "数据库暂时不可用"))?;
         db::insert_message(&connection, &conversation.id, None, "user", &content, None)?;
     }
-    let app_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
     let stream_app = app.clone();
     let stream_conversation_id = conversation.id.clone();
+    let stream_request_id = request_id.clone();
+    let manager = state.agent.clone();
+    let event_app = stream_app.clone();
+    let event_conversation_id = stream_conversation_id.clone();
+    let event_request_id = stream_request_id.clone();
     let reply = tauri::async_runtime::spawn_blocking(move || {
         planner::discuss(
-            &app_dir,
+            &stream_app,
+            &manager,
+            &stream_request_id,
+            &stream_conversation_id,
+            model.as_ref(),
             &content,
             &history,
             &context_summary,
             move |progress| {
                 if progress.kind == "yolo.task" {
-                    if let Ok(mut payload) = serde_json::from_str::<serde_json::Value>(&progress.delta) {
-                        payload["conversationId"] = json!(stream_conversation_id);
-                        let _ = stream_app.emit("lian-yolo-event", payload);
+                    if let Ok(mut payload) =
+                        serde_json::from_str::<serde_json::Value>(&progress.delta)
+                    {
+                        payload["requestId"] = json!(event_request_id);
+                        payload["conversationId"] = json!(event_conversation_id);
+                        let _ = event_app.emit("lian-yolo-event", payload);
                     }
                     return;
                 }
-                let _ = stream_app.emit(
+                let _ = event_app.emit(
                     "lian-agent-event",
                     json!({
                         "eventType": "agent.reply.delta",
-                        "conversationId": stream_conversation_id,
+                        "requestId": event_request_id,
+                        "conversationId": event_conversation_id,
                         "kind": progress.kind,
                         "delta": progress.delta,
                     }),
@@ -305,6 +321,14 @@ pub async fn send_message(
         reply.reasoning.as_deref(),
     )?;
     build_context(&connection, &conversation)
+}
+
+/// 取消指定的讨论或计划请求；实际 abort 由常驻 Node Agent 继续传播到 Pi 与工具。
+#[tauri::command]
+pub fn cancel_agent(request_id: String, state: State<'_, AppState>) -> AppResult<()> {
+    uuid::Uuid::parse_str(&request_id)
+        .map_err(|_| AppError::new("REQUEST_ID_INVALID", "Agent 请求 ID 必须是 UUID"))?;
+    state.agent.abort(&request_id)
 }
 
 /// 把当前会话提升为项目：对话保留，归属转移，后续数据可落地。

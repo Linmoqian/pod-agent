@@ -62,9 +62,13 @@ pub async fn submit_agent_intent(
     intent: Option<String>,
     dataset_ids: Vec<String>,
     conversation_id: Option<String>,
+    request_id: String,
+    model: Option<planner::AgentModelRequest>,
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> AppResult<TaskPlan> {
+    uuid::Uuid::parse_str(&request_id)
+        .map_err(|_| AppError::new("REQUEST_ID_INVALID", "Agent 请求 ID 必须是 UUID"))?;
     let dataset = {
         let connection = state
             .connection
@@ -86,15 +90,34 @@ pub async fn submit_agent_intent(
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| "分析这批多环境表型数据".into());
     let fallback_trait = choose_trait(&dataset.schema, &intent)?;
-    let app_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    let planner_conversation_id = match conversation_id.as_deref().filter(|id| !id.is_empty()) {
+        Some(id) => {
+            uuid::Uuid::parse_str(id)
+                .map_err(|_| AppError::new("CONVERSATION_ID_INVALID", "会话 ID 无效"))?;
+            id.to_string()
+        }
+        None => uuid::Uuid::new_v4().to_string(),
+    };
     let intent_for_agent = intent.clone();
     let dataset_for_agent = dataset.clone();
+    let app_for_agent = app.clone();
+    let manager = state.agent.clone();
+    let request_id_for_agent = request_id.clone();
+    let conversation_id_for_agent = planner_conversation_id.clone();
+    let model_for_agent = model.clone();
     let proposal = tauri::async_runtime::spawn_blocking(move || {
-        planner::propose(&app_dir, &intent_for_agent, &dataset_for_agent)
+        planner::propose(
+            &app_for_agent,
+            &manager,
+            &request_id_for_agent,
+            &conversation_id_for_agent,
+            model_for_agent.as_ref(),
+            &intent_for_agent,
+            &dataset_for_agent,
+        )
     })
     .await
-    .ok()
-    .and_then(Result::ok);
+    .map_err(|error| AppError::retryable("AGENT_FAILED", error.to_string()))??;
     let valid_traits: Vec<&str> = dataset.schema["traits"]
         .as_array()
         .into_iter()
@@ -102,7 +125,7 @@ pub async fn submit_agent_intent(
         .filter_map(|item| item["id"].as_str())
         .collect();
     let (title, trait_id, planner_info) = match proposal {
-        Some((proposal, model)) if valid_traits.contains(&proposal.trait_id.as_str()) => (
+        (proposal, model) if valid_traits.contains(&proposal.trait_id.as_str()) => (
             proposal.title,
             proposal.trait_id,
             json!({"mode":"model","model":model,"summary":proposal.summary}),
@@ -242,6 +265,8 @@ pub async fn submit_research_intent(
     intent: Option<String>,
     inputs: Vec<EntityRef>,
     conversation_id: Option<String>,
+    request_id: String,
+    model: Option<planner::AgentModelRequest>,
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> AppResult<TaskPlan> {
@@ -273,7 +298,17 @@ pub async fn submit_research_intent(
         }
         values
     };
-    submit_agent_intent(project_id, intent, dataset_ids, conversation_id, app, state).await
+    submit_agent_intent(
+        project_id,
+        intent,
+        dataset_ids,
+        conversation_id,
+        request_id,
+        model,
+        app,
+        state,
+    )
+    .await
 }
 
 fn artifact_files(directory: &Path, names: &[String]) -> AppResult<Vec<ArtifactFile>> {

@@ -226,6 +226,7 @@ export default function AppLayout() {
           mappingEdits={controller.mappingEdits}
           intent={controller.intent}
           busy={controller.busy}
+          canCancel={controller.canCancel}
           onSuggestion={(value) => {
             controller.setIntent(value);
             document
@@ -252,6 +253,7 @@ export default function AppLayout() {
           onIntentChange={controller.setIntent}
           onChooseData={(directory) => void controller.chooseData(directory)}
           onSubmit={() => void controller.submitQuestion()}
+          onCancel={() => void controller.cancelAgent()}
         />
       </main>
       <PendingImportDialog

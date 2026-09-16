@@ -1,3 +1,5 @@
+pub mod agent;
+pub mod credentials;
 pub mod db;
 pub mod planner;
 pub mod research;

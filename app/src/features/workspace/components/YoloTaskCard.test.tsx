@@ -74,7 +74,7 @@ test('文件夹扫描后保留坏图失败状态并推理其他图片', async ()
 });
 
 test('Finder 混合路径通过原生扫描进入推理队列', async () => {
-  vi.mocked(invoke).mockImplementation(async (command) => {
+  vi.mocked(invoke).mockImplementation(async (command, args) => {
     if (command === 'yolo_models') return [{ id: 'test', name: 'test', available: true }];
     if (command === 'yolo_memory_gb') return 4;
     if (command === 'yolo_drop_images') return ['/folder/a.png', '/b.JPG'];

@@ -12,7 +12,9 @@ export type CustomProviderConfig = {
   name: string;
   /** OpenAI 兼容根地址,如 http://localhost:11434/v1 */
   baseUrl: string;
-  /** 直接添加的 LLM 名称;未设置时仍从端点动态发现模型 */
+  /** Rust 从 Keychain 刷新后返回的非敏感模型 ID 目录。 */
+  modelIds?: string[];
+  /** 旧版本直接添加的 LLM 名称,仅用于迁移兼容。 */
   modelId?: string;
 };
 
@@ -27,4 +29,13 @@ export type CustomYoloModelConfig = {
 export type ModelSelection = {
   providerId: string;
   modelId: string;
+};
+
+/** 发送给 Rust/Agent 的非敏感模型引用; API Key 不进入 WebView 请求对象。 */
+export type AgentModelRequest = {
+  providerId: string;
+  modelId: string;
+  customProvider?: {
+    baseUrl: string;
+  };
 };

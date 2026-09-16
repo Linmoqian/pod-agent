@@ -42,6 +42,7 @@ type WorkspaceContentProps = {
   mappingEdits: Record<string, FieldMapping>;
   intent: string;
   busy: boolean;
+  canCancel: boolean;
   onSuggestion: (value: string) => void;
   onMappingChange: (sourceId: string, value: FieldMapping) => void;
   onRegister: (
@@ -54,6 +55,7 @@ type WorkspaceContentProps = {
   onIntentChange: (value: string) => void;
   onChooseData: (directory: boolean) => void;
   onSubmit: () => void;
+  onCancel: () => void;
 };
 
 export default function WorkspaceContent({
@@ -68,6 +70,7 @@ export default function WorkspaceContent({
   mappingEdits,
   intent,
   busy,
+  canCancel,
   onSuggestion,
   onMappingChange,
   onRegister,
@@ -75,6 +78,7 @@ export default function WorkspaceContent({
   onIntentChange,
   onChooseData,
   onSubmit,
+  onCancel,
 }: WorkspaceContentProps) {
   return (
     <section className={styles.workspace}>
@@ -106,9 +110,11 @@ export default function WorkspaceContent({
           <WorkspaceComposer
             intent={intent}
             busy={busy}
+            canCancel={canCancel}
             onIntentChange={onIntentChange}
             onChooseData={onChooseData}
             onSubmit={onSubmit}
+            onCancel={onCancel}
           />
         </>
       )}

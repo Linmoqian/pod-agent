@@ -8,6 +8,7 @@
 import { useState } from "react";
 import { KeyRound, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { toast } from 'sonner';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +36,8 @@ function ProviderKeyForm({
     try {
       await onSave(providerId, value);
       setValue("");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error));
     } finally {
       setSaving(false);
     }
@@ -84,7 +87,11 @@ function ProviderKeyForm({
           size="sm"
           variant="outline"
           className="h-8"
-          onClick={() => void onClear(providerId)}
+          onClick={() => {
+            void onClear(providerId).catch((error) => {
+              toast.error(error instanceof Error ? error.message : String(error));
+            });
+          }}
         >
           清除
         </Button>

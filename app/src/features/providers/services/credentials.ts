@@ -1,106 +1,102 @@
 /*
- * localStorage 版 CredentialStore:在 WebView 本地磁盘持久化各提供商 API Key。
- * 形状对齐 pi-ai 的 auth.json 语义,每个提供商至多一条凭证;
- * modify 按 pi-ai 契约做按提供商串行化的读-改-写。
- * Created on 2026-09-09
+ * macOS Keychain 凭据客户端：WebView 只保存非敏感配置，不持有 API Key。
+ * Created on 2026-09-16
  * @author: https://github.com/Linmoqian
  */
 
-import type {
-  Credential,
-  CredentialInfo,
-  CredentialStore,
-} from "@earendil-works/pi-ai";
+import { invoke } from '@tauri-apps/api/core';
 
-const STORAGE_KEY = "pod-agent.credentials";
+const LEGACY_STORAGE_KEY = 'pod-agent.credentials';
 
-type CredentialMap = Record<string, Credential>;
+type LegacyCredential = {
+  type: 'api_key';
+  key: string;
+};
 
-function loadAll(): CredentialMap {
+function isTauriRuntime() {
+  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+}
+
+function requireTauriRuntime(): void {
+  if (!isTauriRuntime()) {
+    throw new Error('KEYCHAIN_TAURI_REQUIRED:请在 Tauri 桌面端配置 API Key');
+  }
+}
+
+function readLegacyCredentials(): Record<string, string> {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) return {};
     const parsed: unknown = JSON.parse(raw);
-    return typeof parsed === "object" && parsed !== null
-      ? (parsed as CredentialMap)
-      : {};
+    if (typeof parsed !== 'object' || parsed === null) return {};
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>)
+        .filter((entry): entry is [string, LegacyCredential] => {
+          const value = entry[1];
+          return (
+            typeof value === 'object' &&
+            value !== null &&
+            (value as LegacyCredential).type === 'api_key' &&
+            typeof (value as LegacyCredential).key === 'string' &&
+            Boolean((value as LegacyCredential).key.trim())
+          );
+        })
+        .map(([providerId, credential]) => [providerId, credential.key.trim()]),
+    );
   } catch {
-    // 损坏数据按空处理,避免阻塞启动;下次写入时自然修复
     return {};
   }
 }
 
-function saveAll(credentials: CredentialMap): void {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(credentials));
-}
-
-export function localStorageCredentialStore(): CredentialStore {
-  // 同一提供商的写操作串行化,避免并发覆盖;浏览器单进程内队列即可
-  const chains = new Map<string, Promise<unknown>>();
-
-  function enqueue<T>(providerId: string, task: () => Promise<T>): Promise<T> {
-    const previous = chains.get(providerId) ?? Promise.resolve();
-    const current = previous.then(task, task);
-    chains.set(providerId, current);
-    return current;
-  }
-
-  return {
-    read: (providerId) => enqueue(providerId, async () => loadAll()[providerId]),
-    list: async (): Promise<readonly CredentialInfo[]> =>
-      Object.entries(loadAll()).map(([providerId, credential]) => ({
-        providerId,
-        type: credential.type,
-      })),
-    modify: (providerId, fn) =>
-      enqueue(providerId, async () => {
-        const all = loadAll();
-        const next = await fn(all[providerId]);
-        if (next !== undefined) {
-          all[providerId] = next;
-          saveAll(all);
-        }
-        return next;
-      }),
-    delete: (providerId) =>
-      enqueue(providerId, async () => {
-        const all = loadAll();
-        delete all[providerId];
-        saveAll(all);
-      }),
-  };
-}
-
-/** 应用共享的凭证存储单例,registry 与设置面板共用同一份数据 */
-export const credentialStore = localStorageCredentialStore();
-
-/** 保存某提供商的 API Key(空串视为清除) */
+/** 保存密钥；完整值只在输入、Rust Keychain 和 Agent 内存之间短暂流转。 */
 export async function saveProviderKey(
   providerId: string,
   key: string,
 ): Promise<void> {
+  requireTauriRuntime();
   const trimmed = key.trim();
   if (!trimmed) {
-    await credentialStore.delete(providerId);
+    await clearProviderKey(providerId);
     return;
   }
-  await credentialStore.modify(providerId, async () => ({
-    type: "api_key" as const,
-    key: trimmed,
-  }));
+  await invoke<void>('set_provider_key', { providerId, key: trimmed });
 }
 
-/** 清除某提供商凭证 */
+/** 清除 Keychain 中的提供商凭证。 */
 export function clearProviderKey(providerId: string): Promise<void> {
-  return credentialStore.delete(providerId);
+  requireTauriRuntime();
+  return invoke<void>('clear_provider_key', { providerId });
 }
 
-/** 读取密钥尾 4 位用于界面确认展示;未配置返回 null */
+/** 只读取 Keychain 返回的尾部预览，不读取密钥本体。 */
 export async function getKeyPreview(
   providerId: string,
 ): Promise<string | null> {
-  const credential = await credentialStore.read(providerId);
-  const key = credential?.type === "api_key" ? credential.key : undefined;
-  if (!key) return null;
-  return `••••${key.slice(-4)}`;
+  if (!isTauriRuntime()) return null;
+  return invoke<string | null>('get_provider_key_preview', { providerId });
+}
+
+let migrationPromise: Promise<boolean> | null = null;
+
+/** 首次启动迁移旧 localStorage 凭据；失败时保留旧值，成功后才清除。 */
+export function migrateLegacyProviderKeys(): Promise<boolean> {
+  if (migrationPromise) return migrationPromise;
+  if (!isTauriRuntime()) return Promise.resolve(true);
+
+  const credentials = readLegacyCredentials();
+  if (!Object.keys(credentials).length) return Promise.resolve(true);
+
+  migrationPromise = invoke<void>('migrate_provider_keys', { credentials })
+    .then(() => {
+      window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+      return true;
+    })
+    .catch(() => {
+      // 不删除旧值；调用方可以给出可见提示，用户仍可重试迁移。
+      window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('lian-credentials-migration-error'));
+      }, 0);
+      return false;
+    });
+  return migrationPromise;
 }

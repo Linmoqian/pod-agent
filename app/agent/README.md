@@ -1,9 +1,33 @@
 # lian 受控 Agent 进程
 
-复制 `.env.example` 为 `.env` 并填写模型配置。该进程接受 Rust 发送的两种 JSONL 请求：
+Agent 由 Rust 惰性启动为单一常驻 Node 进程。Node 进程按 `conversationId` 保存内存会话：`discuss` 复用会话，`plan` 每次创建无工具的一次性 Agent；同一会话串行、不同会话可并发。SQLite 是唯一持久化真相，进程重启后由 Rust 下发最近 12 条消息恢复，不创建 Pi 磁盘 session 文件。
 
-- `plan`：结构化计划建议（同 V1）；
-- `discuss`：自由讨论，回复 Markdown；上下文里明确声明当前拥有/没有的数据，禁止虚构。
+开发态可以复制 `.env.example` 为 `.env` 并设置 `MODEL_PROVIDER`、`MODEL_ID` 与对应 Provider 的 API Key。发行版必须由前端显式选择模型；API Key 由 Rust 从 macOS Keychain 注入 stdin，Node 只在内存中使用。
+
+## 协议 v2
+
+协议是严格 LF-JSONL：每行一个 JSON 对象，Node 使用显式 UTF-8 缓冲区只按 `\n` 分帧；空行忽略，U+2028/U+2029 仍属于 JSON 字符串内容。每个 prompt 必须最终依次产生 `result`、`settled`，`settled` 是该请求最后一条消息。
+
+Rust → Node：
+
+```json
+{"protocol":2,"type":"prompt","requestId":"uuid","conversationId":"uuid","mode":"discuss","model":{"providerId":"openai","modelId":"gpt-4o"},"history":[],"context":{},"message":"..."}
+{"protocol":2,"type":"abort","requestId":"uuid"}
+{"protocol":2,"type":"session.reset","conversationId":"uuid"}
+{"protocol":2,"type":"shutdown"}
+```
+
+Node → Rust：
+
+```json
+{"protocol":2,"type":"ready","capabilities":{"sessions":true,"abort":true}}
+{"protocol":2,"type":"accepted","requestId":"uuid"}
+{"protocol":2,"type":"event","requestId":"uuid","conversationId":"uuid","eventType":"reply.delta","kind":"text","delta":"..."}
+{"protocol":2,"type":"result","requestId":"uuid","ok":true,"reply":"...","model":"openai/gpt-4o"}
+{"protocol":2,"type":"settled","requestId":"uuid","status":"succeeded"}
+```
+
+取消会调用 Pi `Agent.abort()`，并沿工具 `AbortSignal` 传给 Python/YOLO；5 秒内未收到终态时 Rust 强制重启子进程。进程崩溃时当前 pending 请求返回 `AGENT_PROCESS_EXITED`，下一次请求自动重启并从 SQLite 恢复。
 
 `plan` 不加载工具；`discuss` 提供 `list_yolo_models`、`run_yolo_detection` 与 `run_yolo_batch_detection`，没有通用命令或数据库工具。
 
@@ -53,8 +77,12 @@ cargo test --lib services::yolo::tests::real_model_reuses_session -- --ignored -
 
 Python 推理结果先经过类别与置信度过滤，Agent 仅收到模型 ID、阈值、状态和计数结论；不包含逐框结果、图片路径或日志。检测数量是模型估计，不是人工真值。
 
-开发握手验证：
+开发态 bundle 验证：
 
 ```bash
-pnpm run dev:agent < /dev/null
+pnpm build:agent
+pnpm fetch:node-runtime -- --arch=arm64
+pnpm fetch:node-runtime -- --arch=arm64 --check
 ```
+
+macOS 发行资源由 `build:agent` 生成单一 ESM bundle，并由 `fetch:node-runtime` 下载并校验官方 Node.js v24.21.0 arm64/x64 tarball；Python/Conda 不随包分发。

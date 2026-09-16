@@ -138,6 +138,8 @@ export type TimelineMessage = {
   reasoning?: string | null;
   /** 仅在前端等待本轮真实 Agent 结果时使用，不持久化。 */
   status?: 'pending' | 'streaming' | 'error';
+  /** 仅用于把流式事件绑定到发起它的请求，不写入 SQLite。 */
+  requestId?: string;
   errorMessage?: string;
   retryContent?: string;
   createdAt: string;

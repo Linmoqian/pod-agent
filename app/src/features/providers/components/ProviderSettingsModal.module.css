@@ -248,11 +248,18 @@
 
 .customRow {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
   gap: var(--space-3);
   padding: var(--space-3) 0;
   border-bottom: var(--border-subtle);
+}
+
+.customTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
 }
 
 .customMeta {
