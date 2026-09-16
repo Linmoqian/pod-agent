@@ -214,16 +214,23 @@ function AddModelForm({
 
   return (
     <section className={styles.section} aria-label="添加模型">
-      <h4 className={styles.sectionTitle}>
-        <Plus size={16} strokeWidth={1.75} />
-        添加模型
-      </h4>
-      {!expanded && (
-        <Button size="sm" onClick={() => setExpanded(true)}>
-          <Plus size={14} aria-hidden />
+      <div className={styles.sectionHeader}>
+        <h4 className={styles.sectionTitle}>
+          <Plus size={16} strokeWidth={1.75} />
           添加模型
-        </Button>
-      )}
+        </h4>
+        {!expanded && (
+          <Button
+            size="sm"
+            variant="outline"
+            className={styles.sectionAction}
+            onClick={() => setExpanded(true)}
+          >
+            <Plus size={14} aria-hidden />
+            添加模型
+          </Button>
+        )}
+      </div>
       <AnimatePresence initial={false}>
         {expanded && (
           <motion.div
@@ -363,7 +370,15 @@ export function ProviderSettingsPanel() {
   };
 
   return (
-    <>
+    <section className={styles.providerPanel} aria-labelledby="settings-model">
+      <header className={styles.panelHeader}>
+        <h3 id="settings-model" className={styles.panelTitle}>
+          模型
+        </h3>
+        <p className={styles.panelDescription}>
+          配置对话、图片识别以及自定义端点使用的模型。
+        </p>
+      </header>
       <AddModelForm onAddLlm={addLlm} onAddYolo={addYolo} />
       <ModelList
         models={configuredModels}
@@ -441,7 +456,7 @@ export function ProviderSettingsPanel() {
         />
       </section>
 
-    </>
+    </section>
   );
 }
 
