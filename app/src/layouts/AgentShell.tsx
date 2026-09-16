@@ -71,15 +71,6 @@ export default function AgentShell({
   const rightPanel: PanelId = leftPanel === 'navigation' ? 'workbench' : 'navigation';
   const nativeWindow = isTauri();
   const mac = /Mac/i.test(navigator.platform);
-  const shownYolo = useRef(new Set<string>());
-  useEffect(() => {
-    const incoming = yoloTask.photos.filter((photo) => photo.external && !shownYolo.current.has(photo.id));
-    if (!incoming.length) return;
-    incoming.forEach((photo) => shownYolo.current.add(photo.id));
-    onOpenYoloResults();
-    if (!workbenchOpen) onToggleWorkbench();
-    if (window.matchMedia(COMPACT_LAYOUT_QUERY).matches) setMobilePanel('workbench');
-  }, [yoloTask.photos, workbenchOpen, onOpenYoloResults, onToggleWorkbench]);
   const [navigationOpen, setNavigationOpen] = useState(true);
   const [narrow, setNarrow] = useState(
     () => window.matchMedia(COMPACT_LAYOUT_QUERY).matches,

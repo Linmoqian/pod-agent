@@ -190,6 +190,30 @@ it('设置只保留左下角入口', () => {
   ).not.toContainElement(screen.getByLabelText('打开设置'));
 });
 
+it('Agent 推理任务不抢占当前对话视图', () => {
+  const task = {
+    ...props.yoloTask,
+    photos: [{
+      id: 'agent-yolo-1',
+      path: '/photos/IMG_0001.png',
+      name: 'IMG_0001.png',
+      external: true,
+      status: 'running',
+    }],
+  } as unknown as YoloTask;
+  render(
+    <AgentShell
+      {...props}
+      yoloTask={task}
+      workbench={<input aria-label="上下文草稿" defaultValue="保留内容" />}
+    >
+      <textarea aria-label="对话草稿" defaultValue="未发送问题" />
+    </AgentShell>,
+  );
+  expect(props.onOpenYoloResults).not.toHaveBeenCalled();
+  expect(screen.getByLabelText('对话草稿')).toBeInTheDocument();
+});
+
 it('重新挂载恢复位置与宽度，损坏的偏好安全回退', () => {
   const view = render(shell());
   fireEvent.click(screen.getByLabelText('移动会话侧栏到右侧'));
