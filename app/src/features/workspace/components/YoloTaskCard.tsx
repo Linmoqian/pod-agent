@@ -184,6 +184,7 @@ export function useYoloTask() {
   const thumbnailPromises = useRef(new Map<string, Promise<void>>());
   const thumbnailResolvers = useRef(new Map<string, () => void>());
   const thumbnailFocusId = useRef<string | null>(null);
+  const thumbnailGeneration = useRef(0);
   const addConfirmationQueue = useRef<AddConfirmationRequest[]>([]);
   const resultRevealQueue = useRef<ResultReveal[]>([]);
   const revealingResults = useRef(false);
@@ -209,9 +210,10 @@ export function useYoloTask() {
   };
 
   const readThumbnail = async (job: ThumbnailJob) => {
+    const generation = thumbnailGeneration.current;
     try {
       const image = await runtime.readThumbnail(job.path);
-      if (!mounted.current) return;
+      if (!mounted.current || generation !== thumbnailGeneration.current) return;
       const previewLimit = getImageReadPlan(runtimeMemoryGb.current).previewLimit;
       const protectedIds = new Set([
         thumbnailFocusId.current,
@@ -222,18 +224,16 @@ export function useYoloTask() {
       const oldest = shouldEvict
         ? [...thumbnailUrls.current.keys()].find((id) => !protectedIds.has(id))
         : undefined;
-      const evictedUrl = typeof oldest === 'string' ? thumbnailUrls.current.get(oldest) : undefined;
+      // 只淘汰缓存索引，不撤销已经显示的 Object URL；否则结果列表会立刻重读同一张图并闪烁。
       if (typeof oldest === 'string') thumbnailUrls.current.delete(oldest);
       const url = URL.createObjectURL(new Blob([new Uint8Array(image.bytes)], { type: image.mimeType }));
       thumbnailUrls.current.set(job.id, url);
       retainedPreviewCount.current = thumbnailUrls.current.size;
       urls.current.push(url);
       setPhotos((list) => list.map((photo) => {
-        if (photo.id === oldest) return { ...photo, url: undefined };
         if (photo.id !== job.id) return photo;
         return { ...photo, url };
       }));
-      if (evictedUrl) URL.revokeObjectURL(evictedUrl);
     } catch {
       // 缩略图只是展示层资源；即使它失败，也不能阻塞或移除真实推理任务。
       thumbnailScheduledIds.current.delete(job.id);
@@ -270,9 +270,9 @@ export function useYoloTask() {
       previewLimit - retainedPreviewCount.current - reservedPreviewCount.current,
     );
     const pending = jobs.filter((job) => {
-      const cached = thumbnailUrls.current.has(job.id);
       const inFlight = thumbnailPromises.current.has(job.id);
-      return !inFlight && (!thumbnailScheduledIds.current.has(job.id) || (prioritize && !cached));
+      // 成功读取后即使缓存索引被淘汰，photo.url 仍在界面上使用，不能再次读取造成闪烁。
+      return !inFlight && !thumbnailScheduledIds.current.has(job.id);
     });
     const selected = prioritize ? pending : pending.slice(0, available);
     if (!selected.length) return;
@@ -289,6 +289,7 @@ export function useYoloTask() {
   };
 
   const ensureThumbnail = async (job: ThumbnailJob) => {
+    if (photosRef.current.some((photo) => photo.id === job.id && photo.url)) return;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       if (thumbnailUrls.current.has(job.id)) return;
       enqueueThumbnailReads([job], true);
@@ -404,7 +405,7 @@ export function useYoloTask() {
           detections: event.status === 'queued' ? undefined : event.detections ?? p.detections,
         } : p));
       }
-      if (event.status === 'running' || event.status === 'done') {
+      if (event.status === 'done') {
         enqueueThumbnailReads([{ id: event.id, path, external: true }], true);
       } else if (isNew) {
         enqueueThumbnailReads([{ id: event.id, path, external: true }]);
@@ -450,6 +451,7 @@ export function useYoloTask() {
         urls.current.forEach((url) => URL.revokeObjectURL(url));
         urls.current = [];
         thumbnailUrls.current.clear();
+        thumbnailGeneration.current += 1;
         externalIds.current.clear();
         resultRevealQueue.current = [];
         setPhotos([]);
@@ -462,6 +464,7 @@ export function useYoloTask() {
     }
     return () => {
       mounted.current = false;
+      thumbnailGeneration.current += 1;
       debugUnlisten?.();
       debugStateUnsubscribe?.();
       thumbnailQueue.current = [];

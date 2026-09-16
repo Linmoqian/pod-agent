@@ -42,11 +42,22 @@ type BatchInferenceResponse = {
   results?: InferenceSummary[];
 };
 
-const MAX_BATCH_IMAGES_PER_REQUEST = 64;
+// 桌面 Agent 以稳定吞吐和持续进度为目标；8 张一批可避免大尺寸 PNG 在单个请求内触发长时间等待。
+const MAX_BATCH_IMAGES_PER_REQUEST = 8;
+const BATCH_REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
 const MAX_BATCH_IMAGES_TOTAL = 10_000;
 
 function isImagePath(path: string) {
   return /\.(?:jpe?g|png)$/i.test(path);
+}
+
+function batchRequestError(error: unknown, batchSize: number) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/timeout|aborted due to timeout/i.test(message)) {
+    return `批量推理超时（本批 ${batchSize} 张），请检查 ONNX 服务或重试`;
+  }
+  if (/aborted|cancelled|canceled/i.test(message)) return '批量推理已取消';
+  return message || '批量推理请求失败';
 }
 
 async function folderImages(folderPath: string, signal?: AbortSignal) {
@@ -209,7 +220,7 @@ const batchParameters = Type.Object({
 export const yoloBatchDetectTool: AgentTool<typeof batchParameters> = {
   name: 'run_yolo_batch_detection',
   label: 'YOLO 批量推理',
-  description: '对用户提供的图片文件夹递归批量推理。按平台使用固定 Batch=8 或动态 Batch，任务会逐张同步到育种台；不要把同一文件夹拆成多次单图调用。仅返回汇总计数，结果图片和检测框由桌面任务界面消费。',
+  description: '对用户提供的图片文件夹递归批量推理。桌面端固定以 Batch=8 请求常驻 ONNX 服务，任务会逐张同步到育种台；不要把同一文件夹拆成多次单图调用。仅返回汇总计数，结果图片和检测框由桌面任务界面消费。',
   parameters: batchParameters,
   executionMode: 'sequential',
   async execute(toolCallId, params, signal, onUpdate) {
@@ -273,7 +284,9 @@ export const yoloBatchDetectTool: AgentTool<typeof batchParameters> = {
             targetClass: params.targetClass,
             minConfidence: confidence,
           }),
-          signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(120_000)]) : AbortSignal.timeout(120_000),
+          signal: signal
+            ? AbortSignal.any([signal, AbortSignal.timeout(BATCH_REQUEST_TIMEOUT_MS)])
+            : AbortSignal.timeout(BATCH_REQUEST_TIMEOUT_MS),
         });
         if (!response.ok) throw new Error('ONNX 批量服务请求失败');
         const summary = await response.json() as BatchInferenceResponse;
@@ -298,7 +311,7 @@ export const yoloBatchDetectTool: AgentTool<typeof batchParameters> = {
           }
         });
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = batchRequestError(error, end - start);
         emitUnfinishedErrors(start, message);
         throw error;
       }
