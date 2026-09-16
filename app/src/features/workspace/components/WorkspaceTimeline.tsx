@@ -157,6 +157,17 @@ function scrollToLatest(area: HTMLDivElement, behavior: ScrollBehavior) {
   }
 }
 
+const MIN_MESSAGES_FOR_JUMP = 3;
+const LATEST_MESSAGE_TOLERANCE = 80;
+
+function isAtLatest(area: HTMLDivElement) {
+  return area.scrollHeight - area.scrollTop - area.clientHeight < LATEST_MESSAGE_TOLERANCE;
+}
+
+function canShowJump(messages: TimelineMessage[], area: HTMLDivElement) {
+  return messages.length >= MIN_MESSAGES_FOR_JUMP && area.scrollHeight - area.clientHeight > LATEST_MESSAGE_TOLERANCE;
+}
+
 function PendingReply() {
   const reduced = useReducedMotion();
   return (
@@ -269,12 +280,11 @@ export default function WorkspaceTimeline({
       ref={scrollArea}
       onScroll={(event) => {
         const area = event.currentTarget;
-        const atLatest =
-          area.scrollHeight - area.scrollTop - area.clientHeight < 80;
+        const atLatest = isAtLatest(area);
         if (smoothScrolling.current && !atLatest) return;
         smoothScrolling.current = false;
         follow.current = atLatest;
-        setAway(!atLatest);
+        setAway(!atLatest && canShowJump(messages, area));
       }}
       onWheel={() => {
         smoothScrolling.current = false;
@@ -286,7 +296,8 @@ export default function WorkspaceTimeline({
         smoothScrolling.current = false;
         if ((event.target as HTMLElement).closest('button, a, input, textarea, select, pre, code')) {
           follow.current = false;
-          setAway(true);
+          const area = scrollArea.current;
+          setAway(Boolean(area && !isAtLatest(area) && canShowJump(messages, area)));
         }
       }}
     >
