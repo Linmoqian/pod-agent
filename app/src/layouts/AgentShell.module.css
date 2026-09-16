@@ -358,6 +358,7 @@
 }
 .navFooter > button {
   width: 100%;
+  justify-content: center;
 }
 .navFooter > span {
   display: block;
