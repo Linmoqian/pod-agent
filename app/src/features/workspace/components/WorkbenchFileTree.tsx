@@ -7,11 +7,8 @@
 import { ChevronRight } from 'lucide-react';
 import { useEffect, useState, type CSSProperties } from 'react';
 
-import {
-  createBrowserPreviewFileTree,
-  isTauriRuntime,
-  workspaceApi,
-} from '../../../services/workspace';
+import { createBrowserPreviewFileTree, workspaceApi } from '../../../services/workspace';
+import { isBrowserPreviewRuntime } from '../../../services/runtime';
 import type { WorkspaceFileNode } from '../types';
 import styles from './WorkbenchPanel.module.css';
 import { getFilePreviewKind, TreeNodeIcon } from './WorkbenchFileTreeIcons';
@@ -90,7 +87,7 @@ export default function WorkbenchFileTree({
 
   useEffect(() => {
     let active = true;
-    if (!isTauriRuntime()) {
+    if (isBrowserPreviewRuntime()) {
       setTree(createBrowserPreviewFileTree());
       return () => {
         active = false;

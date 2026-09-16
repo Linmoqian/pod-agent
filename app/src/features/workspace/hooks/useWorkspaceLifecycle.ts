@@ -6,11 +6,11 @@
  */
 
 import { useEffect } from 'react';
-import { listen } from '@tauri-apps/api/event';
 
-import { isTauriRuntime } from '../../../services/workspace';
+import { isBrowserPreviewRuntime, getFrontendRuntime } from '../../../services/runtime';
 import type { LifecycleEvent } from '../types';
 import type { AgentReplyDelta } from './useReplyStream';
+import type { BrowserDebugEvent, RuntimeEventName } from '../../../services/runtime';
 
 type AgentReplyDeltaEvent = AgentReplyDelta & {
   eventType: 'agent.reply.delta';
@@ -41,23 +41,31 @@ export default function useWorkspaceLifecycle(
   onReplyDelta: (delta: AgentReplyDelta) => void,
 ) {
   useEffect(() => {
-    if (!conversationId || !isTauriRuntime()) return undefined;
+    if (!conversationId || isBrowserPreviewRuntime()) return undefined;
     let disposed = false;
     const unlisteners: Array<() => void> = [];
+    const runtime = getFrontendRuntime();
     const bind = async () => {
-      for (const eventName of [
+      const eventNames: RuntimeEventName[] = [
         'lian-import-event',
         'lian-agent-event',
         'lian-workflow-event',
-      ]) {
-        const unlisten = await listen<LifecycleEvent>(eventName, (event) => {
-          if (isAgentReplyDelta(event.payload)) {
-            if (event.payload.conversationId === conversationId) {
-              onReplyDelta(event.payload);
+        'lian-debug-event',
+      ];
+      for (const eventName of eventNames) {
+        const unlisten = await runtime.listen(eventName, (payload) => {
+          if (eventName === 'lian-debug-event') {
+            const debugEvent = payload as BrowserDebugEvent;
+            if (debugEvent.type === 'reset' || debugEvent.type === 'scenario.loaded' || debugEvent.type === 'snapshot.changed') {
+              void refresh(conversationId);
             }
             return;
           }
-          const lifecycle = event.payload;
+          if (isAgentReplyDelta(payload)) {
+            if (payload.conversationId === conversationId) onReplyDelta(payload);
+            return;
+          }
+          const lifecycle = payload as LifecycleEvent;
           if (lifecycle.eventType === 'workflow.started') {
             setActiveRunId(lifecycle.runId);
           } else if (

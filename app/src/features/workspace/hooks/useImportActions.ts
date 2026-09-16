@@ -5,11 +5,11 @@
  */
 
 import { useCallback, useEffect } from 'react';
-import { getCurrentWebview } from '@tauri-apps/api/webview';
-import { open } from '@tauri-apps/plugin-dialog';
 import { isYoloDropTarget } from './yoloDropTarget';
 
-import { isTauriRuntime, workspaceApi } from '../../../services/workspace';
+import { workspaceApi } from '../../../services/workspace';
+import { getFrontendRuntime, isBrowserPreviewRuntime } from '../../../services/runtime';
+import type { RuntimeDropEvent } from '../../../services/runtime';
 import type { FieldMapping } from '../components/SourceReview';
 import type { ImportInspection, SourceCandidate } from '../types';
 
@@ -39,21 +39,23 @@ function sourceName(path: string) {
   return name.replace(/\.(csv|tsv|txt|xlsx)$/i, '');
 }
 
-// 仅在 Tauri webview 内可用；纯浏览器打开时没有 __TAURI_INTERNALS__
 function useDragDrop(inspectPaths: (paths: string[]) => Promise<void>) {
   useEffect(() => {
-    if (!isTauriRuntime()) return;
+    if (isBrowserPreviewRuntime()) return;
+    let disposed = false;
     let unlisten: (() => void) | undefined;
-    getCurrentWebview()
-      .onDragDropEvent((event) => {
-        if (event.payload.type === 'drop' && !isYoloDropTarget(event.payload.position))
-          void inspectPaths(event.payload.paths);
-      })
-      .then((value) => {
-        unlisten = value;
-      })
-      .catch(() => undefined);
-    return () => unlisten?.();
+    const onDrop = (event: RuntimeDropEvent) => {
+      if (disposed || (event.position && isYoloDropTarget(event.position))) return;
+      void inspectPaths(event.files.map((file) => file.path));
+    };
+    void getFrontendRuntime().subscribeDrop(onDrop).then((stop) => {
+      if (disposed) stop();
+      else unlisten = stop;
+    }).catch(() => undefined);
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
   }, [inspectPaths]);
 }
 
@@ -160,15 +162,16 @@ export default function useImportActions(options: ImportActionsOptions) {
 
   const chooseData = useCallback(
     async (directory: boolean) => {
-      // 浏览器环境没有 Tauri 对话框，直接提示而不是抛错
-      if (!isTauriRuntime()) {
+      if (isBrowserPreviewRuntime()) {
         reportWarning('当前运行在浏览器中，仅 Tauri 桌面端支持选择文件与拖放导入');
         return;
       }
-      const selected = await open({ directory, multiple: !directory });
-      await inspectPaths(
-        Array.isArray(selected) ? selected : selected ? [selected] : [],
-      );
+      const selected = await getFrontendRuntime().pickFiles({
+        directory,
+        multiple: !directory,
+        accept: directory ? undefined : ['csv', 'tsv', 'txt', 'xlsx'],
+      });
+      await inspectPaths(selected.map((file) => file.path));
     },
     [inspectPaths, reportWarning],
   );

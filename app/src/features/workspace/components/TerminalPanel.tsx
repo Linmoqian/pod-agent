@@ -7,7 +7,8 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { Button } from '@/components/ui/button';
 
-import { isTauriRuntime, workspaceApi } from '../../../services/workspace';
+import { workspaceApi } from '../../../services/workspace';
+import { isBrowserDebugRuntime } from '../../../services/runtime';
 import type { TerminalRunResult } from '../types';
 import styles from './TerminalPanel.module.css';
 
@@ -178,9 +179,9 @@ export default function TerminalPanel({
             <TerminalIcon size={24} aria-hidden />
             <strong>从这里开始</strong>
             <span>
-              {isTauriRuntime()
-                ? '例如：git status'
-                : '浏览器预览仅展示终端界面'}
+              {isBrowserDebugRuntime()
+                ? '例如：git status（浏览器模拟）'
+                : '例如：git status'}
             </span>
           </div>
         )}
@@ -213,7 +214,9 @@ export default function TerminalPanel({
         </Button>
       </form>
       <p className={styles.notice}>
-        仅开发人员模式可用；命令在本机执行，输出不会写入会话记录。
+        {isBrowserDebugRuntime()
+          ? '浏览器调试模式：命令仅在内存中模拟，输出不会写入会话记录。'
+          : '仅开发人员模式可用；命令在本机执行，输出不会写入会话记录。'}
       </p>
     </section>
   );

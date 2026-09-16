@@ -13,9 +13,9 @@ import { errorText } from '../../../services/errors';
 
 import {
   createBrowserPreviewSnapshot,
-  isTauriRuntime,
   workspaceApi,
 } from '../../../services/workspace';
+import { isBrowserPreviewRuntime } from '../../../services/runtime';
 import type { FieldMapping } from '../components/SourceReview';
 import type { ImportInspection, Project, WorkspaceSnapshot } from '../types';
 import type { AgentModelRequest } from '../../providers/types';
@@ -67,7 +67,7 @@ function useConversationBootstrap(
 ) {
   useEffect(() => {
     let alive = true;
-    if (!isTauriRuntime()) {
+    if (isBrowserPreviewRuntime()) {
       onSnapshot(createBrowserPreviewSnapshot());
       return () => {
         alive = false;
@@ -145,7 +145,7 @@ export default function useWorkspaceController() {
   }, []);
   useConversationBootstrap(reportError, activateSnapshot);
   useEffect(() => {
-    if (!isTauriRuntime()) {
+    if (isBrowserPreviewRuntime()) {
       setProjects([]);
       return;
     }
@@ -246,7 +246,7 @@ export default function useWorkspaceController() {
     if (busy || submittingQuestion.current) return;
     const question = questionOverride?.trim() || intent.trim();
     if (!question || !snapshot) return;
-    if (!isTauriRuntime()) {
+    if (isBrowserPreviewRuntime()) {
       toast.warning('当前为浏览器预览，发送消息请在 Tauri 桌面端运行');
       return;
     }
@@ -410,7 +410,7 @@ export default function useWorkspaceController() {
   const startNewConversation = async (): Promise<string | null> => {
     setBusy(true);
     try {
-      if (!isTauriRuntime()) {
+      if (isBrowserPreviewRuntime()) {
         const next = createPreviewConversation();
         activateSnapshot(next);
         return next.conversation.id;
@@ -429,7 +429,7 @@ export default function useWorkspaceController() {
     if (!targetConversationId) return;
     setBusy(true);
     try {
-      if (!isTauriRuntime()) {
+      if (isBrowserPreviewRuntime()) {
         const source = previewSnapshots.current.get(targetConversationId);
         if (!source) throw new Error('会话不存在');
         previewTabCount.current += 1;
@@ -476,7 +476,7 @@ export default function useWorkspaceController() {
     setBusy(true);
     try {
       let context: WorkspaceSnapshot;
-      if (!isTauriRuntime()) {
+      if (isBrowserPreviewRuntime()) {
         const source = previewSnapshots.current.get(targetConversationId);
         if (!source) return false;
         const now = new Date().toISOString();
@@ -523,7 +523,7 @@ export default function useWorkspaceController() {
     setInspection(null);
     setBusy(true);
     try {
-      if (!isTauriRuntime()) {
+      if (isBrowserPreviewRuntime()) {
         const preview = previewSnapshots.current.get(tabId);
         if (preview) activateSnapshot(preview);
         return;

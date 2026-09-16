@@ -1,0 +1,127 @@
+/* 浏览器调试面板只在显式调试模式下出现，不参与普通工作台布局。 */
+.panel {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 80;
+  width: min(360px, calc(100vw - 32px));
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--color-brand-500) 30%, var(--color-border-default));
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-surface-default) 94%, var(--color-brand-500));
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-elevated);
+  font-size: 12px;
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 42px;
+  padding: 0 10px 0 13px;
+  border-bottom: var(--border-subtle);
+}
+.title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.title svg { color: var(--color-brand-500); }
+.title span { color: var(--color-text-tertiary); font-size: 10px; }
+.iconButton,
+.button,
+.primaryButton,
+.textButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  transition: border-color var(--duration-fast) var(--easing-standard),
+    background-color var(--duration-fast) var(--easing-standard),
+    color var(--duration-fast) var(--easing-standard);
+}
+.iconButton {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+}
+.button,
+.primaryButton { min-height: 28px; padding: 0 8px; }
+.primaryButton {
+  border-color: var(--color-brand-500);
+  background: var(--color-brand-500);
+  color: white;
+}
+.button:hover,
+.textButton:hover,
+.iconButton:hover {
+  border-color: var(--color-brand-500);
+  color: var(--color-text-primary);
+}
+.primaryButton:hover { filter: brightness(1.05); }
+.body { padding: 10px 12px 12px; }
+.notice {
+  margin: 0 0 10px;
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.section + .section { margin-top: 11px; }
+.section h2 {
+  margin: 0 0 6px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+}
+.scenarios,
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+  margin-top: 8px;
+  color: var(--color-text-tertiary);
+  text-align: center;
+}
+.stats span {
+  padding: 5px 3px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-subtle);
+}
+.footer {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: var(--border-subtle);
+}
+.textButton {
+  padding: 3px 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-tertiary);
+}
+.log {
+  max-height: 92px;
+  overflow: auto;
+  margin: 8px 0 0;
+  padding: 7px 8px 7px 25px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-tertiary);
+  font: 10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.log li { padding-left: 2px; }

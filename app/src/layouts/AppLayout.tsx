@@ -25,12 +25,14 @@ import WorkspaceContent, {
 } from './WorkspaceContent';
 import useWorkspaceTabLayout from './useWorkspaceTabLayout';
 import { useSettings } from '../features/settings/context';
+import { isBrowserDebugRuntime } from '../services/runtime';
+import BrowserDebugPanel from '../features/workspace/components/BrowserDebugPanel';
 
 export default function AppLayout() {
   const controller = useWorkspaceController();
   const { snapshot } = controller;
   const { experienceMode } = useSettings();
-  const developerMode = experienceMode === 'developer';
+  const developerMode = experienceMode === 'developer' || isBrowserDebugRuntime();
   const tabLayout = useWorkspaceTabLayout(controller.tabs);
   const yoloTask = useYoloTask();
   const workbenchTasks = useMemo(
@@ -263,6 +265,7 @@ export default function AppLayout() {
         onCancel={() => void controller.resolvePendingImportName(null)}
         onSubmit={() => void controller.resolvePendingImportName(importName)}
       />
+      <BrowserDebugPanel />
     </AgentShell>
   );
 }
