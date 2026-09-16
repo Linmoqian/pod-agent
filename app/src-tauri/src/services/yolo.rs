@@ -12,7 +12,7 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
     sync::{mpsc, Arc, Mutex, OnceLock},
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::atomic::{AtomicU64, AtomicUsize, Ordering},
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
 #[cfg(target_os = "macos")]
@@ -27,6 +27,7 @@ static PERF_LOG: OnceLock<Mutex<Option<std::fs::File>>> = OnceLock::new();
 const MAX_BATCH_IMAGES: usize = 64;
 const PREP_QUEUE_CAPACITY: usize = 4;
 const MAX_PREP_WORKERS: usize = 4;
+const PIPELINE_CHUNK_SIZE: usize = 32;
 
 fn perf_log(message: impl AsRef<str>) {
     let Some(path) = std::env::var_os("LIAN_YOLO_PERF_LOG") else {
@@ -794,40 +795,106 @@ fn infer(root: &Path, request: Request, cache: &mut Option<(String, Session)>) -
     )
 }
 
-fn prepare_images(image_paths: &[String], size: u32) -> Vec<Result<PreparedImage, String>> {
+fn infer_prepared_pipeline(
+    model: &ModelConfig,
+    image_paths: &[String],
+    target_class: Option<&str>,
+    min_confidence: f32,
+) -> Result<Vec<Value>, String> {
     let worker_count = image_paths.len()
         .min(MAX_PREP_WORKERS)
         .min(std::thread::available_parallelism().map(|value| value.get()).unwrap_or(1).max(1));
+    let size = model.size;
     let next_index = AtomicUsize::new(0);
+    let prepare_total_ns = AtomicU64::new(0);
     let (sender, receiver) = mpsc::sync_channel(PREP_QUEUE_CAPACITY);
-    let mut prepared = (0..image_paths.len())
-        .map(|_| None)
-        .collect::<Vec<Option<Result<PreparedImage, String>>>>();
+    let mut results = vec![Value::Null; image_paths.len()];
+    let started = Instant::now();
+    perf_log(format!(
+        "pipeline.start images={} workers={} queue_capacity={} chunk_size={}",
+        image_paths.len(),
+        worker_count,
+        PREP_QUEUE_CAPACITY,
+        PIPELINE_CHUNK_SIZE,
+    ));
 
-    std::thread::scope(|scope| {
+    let chunks = std::thread::scope(|scope| -> Result<usize, String> {
         for _ in 0..worker_count {
             let sender = sender.clone();
             let next_index = &next_index;
+            let prepare_total_ns = &prepare_total_ns;
             scope.spawn(move || loop {
                 let index = next_index.fetch_add(1, Ordering::Relaxed);
                 if index >= image_paths.len() {
                     break;
                 }
+                let prepare_started = Instant::now();
                 let result = prepare_image(&image_paths[index], size);
+                prepare_total_ns.fetch_add(
+                    prepare_started.elapsed().as_nanos().min(u64::MAX as u128) as u64,
+                    Ordering::Relaxed,
+                );
                 if sender.send((index, result)).is_err() {
                     break;
                 }
             });
         }
         drop(sender);
-        for (index, result) in receiver {
-            prepared[index] = Some(result);
+        let mut pending = Vec::with_capacity(PIPELINE_CHUNK_SIZE);
+        let mut processed_chunks = 0;
+        while let Ok(item) = receiver.recv() {
+            pending.push(item);
+            if pending.len() < PIPELINE_CHUNK_SIZE {
+                continue;
+            }
+            let chunk_index = processed_chunks + 1;
+            let chunk_images = pending.len();
+            let chunk_started = Instant::now();
+            infer_prepared_pipeline_chunk(
+                model,
+                std::mem::take(&mut pending),
+                target_class,
+                min_confidence,
+                &mut results,
+            )?;
+            perf_log(format!(
+                "pipeline.chunk index={} images={} elapsed_ms={}",
+                chunk_index,
+                chunk_images,
+                chunk_started.elapsed().as_secs_f64() * 1000.,
+            ));
+            processed_chunks += 1;
         }
-    });
+        if !pending.is_empty() {
+            let chunk_index = processed_chunks + 1;
+            let chunk_images = pending.len();
+            let chunk_started = Instant::now();
+            infer_prepared_pipeline_chunk(
+                model,
+                pending,
+                target_class,
+                min_confidence,
+                &mut results,
+            )?;
+            perf_log(format!(
+                "pipeline.chunk index={} images={} elapsed_ms={}",
+                chunk_index,
+                chunk_images,
+                chunk_started.elapsed().as_secs_f64() * 1000.,
+            ));
+            processed_chunks += 1;
+        }
+        Ok(processed_chunks)
+    })?;
 
-    prepared.into_iter()
-        .map(|result| result.unwrap_or_else(|| Err("图片预处理任务中断".into())))
-        .collect()
+    perf_log(format!(
+        "pipeline.finish images={} chunks={} prepare_cpu_ms={:.3} total_ms={:.3}",
+        image_paths.len(),
+        chunks,
+        prepare_total_ns.load(Ordering::Relaxed) as f64 / 1_000_000.,
+        started.elapsed().as_secs_f64() * 1000.,
+    ));
+    Ok(results)
 }
 
 fn infer_prepared_batch(
@@ -950,6 +1017,109 @@ fn infer_prepared_fixed_batch(
     result
 }
 
+fn infer_prepared_pipeline_chunk(
+    model: &ModelConfig,
+    prepared: Vec<(usize, Result<PreparedImage, String>)>,
+    target_class: Option<&str>,
+    min_confidence: f32,
+    results: &mut [Value],
+) -> Result<(), String> {
+    let indexes = prepared.iter().map(|(index, _)| *index).collect::<Vec<_>>();
+    let local_prepared = prepared.into_iter()
+        .map(|(_, result)| result)
+        .collect::<Vec<_>>();
+    let chunk_results = infer_prepared_chunk(
+        model,
+        local_prepared,
+        target_class,
+        min_confidence,
+    )?;
+    if indexes.len() != chunk_results.len() {
+        return Err("推理结果数量与图片数量不一致".into());
+    }
+    for (index, result) in indexes.into_iter().zip(chunk_results) {
+        results[index] = result;
+    }
+    Ok(())
+}
+
+fn infer_prepared_chunk(
+    model: &ModelConfig,
+    prepared: Vec<Result<PreparedImage, String>>,
+    target_class: Option<&str>,
+    min_confidence: f32,
+) -> Result<Vec<Value>, String> {
+    let total_started = Instant::now();
+    let valid = prepared.iter().enumerate()
+        .filter_map(|(index, result)| result.as_ref().ok().map(|image| (index, image)))
+        .collect::<Vec<_>>();
+    if let Some(fixed_batch_size) = model.fixed_batch_size.filter(|size| *size > 1) {
+        if !valid.is_empty() {
+            perf_log(format!(
+                "batch.use_fixed images={} batch_size={}",
+                valid.len(),
+                fixed_batch_size,
+            ));
+            let batch_results = infer_prepared_fixed_batch(
+                model,
+                &valid,
+                target_class,
+                min_confidence,
+                fixed_batch_size,
+            )?;
+            let results = merge_results(prepared, batch_results);
+            perf_log(format!(
+                "batch.finish mode=fixed images={} batch_size={} total_ms={} images_per_sec={:.3}",
+                results.len(),
+                fixed_batch_size,
+                total_started.elapsed().as_secs_f64() * 1000.,
+                results.len() as f64 / total_started.elapsed().as_secs_f64(),
+            ));
+            return Ok(results);
+        }
+    } else if valid.len() > 1 && model.supports_dynamic_batch && batch_support(model) != Some(false) {
+        perf_log(format!("batch.try_dynamic images={}", valid.len()));
+        let (session_reused, mut session) = take_batch_session(model)?;
+        match infer_prepared_batch(
+            model,
+            &valid,
+            target_class,
+            min_confidence,
+            &mut session,
+            session_reused,
+        ) {
+            Ok(batch_results) => {
+                remember_batch_support(model, true);
+                return_batch_sessions(model, vec![session]);
+                let results = merge_results(prepared, batch_results);
+                perf_log(format!(
+                    "batch.finish mode=dynamic images={} total_ms={} images_per_sec={:.3}",
+                    results.len(),
+                    total_started.elapsed().as_secs_f64() * 1000.,
+                    results.len() as f64 / total_started.elapsed().as_secs_f64(),
+                ));
+                return Ok(results);
+            }
+            Err(error) => {
+                remember_batch_support(model, false);
+                perf_log(format!("batch.dynamic_fallback reason={error}"));
+                drop(session);
+            }
+        }
+    } else if valid.len() > 1 && !model.supports_dynamic_batch {
+        perf_log("batch.dynamic_disabled reason=platform_static_model");
+    }
+    perf_log(format!("batch.use_parallel images={}", prepared.len()));
+    let results = infer_prepared_parallel(model, prepared, target_class, min_confidence)?;
+    perf_log(format!(
+        "batch.finish mode=parallel images={} total_ms={} images_per_sec={:.3}",
+        results.len(),
+        total_started.elapsed().as_secs_f64() * 1000.,
+        results.len() as f64 / total_started.elapsed().as_secs_f64(),
+    ));
+    Ok(results)
+}
+
 fn infer_prepared_parallel(
     model: &ModelConfig,
     prepared: Vec<Result<PreparedImage, String>>,
@@ -1042,79 +1212,14 @@ fn infer_batch(
         model_id,
         started.elapsed().as_secs_f64() * 1000.,
     ));
-    let started = Instant::now();
-    let prepared = prepare_images(image_paths, model.size);
+    let results = infer_prepared_pipeline(
+        &model,
+        image_paths,
+        target_class,
+        min_confidence,
+    );
     perf_log(format!(
-        "batch.prepare images={} workers={} elapsed_ms={}",
-        image_paths.len(),
-        image_paths.len()
-            .min(MAX_PREP_WORKERS)
-            .min(std::thread::available_parallelism().map(|value| value.get()).unwrap_or(1).max(1)),
-        started.elapsed().as_secs_f64() * 1000.,
-    ));
-    let valid = prepared.iter().enumerate()
-        .filter_map(|(index, result)| result.as_ref().ok().map(|image| (index, image)))
-        .collect::<Vec<_>>();
-    if let Some(fixed_batch_size) = model.fixed_batch_size.filter(|size| *size > 1) {
-        if !valid.is_empty() {
-            perf_log(format!(
-                "batch.use_fixed images={} batch_size={}",
-                valid.len(),
-                fixed_batch_size,
-            ));
-            let batch_results = infer_prepared_fixed_batch(
-                &model,
-                &valid,
-                target_class,
-                min_confidence,
-                fixed_batch_size,
-            )?;
-            let results = merge_results(prepared, batch_results);
-            perf_log(format!(
-                "batch.finish mode=fixed images={} batch_size={} total_ms={} images_per_sec={:.3}",
-                image_paths.len(),
-                fixed_batch_size,
-                total_started.elapsed().as_secs_f64() * 1000.,
-                image_paths.len() as f64 / total_started.elapsed().as_secs_f64(),
-            ));
-            return Ok(results);
-        }
-    } else if valid.len() > 1 && model.supports_dynamic_batch && batch_support(&model) != Some(false) {
-        perf_log(format!("batch.try_dynamic images={}", valid.len()));
-        let (session_reused, mut session) = take_batch_session(&model)?;
-        match infer_prepared_batch(
-            &model,
-            &valid,
-            target_class,
-            min_confidence,
-            &mut session,
-            session_reused,
-        ) {
-            Ok(batch_results) => {
-                remember_batch_support(&model, true);
-                return_batch_sessions(&model, vec![session]);
-                let results = merge_results(prepared, batch_results);
-                perf_log(format!(
-                    "batch.finish mode=dynamic images={} total_ms={} images_per_sec={:.3}",
-                    image_paths.len(),
-                    total_started.elapsed().as_secs_f64() * 1000.,
-                    image_paths.len() as f64 / total_started.elapsed().as_secs_f64(),
-                ));
-                return Ok(results);
-            }
-            Err(error) => {
-                remember_batch_support(&model, false);
-                perf_log(format!("batch.dynamic_fallback reason={error}"));
-                drop(session);
-            }
-        }
-    } else if valid.len() > 1 && !model.supports_dynamic_batch {
-        perf_log("batch.dynamic_disabled reason=platform_static_model");
-    }
-    perf_log(format!("batch.use_parallel images={}", image_paths.len()));
-    let results = infer_prepared_parallel(&model, prepared, target_class, min_confidence);
-    perf_log(format!(
-        "batch.finish mode=parallel images={} total_ms={} images_per_sec={:.3}",
+        "batch.pipeline images={} total_ms={} images_per_sec={:.3}",
         image_paths.len(),
         total_started.elapsed().as_secs_f64() * 1000.,
         image_paths.len() as f64 / total_started.elapsed().as_secs_f64(),
@@ -1305,12 +1410,17 @@ mod tests {
         assert_eq!(image_paths.len(), 100, "测试图片不足 100 张");
         let started = Instant::now();
         let mut processed = 0;
-        perf_log(format!("benchmark.start images={} batch_size=32", image_paths.len()));
+        perf_log(format!(
+            "benchmark.start images={} request_batch_size={}",
+            image_paths.len(),
+            MAX_BATCH_IMAGES,
+        ));
         let inference_started = Instant::now();
-        for (batch_index, batch) in image_paths.chunks(32).enumerate() {
+        for (batch_index, batch) in image_paths.chunks(MAX_BATCH_IMAGES).enumerate() {
             let batch_started = Instant::now();
             let results = infer_batch(root, "yolov8n-coco", batch, None, 0.25).unwrap();
             assert_eq!(results.len(), batch.len());
+            assert!(results.iter().all(|result| result["ok"] == true), "批量结果存在失败项");
             processed += batch.len();
         perf_log(format!(
             "benchmark.batch index={} images={} elapsed_ms={} images_per_sec={:.3}",

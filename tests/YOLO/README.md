@@ -26,4 +26,6 @@ LIAN_YOLO_PERF_LOG=/tmp/pod-agent-yolo-perf.log \
 
 设置 `LIAN_YOLO_PERF_LOG` 后会记录模型加载、预处理、动态/固定 Batch、单张推理、后处理、纯推理总耗时和缩略图耗时；不设置时不会增加常规运行日志。
 
+批量推理使用 4 个预处理 worker、容量为 4 的有界队列和 32 张推理块；预处理与上一推理块重叠执行，结果按原始图片索引回写。`pipeline.finish` 中的 `prepare_cpu_ms` 是各 worker 预处理耗时之和，`total_ms` 是端到端墙钟时间，不能将两者直接相加。
+
 macOS 缩略图通过 `QuickLookThumbnailing` 原生 API 获取，失败时回退到应用内图片解码；Apple 平台优先使用 Batch=1 回退 ONNX，缺少 Batch=1 权重时使用固定 Batch=8 ONNX，尾批用最后一张图片补齐但不保存补位结果；CPU/NVIDIA 平台使用动态 Batch ONNX。当前 M4 实测 Batch=1 双会话并行吞吐更高，因此 Batch=8 保留为可验证的备用路径。
