@@ -212,7 +212,16 @@ pub async fn yolo_export_csv(output_path: String, rows: Vec<ExportRow>) -> Resul
 pub fn yolo_models() -> Result<Value, String> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap();
     let entries: Vec<Value> = serde_json::from_slice(&std::fs::read(root.join("app/agent/tools/yolo-models.json")).map_err(|_| "模型清单不可读")?).map_err(|_| "模型清单无效")?;
-    Ok(Value::Array(entries.into_iter().map(|entry| json!({"id":entry["id"], "name":entry["name"], "available":entry["onnxPath"].as_str().is_some_and(|path| root.join(path).is_file())})).collect()))
+    Ok(Value::Array(entries.into_iter().map(|entry| {
+        let primary_available = entry["onnxPath"].as_str().is_some_and(|path| root.join(path).is_file());
+        let apple_available = entry["appleOnnxPath"].as_str().is_some_and(|path| root.join(path).is_file());
+        let available = if cfg!(target_vendor = "apple") {
+            primary_available || apple_available
+        } else {
+            primary_available
+        };
+        json!({"id":entry["id"], "name":entry["name"], "available":available})
+    }).collect()))
 }
 
 fn system_memory_gb() -> Result<f64, String> {
@@ -284,6 +293,7 @@ struct BatchRequest {
 struct Model {
     id: String,
     onnx_path: Option<String>,
+    apple_onnx_path: Option<String>,
     classes: Option<Vec<String>>,
     input_size: Option<u32>,
 }
@@ -292,6 +302,7 @@ struct ModelConfig {
     path: PathBuf,
     classes: Vec<String>,
     size: u32,
+    supports_dynamic_batch: bool,
     cache_key: String,
 }
 
@@ -354,7 +365,16 @@ fn load_model(root: &Path, model_id: &str, target_class: Option<&str>) -> Result
             .map_err(|_| "模型清单不可读")?,
     ).map_err(|_| "模型清单无效")?;
     let model = models.into_iter().find(|model| model.id == model_id).ok_or("未知模型")?;
-    let path = root.join(model.onnx_path.ok_or("该模型未登记 ONNX 权重")?);
+    let primary_path = root.join(model.onnx_path.ok_or("该模型未登记 ONNX 权重")?);
+    #[cfg(target_vendor = "apple")]
+    let apple_path = model.apple_onnx_path.as_deref()
+        .map(|value| root.join(value))
+        .filter(|path| path.is_file());
+    #[cfg(not(target_vendor = "apple"))]
+    let apple_path: Option<PathBuf> = None;
+    let (path, supports_dynamic_batch) = apple_path
+        .map(|path| (path, false))
+        .unwrap_or((primary_path, true));
     let classes = model.classes.ok_or("缺少有序类别清单")?;
     let size = model.input_size.ok_or("缺少输入尺寸")?;
     if classes.is_empty() || !(32..=2048).contains(&size) {
@@ -365,7 +385,7 @@ fn load_model(root: &Path, model_id: &str, target_class: Option<&str>) -> Result
     }
     let metadata = std::fs::metadata(&path).map_err(|_| "ONNX 权重不存在")?;
     let cache_key = format!("{}:{:?}:{}", path.display(), metadata.modified().ok(), metadata.len());
-    Ok(ModelConfig { path, classes, size, cache_key })
+    Ok(ModelConfig { path, classes, size, supports_dynamic_batch, cache_key })
 }
 
 fn prepare_image(image_path: &str, size: u32) -> Result<PreparedImage, String> {
@@ -937,7 +957,7 @@ fn infer_batch(
     let valid = prepared.iter().enumerate()
         .filter_map(|(index, result)| result.as_ref().ok().map(|image| (index, image)))
         .collect::<Vec<_>>();
-    if valid.len() > 1 && batch_support(&model) != Some(false) {
+    if valid.len() > 1 && model.supports_dynamic_batch && batch_support(&model) != Some(false) {
         perf_log(format!("batch.try_dynamic images={}", valid.len()));
         let (session_reused, mut session) = take_batch_session(&model)?;
         match infer_prepared_batch(
@@ -972,6 +992,8 @@ fn infer_batch(
                 drop(session);
             }
         }
+    } else if valid.len() > 1 && !model.supports_dynamic_batch {
+        perf_log("batch.dynamic_disabled reason=platform_static_model");
     }
     perf_log(format!("batch.use_parallel images={}", image_paths.len()));
     let results = infer_prepared_parallel(&model, prepared, target_class, min_confidence);

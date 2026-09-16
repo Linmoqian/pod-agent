@@ -10,6 +10,12 @@ conda run -n base python tests/YOLO/test_yolo_tool.py
 
 实际推理需要选定 conda 环境安装 ultralytics，并通过 `YOLO_PYTHON` 指向该环境解释器。当前未自动安装依赖。
 
+动态 Batch ONNX 导出（需要当前 Conda 环境已安装 `ultralytics` 与 `onnx`；同时生成 Apple CoreML 的 Batch=1 回退模型）：
+
+```bash
+python tests/YOLO/export_dynamic_onnx.py
+```
+
 Rust ONNX 100 张吞吐基准（使用仓库中的真实测试图片与 ONNX 权重）：
 
 ```bash
