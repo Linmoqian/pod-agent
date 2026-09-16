@@ -7,6 +7,7 @@
 
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::path::Path;
 use tauri::{Emitter, State};
 
 use crate::domain::{Conversation, ConversationContext, Project};
@@ -134,6 +135,20 @@ fn normalized_clone_messages(
         normalized.push(message);
     }
     Ok(normalized)
+}
+
+fn cleanup_clone_directory(path: &Path, original: AppError) -> AppError {
+    match std::fs::remove_dir_all(path) {
+        Ok(()) => original,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => original,
+        Err(error) => AppError::new(
+            "CLONE_ROLLBACK_FAILED",
+            format!(
+                "会话副本已回滚，但清理项目目录失败：{}；原始错误：{}",
+                error, original.message
+            ),
+        ),
+    }
 }
 
 fn validate_shared_project_paths(
@@ -328,8 +343,7 @@ pub fn clone_conversation(
             Ok(directory) => Some(directory),
             Err(error) => {
                 let partial_directory = state.data_root.join("projects").join(&project.id);
-                let _ = std::fs::remove_dir_all(partial_directory);
-                return Err(error);
+                return Err(cleanup_clone_directory(&partial_directory, error));
             }
         }
     } else {
@@ -392,7 +406,7 @@ pub fn clone_conversation(
     })();
     if let Err(error) = clone_result {
         if let Some(directory) = project_directory {
-            let _ = std::fs::remove_dir_all(directory);
+            return Err(cleanup_clone_directory(&directory, error));
         }
         return Err(error);
     }

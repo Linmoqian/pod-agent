@@ -1030,23 +1030,54 @@ fn is_terminal_status(status: &str) -> bool {
     )
 }
 
+fn is_json_reference_key(key: &str) -> bool {
+    key == "id"
+        || key.ends_with("Id")
+        || key.ends_with("Ids")
+        || key.ends_with("_id")
+        || key.ends_with("_ids")
+        || matches!(
+            key,
+            "dependsOn"
+                | "depends_on"
+                | "expectedArtifacts"
+                | "expected_artifacts"
+                | "upstreamIds"
+                | "upstream_ids"
+        )
+}
+
 fn remap_json(value: &Value, ids: &HashMap<String, String>) -> Value {
+    remap_json_value(value, ids, false)
+}
+
+fn remap_json_value(
+    value: &Value,
+    ids: &HashMap<String, String>,
+    reference_context: bool,
+) -> Value {
     match value {
-        Value::String(value) => ids
+        Value::String(value) if reference_context => ids
             .get(value)
             .cloned()
             .map(Value::String)
             .unwrap_or_else(|| Value::String(value.clone())),
+        Value::String(value) => Value::String(value.clone()),
         Value::Array(values) => Value::Array(
             values
                 .iter()
-                .map(|item| remap_json(item, ids))
+                .map(|item| remap_json_value(item, ids, reference_context))
                 .collect(),
         ),
         Value::Object(values) => Value::Object(
             values
                 .iter()
-                .map(|(key, item)| (key.clone(), remap_json(item, ids)))
+                .map(|(key, item)| {
+                    (
+                        key.clone(),
+                        remap_json_value(item, ids, is_json_reference_key(key)),
+                    )
+                })
                 .collect(),
         ),
         value => value.clone(),
@@ -1091,7 +1122,6 @@ fn project_id_map(
     connection: &Connection,
     table: &str,
     project_id: &str,
-    prefix: &str,
     ids: &mut HashMap<String, String>,
 ) -> AppResult<HashMap<String, String>> {
     let mut statement = connection
@@ -1108,8 +1138,20 @@ fn project_id_map(
         ids.insert(source_id.clone(), target_id.clone());
         table_ids.insert(source_id, target_id);
     }
-    let _ = prefix;
     Ok(table_ids)
+}
+
+fn mapped_id<'a>(
+    ids: &'a HashMap<String, String>,
+    source_id: &str,
+    entity: &str,
+) -> AppResult<&'a str> {
+    ids.get(source_id).map(String::as_str).ok_or_else(|| {
+        AppError::new(
+            "DB_CLONE_REFERENCE_MISSING",
+            format!("项目副本缺少 {entity} 的关联记录"),
+        )
+    })
 }
 
 /// 在一个已开启的事务中复制项目上下文。
@@ -1122,47 +1164,42 @@ pub fn clone_project_context(
     target_project_id: &str,
 ) -> AppResult<ProjectCloneMappings> {
     let mut ids = HashMap::new();
-    let source_files = project_id_map(connection, "source_files", source_project_id, "source", &mut ids)?;
-    let schemas = project_id_map(connection, "research_schemas", source_project_id, "schema", &mut ids)?;
+    let source_files = project_id_map(connection, "source_files", source_project_id, &mut ids)?;
+    let schemas = project_id_map(connection, "research_schemas", source_project_id, &mut ids)?;
     let research_datasets = project_id_map(
         connection,
         "research_datasets",
         source_project_id,
-        "research_dataset",
         &mut ids,
     )?;
-    let materials = project_id_map(connection, "materials", source_project_id, "material", &mut ids)?;
+    let materials = project_id_map(connection, "materials", source_project_id, &mut ids)?;
     let material_aliases = project_id_map(
         connection,
         "material_aliases",
         source_project_id,
-        "material_alias",
         &mut ids,
     )?;
-    let traits = project_id_map(connection, "traits", source_project_id, "trait", &mut ids)?;
+    let traits = project_id_map(connection, "traits", source_project_id, &mut ids)?;
     let environments = project_id_map(
         connection,
         "environments",
         source_project_id,
-        "environment",
         &mut ids,
     )?;
-    let datasets = project_id_map(connection, "datasets", source_project_id, "dataset", &mut ids)?;
+    let datasets = project_id_map(connection, "datasets", source_project_id, &mut ids)?;
     let identity_decisions = project_id_map(
         connection,
         "identity_decisions",
         source_project_id,
-        "identity_decision",
         &mut ids,
     )?;
     let import_sessions = project_id_map(
         connection,
         "import_sessions",
         source_project_id,
-        "import_session",
         &mut ids,
     )?;
-    let task_plans = project_id_map(connection, "task_plans", source_project_id, "task_plan", &mut ids)?;
+    let task_plans = project_id_map(connection, "task_plans", source_project_id, &mut ids)?;
     let mut workflow_runs = HashMap::new();
     {
         let mut statement = connection
@@ -1206,7 +1243,7 @@ pub fn clone_project_context(
             }
         }
     }
-    let executions = project_id_map(connection, "executions", source_project_id, "execution", &mut ids)?;
+    let executions = project_id_map(connection, "executions", source_project_id, &mut ids)?;
     let (artifacts, source_artifact_ids) = {
         let mut statement = connection
             .prepare(
@@ -1250,7 +1287,6 @@ pub fn clone_project_context(
         connection,
         "research_nodes",
         source_project_id,
-        "research_node",
         &mut ids,
     )?;
 
@@ -1279,7 +1315,7 @@ pub fn clone_project_context(
         connection
             .execute(
                 "INSERT INTO source_files(id,project_id,original_name,managed_path,format,sha256,size,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",
-                params![source_files[&source_id], target_project_id, name, path, format, checksum, size, created_at],
+                params![mapped_id(&source_files, &source_id, "源文件")?, target_project_id, name, path, format, checksum, size, created_at],
             )
             .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
     }
@@ -1310,7 +1346,7 @@ pub fn clone_project_context(
         connection
             .execute(
                 "INSERT INTO research_schemas(id,project_id,dataset_type,version,layout,fields_json,roles_json,checksum,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)",
-                params![schemas[&source_id], target_project_id, dataset_type, version, layout, remap_json(&parse_json(fields), &ids).to_string(), remap_json(&parse_json(roles), &ids).to_string(), checksum, created_at],
+                params![mapped_id(&schemas, &source_id, "研究 schema")?, target_project_id, dataset_type, version, layout, remap_json(&parse_json(fields), &ids).to_string(), remap_json(&parse_json(roles), &ids).to_string(), checksum, created_at],
             )
             .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
     }
@@ -1339,7 +1375,7 @@ pub fn clone_project_context(
         connection
             .execute(
                 "INSERT INTO research_datasets(id,project_id,name,dataset_type,current_version_id,created_at,updated_at) VALUES(?1,?2,?3,?4,NULL,?5,?6)",
-                params![research_datasets[source_id], target_project_id, name, dataset_type, created_at, updated_at],
+                params![mapped_id(&research_datasets, source_id, "研究数据集")?, target_project_id, name, dataset_type, created_at, updated_at],
             )
             .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
     }
@@ -1370,7 +1406,7 @@ pub fn clone_project_context(
         connection
             .execute(
                 "INSERT INTO materials(id,project_id,canonical_code,exact_key,display_name,origin,generation,metadata_json,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)",
-                params![materials[&source_id], target_project_id, code, exact_key, display_name, origin, generation, remap_json(&parse_json(metadata), &ids).to_string(), created_at],
+                params![mapped_id(&materials, &source_id, "材料")?, target_project_id, code, exact_key, display_name, origin, generation, remap_json(&parse_json(metadata), &ids).to_string(), created_at],
             )
             .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
     }
@@ -1402,7 +1438,7 @@ pub fn clone_project_context(
         connection
             .execute(
                 "INSERT INTO traits(id,project_id,canonical_code,name,value_type,unit,method,scale,ontology_ref,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
-                params![traits[&source_id], target_project_id, code, name, value_type, unit, method, scale, ontology_ref, created_at],
+                params![mapped_id(&traits, &source_id, "性状")?, target_project_id, code, name, value_type, unit, method, scale, ontology_ref, created_at],
             )
             .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
     }
@@ -1434,7 +1470,7 @@ pub fn clone_project_context(
         connection
             .execute(
                 "INSERT INTO environments(id,project_id,canonical_code,name,location,year,season,treatment_json,metadata_json,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
-                params![environments[&source_id], target_project_id, code, name, location, year, season, remap_json(&parse_json(treatment), &ids).to_string(), remap_json(&parse_json(metadata), &ids).to_string(), created_at],
+                params![mapped_id(&environments, &source_id, "环境")?, target_project_id, code, name, location, year, season, remap_json(&parse_json(treatment), &ids).to_string(), remap_json(&parse_json(metadata), &ids).to_string(), created_at],
             )
             .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
     }
@@ -1468,7 +1504,7 @@ pub fn clone_project_context(
         connection
             .execute(
                 "INSERT INTO datasets(id,project_id,name,dataset_type,version,schema_json,source_json,metadata_json,quality_status,supersedes_id,canonical_path,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
-                params![datasets[&source_id], target_project_id, name, dataset_type, version, remap_json(&parse_json(schema), &ids).to_string(), remap_json(&parse_json(source), &ids).to_string(), remap_json(&parse_json(metadata), &ids).to_string(), quality, supersedes.and_then(|id| ids.get(&id).cloned()), canonical_path, created_at],
+                params![mapped_id(&datasets, &source_id, "数据集")?, target_project_id, name, dataset_type, version, remap_json(&parse_json(schema), &ids).to_string(), remap_json(&parse_json(source), &ids).to_string(), remap_json(&parse_json(metadata), &ids).to_string(), quality, supersedes.and_then(|id| ids.get(&id).cloned()), canonical_path, created_at],
             )
             .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
     }
@@ -1514,7 +1550,7 @@ pub fn clone_project_context(
         connection
             .execute(
                 "INSERT INTO dataset_versions(id,dataset_id,project_id,version,source_file_id,schema_id,canonical_path,canonical_checksum,quality_status,supersedes_version_id,metadata_json,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
-                params![version_map[&source_id], research_datasets[&dataset_id], target_project_id, version, source_files[&source_file_id], schemas[&schema_id], canonical_path, checksum, quality, supersedes.and_then(|id| version_map.get(&id).cloned()), remap_json(&parse_json(metadata), &ids).to_string(), created_at],
+                params![mapped_id(&version_map, &source_id, "数据版本")?, mapped_id(&research_datasets, &dataset_id, "研究数据集")?, target_project_id, version, mapped_id(&source_files, &source_file_id, "源文件")?, mapped_id(&schemas, &schema_id, "研究 schema")?, canonical_path, checksum, quality, supersedes.and_then(|id| version_map.get(&id).cloned()), remap_json(&parse_json(metadata), &ids).to_string(), created_at],
             )
             .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
     }
@@ -1526,7 +1562,10 @@ pub fn clone_project_context(
             connection
                 .execute(
                     "UPDATE research_datasets SET current_version_id=?1 WHERE id=?2",
-                    params![current_version_id, research_datasets[source_id]],
+                    params![
+                        current_version_id,
+                        mapped_id(&research_datasets, source_id, "研究数据集")?
+                    ],
                 )
                 .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
             }
@@ -1574,8 +1613,8 @@ pub fn clone_project_context(
             .execute(
                 "INSERT INTO dataset_materials(dataset_version_id,material_id,source_label,resolution,decision_id) VALUES(?1,?2,?3,?4,?5)",
                 params![
-                    version_map[&version_id],
-                    materials[&material_id],
+                    mapped_id(&version_map, &version_id, "数据版本")?,
+                    mapped_id(&materials, &material_id, "材料")?,
                     source_label,
                     resolution,
                     decision_id.and_then(|id| identity_decisions.get(&id).cloned())
@@ -1585,12 +1624,12 @@ pub fn clone_project_context(
     }
     for (version_id, trait_id, source_label) in association_rows("SELECT v.id,t.trait_id,t.source_label FROM dataset_traits t JOIN dataset_versions v ON v.id=t.dataset_version_id WHERE v.project_id=?1")? {
         connection
-            .execute("INSERT INTO dataset_traits(dataset_version_id,trait_id,source_label) VALUES(?1,?2,?3)", params![version_map[&version_id], traits[&trait_id], source_label])
+            .execute("INSERT INTO dataset_traits(dataset_version_id,trait_id,source_label) VALUES(?1,?2,?3)", params![mapped_id(&version_map, &version_id, "数据版本")?, mapped_id(&traits, &trait_id, "性状")?, source_label])
             .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
     }
     for (version_id, environment_id, source_label) in association_rows("SELECT v.id,e.environment_id,e.source_label FROM dataset_environments e JOIN dataset_versions v ON v.id=e.dataset_version_id WHERE v.project_id=?1")? {
         connection
-            .execute("INSERT INTO dataset_environments(dataset_version_id,environment_id,source_label) VALUES(?1,?2,?3)", params![version_map[&version_id], environments[&environment_id], source_label])
+            .execute("INSERT INTO dataset_environments(dataset_version_id,environment_id,source_label) VALUES(?1,?2,?3)", params![mapped_id(&version_map, &version_id, "数据版本")?, mapped_id(&environments, &environment_id, "环境")?, source_label])
             .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
     }
 
@@ -1620,7 +1659,7 @@ pub fn clone_project_context(
         connection
             .execute(
                 "INSERT INTO identity_decisions(id,project_id,entity_kind,source_value,decision,target_id,reason,actor,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)",
-                params![identity_decisions[&source_id], target_project_id, entity_kind, source_value, decision, target_id.and_then(|id| ids.get(&id).cloned()), reason, actor, created_at],
+                params![mapped_id(&identity_decisions, &source_id, "身份决策")?, target_project_id, entity_kind, source_value, decision, target_id.and_then(|id| ids.get(&id).cloned()), reason, actor, created_at],
             )
             .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
     }
@@ -1648,7 +1687,7 @@ pub fn clone_project_context(
         connection
             .execute(
                 "INSERT INTO material_aliases(id,project_id,material_id,alias,exact_key,decision_id,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7)",
-                params![material_aliases[&source_id], target_project_id, materials[&material_id], alias, exact_key, decision_id.and_then(|id| identity_decisions.get(&id).cloned()), created_at],
+                params![mapped_id(&material_aliases, &source_id, "材料别名")?, target_project_id, mapped_id(&materials, &material_id, "材料")?, alias, exact_key, decision_id.and_then(|id| identity_decisions.get(&id).cloned()), created_at],
             )
             .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
     }
@@ -1676,7 +1715,7 @@ pub fn clone_project_context(
         connection
             .execute(
                 "INSERT INTO import_sessions(id,project_id,inspection_json,status,created_at,completed_at) VALUES(?1,?2,?3,?4,?5,?6)",
-                params![import_sessions[&source_id], target_project_id, remap_json(&parse_json(inspection), &ids).to_string(), status, created_at, completed_at],
+                params![mapped_id(&import_sessions, &source_id, "导入会话")?, target_project_id, remap_json(&parse_json(inspection), &ids).to_string(), status, created_at, completed_at],
             )
             .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
     }
@@ -1710,7 +1749,10 @@ pub fn clone_project_context(
         prune_missing_artifact_refs(&mut source_plan, &artifacts, &source_artifact_ids);
         let mut plan = remap_json(&source_plan, &ids);
         if let Value::Object(values) = &mut plan {
-            values.insert("id".into(), Value::String(task_plans[&source_id].clone()));
+            values.insert(
+                "id".into(),
+                Value::String(mapped_id(&task_plans, &source_id, "任务计划")?.into()),
+            );
             values.insert("projectId".into(), Value::String(target_project_id.into()));
             values.insert(
                 "datasetId".into(),
@@ -1725,7 +1767,7 @@ pub fn clone_project_context(
         connection
             .execute(
                 "INSERT INTO task_plans(id,project_id,dataset_id,plan_json,status,created_at) VALUES(?1,?2,?3,?4,?5,?6)",
-                params![task_plans[&source_id], target_project_id, datasets[&dataset_id], plan.to_string(), clone_status, created_at],
+                params![mapped_id(&task_plans, &source_id, "任务计划")?, target_project_id, mapped_id(&datasets, &dataset_id, "数据集")?, plan.to_string(), clone_status, created_at],
             )
             .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
     }
@@ -1874,7 +1916,7 @@ pub fn clone_project_context(
         connection
             .execute(
                 "INSERT INTO executions(id,task_plan_run_id,project_id,step_id,tool_id,tool_version,inputs_json,parameters_json,runtime_json,status,fingerprint,exit_code,error_code,error_message,stdout_json,stderr_json,logs_truncated,started_at,finished_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19)",
-                params![target_id, task_plan_runs[&run_id], target_project_id, ids.get(&step_id).cloned().unwrap_or(step_id), tool_id, tool_version, remap_json(&parse_json(inputs), &ids).to_string(), remap_json(&parse_json(parameters), &ids).to_string(), remap_json(&parse_json(runtime), &ids).to_string(), status, fingerprint, exit_code, error_code, error_message, stdout.map(|value| remap_json(&parse_json(value), &ids).to_string()), stderr.map(|value| remap_json(&parse_json(value), &ids).to_string()), truncated, started_at, finished_at],
+                params![target_id, mapped_id(&task_plan_runs, &run_id, "任务计划运行")?, target_project_id, ids.get(&step_id).cloned().unwrap_or(step_id), tool_id, tool_version, remap_json(&parse_json(inputs), &ids).to_string(), remap_json(&parse_json(parameters), &ids).to_string(), remap_json(&parse_json(runtime), &ids).to_string(), status, fingerprint, exit_code, error_code, error_message, stdout.map(|value| remap_json(&parse_json(value), &ids).to_string()), stderr.map(|value| remap_json(&parse_json(value), &ids).to_string()), truncated, started_at, finished_at],
             )
             .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
     }
@@ -1964,7 +2006,7 @@ pub fn clone_project_context(
         connection
             .execute(
                 "INSERT INTO research_nodes(id,project_id,kind,entity_id,label,metadata_json,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7)",
-                params![research_nodes[&source_id], target_project_id, kind, ids.get(&entity_id).cloned().unwrap_or(entity_id), label, remap_json(&parse_json(metadata), &ids).to_string(), created_at],
+                params![mapped_id(&research_nodes, &source_id, "研究节点")?, target_project_id, kind, ids.get(&entity_id).cloned().unwrap_or(entity_id), label, remap_json(&parse_json(metadata), &ids).to_string(), created_at],
             )
             .map_err(|error| AppError::new("DB_WRITE_FAILED", error.to_string()))?;
     }
@@ -2164,6 +2206,31 @@ mod tests {
     }
 
     #[test]
+    fn remap_json_only_changes_reference_fields() {
+        let ids = HashMap::from([(String::from("source-1"), String::from("target-1"))]);
+        let value = json!({
+            "sourceId": "source-1",
+            "note": "source-1",
+            "nested": {
+                "dependsOn": ["source-1"],
+                "label": "source-1"
+            }
+        });
+
+        assert_eq!(
+            remap_json(&value, &ids),
+            json!({
+                "sourceId": "target-1",
+                "note": "source-1",
+                "nested": {
+                    "dependsOn": ["target-1"],
+                    "label": "source-1"
+                }
+            })
+        );
+    }
+
+    #[test]
     fn message_reasoning_survives_round_trip() {
         let root = test_root();
         let path = root.join("lian.db");
@@ -2282,7 +2349,7 @@ mod tests {
                     "phenotype",
                     1_i64,
                     "{}",
-                    json!({"sourceId":"source-1"}).to_string(),
+                    json!({"sourceId":"source-1","note":"source-1"}).to_string(),
                     "{}",
                     "passed",
                     source_file.to_string_lossy(),
@@ -2395,6 +2462,16 @@ mod tests {
             )
             .unwrap();
         assert_ne!(cloned_dataset_id, "dataset-legacy");
+        let cloned_source_json: Value = connection
+            .query_row(
+                "SELECT source_json FROM datasets WHERE project_id=?1",
+                [target_project_id],
+                |row| row.get::<_, String>(0),
+            )
+            .map(|value| serde_json::from_str(&value).unwrap())
+            .unwrap();
+        assert_ne!(cloned_source_json["sourceId"], json!("source-1"));
+        assert_eq!(cloned_source_json["note"], json!("source-1"));
         let cloned_plan_status: String = connection
             .query_row(
                 "SELECT status FROM task_plans WHERE project_id=?1",

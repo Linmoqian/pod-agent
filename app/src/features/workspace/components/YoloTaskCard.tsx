@@ -375,8 +375,13 @@ export function useYoloTask(conversationId = 'global') {
   const revealNextResults = async () => {
     if (revealingResults.current) return;
     revealingResults.current = true;
+    const generation = thumbnailGeneration.current;
     try {
-      while (mounted.current && resultRevealQueue.current.length) {
+      while (
+        mounted.current &&
+        generation === thumbnailGeneration.current &&
+        resultRevealQueue.current.length
+      ) {
         const next = resultRevealQueue.current.shift();
         if (!next) continue;
         thumbnailFocusId.current = next.photoId;
@@ -390,7 +395,7 @@ export function useYoloTask(conversationId = 'global') {
         } finally {
           thumbnailFocusId.current = null;
         }
-        if (!mounted.current) return;
+        if (!mounted.current || generation !== thumbnailGeneration.current) return;
         const finishedAt = Date.now();
         updateSessionPhotos(next.conversationId, (list) => list.map((photo) => {
           if (photo.id !== next.photoId) return photo;
@@ -410,12 +415,13 @@ export function useYoloTask(conversationId = 'global') {
             detections: next.result.detections,
           };
         }));
-        if (resultRevealQueue.current.length) {
+        if (generation === thumbnailGeneration.current && resultRevealQueue.current.length) {
           await waitForResultReveal(resultRevealDelay(resultRevealQueue.current.length));
         }
       }
     } finally {
       revealingResults.current = false;
+      if (mounted.current && resultRevealQueue.current.length) void revealNextResults();
     }
   };
 
@@ -527,11 +533,24 @@ export function useYoloTask(conversationId = 'global') {
         urls.current = [];
         thumbnailUrls.current.clear();
         thumbnailGeneration.current += 1;
+        thumbnailQueue.current = [];
+        thumbnailScheduledIds.current.clear();
+        thumbnailResolverCache.forEach((resolve) => resolve());
+        thumbnailResolvers.current.clear();
+        thumbnailPromises.current.clear();
+        retainedPreviewCount.current = 0;
+        reservedPreviewCount.current = 0;
+        thumbnailFocusId.current = null;
         externalIds.current.clear();
         sessions.current.clear();
         ensureSession(activeConversationId.current);
         activeSessions.current.clear();
         resultRevealQueue.current = [];
+        addConfirmationQueue.current.splice(0).forEach(({ resolve }) => resolve(false));
+        setAddConfirmation(null);
+        setAddingCount(0);
+        pausedRef.current = false;
+        setPausedState(false);
         setPhotos([]);
         setError('');
         setRevision((value) => value + 1);
@@ -548,6 +567,7 @@ export function useYoloTask(conversationId = 'global') {
       thumbnailQueue.current = [];
       thumbnailUrlCache.clear();
       scheduledThumbnailIds.clear();
+      thumbnailResolverCache.forEach((resolve) => resolve());
       thumbnailPromiseCache.clear();
       thumbnailResolverCache.clear();
       addConfirmationQueueCache.splice(0).forEach(({ resolve }) => resolve(false));
@@ -557,11 +577,19 @@ export function useYoloTask(conversationId = 'global') {
     };
   }, [runtime]);
 
-  const appendBatch = (batch: YoloPhoto[], targetConversationId: string) => {
+  const appendBatch = (
+    batch: YoloPhoto[],
+    targetConversationId: string,
+    generation: number,
+  ) => {
     const { appendChunkSize } = getImageReadPlan(runtimeMemoryGb.current);
     let offset = 0;
     const appendNext = () => {
-      if (!mounted.current || offset >= batch.length) return;
+      if (
+        !mounted.current ||
+        generation !== thumbnailGeneration.current ||
+        offset >= batch.length
+      ) return;
       const chunk = batch.slice(offset, offset + appendChunkSize);
       offset += chunk.length;
       updateSessionPhotos(targetConversationId, (list) => [...list, ...chunk]);
@@ -598,6 +626,7 @@ export function useYoloTask(conversationId = 'global') {
     );
     const ids = new Set(batch.map((photo) => photo.id));
     const batchModelId = batch[0].modelId ?? requestModelId;
+    const generation = thumbnailGeneration.current;
     activeSessions.current.add(targetConversationId);
     updateSessionPhotos(targetConversationId, (list) => list.map((p) => ids.has(p.id) ? {
       ...p,
@@ -609,7 +638,7 @@ export function useYoloTask(conversationId = 'global') {
       batchModelId,
       batch.map((photo) => photo.path),
       (item) => {
-        if (!mounted.current) return;
+        if (!mounted.current || generation !== thumbnailGeneration.current) return;
         const photo = batch[item.index];
         if (!photo) return;
         enqueueResultReveals([{
@@ -620,7 +649,7 @@ export function useYoloTask(conversationId = 'global') {
         }]);
       },
     ).catch((reason) => {
-      if (!mounted.current) return;
+      if (!mounted.current || generation !== thumbnailGeneration.current) return;
       const message = reason instanceof Error ? reason.message : String(reason);
       enqueueResultReveals(batch.map((photo) => ({
         photoId: photo.id,
@@ -630,7 +659,9 @@ export function useYoloTask(conversationId = 'global') {
       })));
     }).finally(() => {
       activeSessions.current.delete(targetConversationId);
-      if (mounted.current) setRevision((value) => value + 1);
+      if (mounted.current && generation === thumbnailGeneration.current) {
+        setRevision((value) => value + 1);
+      }
     });
   // 推理控制函数只依赖 refs 与当前运行时；避免把每次渲染新建的 helper 放入依赖，重复启动批次。
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -638,6 +669,7 @@ export function useYoloTask(conversationId = 'global') {
   const add = async (folder = false, dropped?: Array<string | RuntimeFile>) => {
     const targetConversationId = activeConversationId.current;
     const targetModelId = ensureSession(targetConversationId).modelId || modelId;
+    const generation = thumbnailGeneration.current;
     if (!targetModelId) { setError('请先选择可用的推理模型'); return; }
     setAddingCount((count) => count + 1);
     setError('');
@@ -671,6 +703,7 @@ export function useYoloTask(conversationId = 'global') {
         if (!accepted) return;
       }
       await loadRuntimeMemory();
+      if (generation !== thumbnailGeneration.current) return;
       const batch = paths.map<YoloPhoto>((path) => ({
         id: crypto.randomUUID(),
         path,
@@ -678,7 +711,7 @@ export function useYoloTask(conversationId = 'global') {
         status: 'waiting',
         modelId: targetModelId,
       }));
-      appendBatch(batch, targetConversationId);
+      appendBatch(batch, targetConversationId, generation);
     } catch { setError('图片添加失败，请检查文件是否可读'); }
     finally { setAddingCount((count) => Math.max(0, count - 1)); }
   };

@@ -358,6 +358,17 @@ describe('BrowserDebugRuntime', () => {
       .toBe('succeeded');
   });
 
+  it('访问不存在的会话时直接报错，不回退到当前会话', async () => {
+    const runtime = new BrowserDebugRuntime();
+
+    await expect(runtime.invoke('get_conversation_context', {
+      conversationId: 'missing-conversation',
+    })).rejects.toThrow('会话不存在');
+    await expect(runtime.invoke('clone_conversation', {
+      conversationId: 'missing-conversation',
+    })).rejects.toThrow('会话不存在');
+  });
+
   it('全流程场景提供可确认并完成的模拟任务计划', async () => {
     vi.useFakeTimers();
     const runtime = new BrowserDebugRuntime();

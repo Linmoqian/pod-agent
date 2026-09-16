@@ -115,12 +115,25 @@ function isTerminalStatus(status: string) {
   return ['completed', 'succeeded', 'failed', 'cancelled', 'interrupted'].includes(status);
 }
 
-function remapValue(value: unknown, ids: Map<string, string>): unknown {
-  if (typeof value === 'string') return ids.get(value) ?? value;
-  if (Array.isArray(value)) return value.map((item) => remapValue(item, ids));
+function isReferenceKey(key: string) {
+  return key === 'id'
+    || key.endsWith('Id')
+    || key.endsWith('Ids')
+    || key.endsWith('_id')
+    || key.endsWith('_ids')
+    || ['dependsOn', 'depends_on', 'expectedArtifacts', 'expected_artifacts', 'upstreamIds', 'upstream_ids'].includes(key);
+}
+
+function remapValue(
+  value: unknown,
+  ids: Map<string, string>,
+  referenceContext = false,
+): unknown {
+  if (typeof value === 'string') return referenceContext ? ids.get(value) ?? value : value;
+  if (Array.isArray(value)) return value.map((item) => remapValue(item, ids, referenceContext));
   if (value && typeof value === 'object') {
     return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, remapValue(item, ids)]),
+      Object.entries(value).map(([key, item]) => [key, remapValue(item, ids, isReferenceKey(key))]),
     );
   }
   return value;
@@ -1038,7 +1051,9 @@ export default class BrowserDebugRuntime implements FrontendRuntime {
         return cloneSnapshot(this.currentSnapshot) as T;
       case 'get_conversation_context': {
         const conversationId = String(args.conversationId ?? '');
-        return cloneSnapshot(this.snapshots.get(conversationId) ?? this.currentSnapshot) as T;
+        const snapshot = this.snapshots.get(conversationId);
+        if (!snapshot) throw new Error(`浏览器调试会话不存在：${conversationId}`);
+        return cloneSnapshot(snapshot) as T;
       }
       case 'open_project_context': {
         const projectId = String(args.projectId ?? '');
@@ -1052,7 +1067,9 @@ export default class BrowserDebugRuntime implements FrontendRuntime {
         return cloneSnapshot(snapshot) as T;
       }
       case 'clone_conversation': {
-        const source = this.snapshots.get(String(args.conversationId ?? '')) ?? this.currentSnapshot;
+        const conversationId = String(args.conversationId ?? '');
+        const source = this.snapshots.get(conversationId);
+        if (!source) throw new Error(`浏览器调试会话不存在：${conversationId}`);
         const messages = Array.isArray(args.messages)
           ? args.messages as CloneMessageInput[]
           : undefined;
@@ -1149,7 +1166,9 @@ export default class BrowserDebugRuntime implements FrontendRuntime {
 
   private async sendMessage<T>(conversationId: string, content: string, requestId: string) {
     const generation = this.generation;
-    const source = cloneSnapshot(this.snapshots.get(conversationId) ?? this.currentSnapshot);
+    const storedSnapshot = this.snapshots.get(conversationId);
+    if (!storedSnapshot) throw new Error(`浏览器调试会话不存在：${conversationId}`);
+    const source = cloneSnapshot(storedSnapshot);
     const timestamp = nowIso();
     const messages: AgentMessage[] = content.match(/图片|图像|YOLO|识别|位置在/i)
       ? [

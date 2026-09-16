@@ -44,9 +44,16 @@ function tabFromSnapshot(snapshot: WorkspaceSnapshot): WorkspaceTab {
 }
 
 function upsertTab(tabs: WorkspaceTab[], nextTab: WorkspaceTab) {
-  return tabs.some((tab) => tab.id === nextTab.id)
-    ? tabs.map((tab) => (tab.id === nextTab.id ? nextTab : tab))
-    : [...tabs, nextTab];
+  const index = tabs.findIndex((tab) => tab.id === nextTab.id);
+  if (index < 0) return [...tabs, nextTab];
+  const current = tabs[index];
+  if (
+    current.label === nextTab.label &&
+    current.projectId === nextTab.projectId
+  ) {
+    return tabs;
+  }
+  return tabs.map((tab) => (tab.id === nextTab.id ? nextTab : tab));
 }
 
 function nextCloneTitle(sourceTitle: string, usedTitles: string[]) {
