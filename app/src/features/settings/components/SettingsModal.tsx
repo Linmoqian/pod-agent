@@ -329,11 +329,11 @@ function AboutSection() {
         </span>
         <div className={styles.aboutText}>
           <p className={styles.aboutName}>
-            Pod Agent
+            Lian Agent
             <span className={styles.aboutVersion}>v{version}</span>
           </p>
           <p className={styles.aboutDescription}>
-            面向大豆育种的智能体助手，仍在持续拓展。
+            智能育种助手，老牛持续开发中......
           </p>
           <p className={styles.aboutMeta}>
             作者：
@@ -437,7 +437,7 @@ function SettingsModal({
     ...(experienceMode === 'developer'
       ? [{ id: 'model' as const, label: '模型', hint: '提供商与密钥', keywords: ['模型', '提供商', '密钥', '端点'], icon: <Bot size={16} /> }]
       : []),
-    { id: 'about', label: '关于', hint: '版本信息', keywords: ['版本', '作者', '开发成员', 'pod agent'], icon: <Code2 size={16} /> },
+    { id: 'about', label: '关于', hint: '版本信息', keywords: ['版本', '作者', '开发成员', 'lian agent'], icon: <Code2 size={16} /> },
   ];
   useEffect(() => {
     if (experienceMode !== 'developer' && activeSection === 'model') {
@@ -504,7 +504,7 @@ function SettingsModal({
                 ))}
               </AnimatePresence>
             </nav>
-            <span className={styles.navFooter}>Pod Agent · v{version}</span>
+            <span className={styles.navFooter}>Lian Agent · v{version}</span>
           </aside>
           <motion.div
             className={styles.body}

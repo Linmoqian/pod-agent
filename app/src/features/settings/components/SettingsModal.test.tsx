@@ -38,7 +38,8 @@ describe("SettingsModal", () => {
     expect(screen.queryByRole("heading", { name: "外观" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /关于/ }));
     expect(screen.getByRole("heading", { name: "关于" })).toBeInTheDocument();
-    expect(screen.getAllByText("Pod Agent").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Lian Agent").length).toBeGreaterThan(0);
+    expect(screen.getByText("智能育种助手，老牛持续开发中......")).toBeInTheDocument();
     expect(screen.getByText(`v${version}`)).toBeInTheDocument();
   });
 
