@@ -118,27 +118,33 @@ function removeEmptyGroups(
   Object.values(groupIds).forEach((groupId) => {
     counts.set(groupId, (counts.get(groupId) ?? 0) + 1);
   });
-  const nextGroupIds = { ...groupIds };
-  const nextGroupNames = { ...groupNames };
-  const nextGroupColors = { ...groupColors };
-  for (const [tabId, groupId] of Object.entries(groupIds)) {
-    if ((counts.get(groupId) ?? 0) < 2) delete nextGroupIds[tabId];
-  }
-  for (const groupId of Object.keys(groupNames)) {
-    if (!Object.values(nextGroupIds).includes(groupId)) {
-      delete nextGroupNames[groupId];
-    }
-  }
-  for (const groupId of Object.keys(groupColors)) {
-    if (!Object.values(nextGroupIds).includes(groupId)) {
-      delete nextGroupColors[groupId];
-    }
-  }
+  const nextGroupIds = Object.fromEntries(
+    Object.entries(groupIds).filter(
+      ([, groupId]) => (counts.get(groupId) ?? 0) >= 2,
+    ),
+  );
+  const activeGroupIds = new Set(Object.values(nextGroupIds));
   return {
     groupIds: nextGroupIds,
-    groupNames: nextGroupNames,
-    groupColors: nextGroupColors,
+    groupNames: Object.fromEntries(
+      Object.entries(groupNames).filter(([groupId]) =>
+        activeGroupIds.has(groupId),
+      ),
+    ),
+    groupColors: Object.fromEntries(
+      Object.entries(groupColors).filter(([groupId]) =>
+        activeGroupIds.has(groupId),
+      ),
+    ),
   };
+}
+
+function completeTabOrder(order: string[], tabIds: string[]) {
+  const existingIds = new Set(order);
+  return [
+    ...order,
+    ...tabIds.filter((tabId) => !existingIds.has(tabId)),
+  ];
 }
 
 function moveBefore(order: string[], sourceId: string, targetId: string) {
@@ -231,10 +237,7 @@ export default function useWorkspaceTabLayout(tabs: WorkspaceTab[]) {
     setLayout((current) => ({
       ...current,
       order: moveBefore(
-        [
-          ...current.order,
-          ...tabIds.filter((tabId) => !current.order.includes(tabId)),
-        ],
+        completeTabOrder(current.order, tabIds),
         sourceId,
         targetId,
       ),
@@ -278,10 +281,7 @@ export default function useWorkspaceTabLayout(tabs: WorkspaceTab[]) {
         return {
           ...current,
           order: moveBefore(
-            [
-              ...current.order,
-              ...tabIds.filter((tabId) => !current.order.includes(tabId)),
-            ],
+            completeTabOrder(current.order, tabIds),
             sourceId,
             targetId,
           ),

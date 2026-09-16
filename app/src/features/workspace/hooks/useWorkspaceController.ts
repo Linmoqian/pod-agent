@@ -40,6 +40,12 @@ function tabFromSnapshot(snapshot: WorkspaceSnapshot): WorkspaceTab {
   };
 }
 
+function upsertTab(tabs: WorkspaceTab[], nextTab: WorkspaceTab) {
+  return tabs.some((tab) => tab.id === nextTab.id)
+    ? tabs.map((tab) => (tab.id === nextTab.id ? nextTab : tab))
+    : [...tabs, nextTab];
+}
+
 function nextCloneTitle(sourceTitle: string, usedTitles: string[]) {
   const title = sourceTitle.trim() || '临时会话';
   const used = new Set(usedTitles);
@@ -60,24 +66,24 @@ function nextCloneTitle(sourceTitle: string, usedTitles: string[]) {
 
 function useConversationBootstrap(
   reportError: (error: unknown) => void,
-  setSnapshot: (snapshot: WorkspaceSnapshot) => void,
+  onSnapshot: (snapshot: WorkspaceSnapshot) => void,
 ) {
   useEffect(() => {
     let alive = true;
     if (!isTauriRuntime()) {
-      setSnapshot(createBrowserPreviewSnapshot());
+      onSnapshot(createBrowserPreviewSnapshot());
       return () => {
         alive = false;
       };
     }
     workspaceApi
       .ensureConversation()
-      .then((value) => alive && setSnapshot(value))
+      .then((value) => alive && onSnapshot(value))
       .catch((error) => alive && reportError(error));
     return () => {
       alive = false;
     };
-  }, [reportError, setSnapshot]);
+  }, [onSnapshot, reportError]);
 }
 
 export default function useWorkspaceController() {
@@ -109,12 +115,7 @@ export default function useWorkspaceController() {
     previewSnapshots.current.set(next.conversation.id, next);
     setSnapshot(next);
     const nextTab = tabFromSnapshot(next);
-    setTabs((current) => {
-      const found = current.some((item) => item.id === nextTab.id);
-      return found
-        ? current.map((item) => (item.id === nextTab.id ? nextTab : item))
-        : [...current, nextTab];
-    });
+    setTabs((current) => upsertTab(current, nextTab));
   }, []);
   const createPreviewConversation = useCallback(() => {
     const preview = createBrowserPreviewSnapshot();
@@ -129,19 +130,7 @@ export default function useWorkspaceController() {
       },
     };
   }, []);
-  useConversationBootstrap(reportError, setSnapshot);
-  useEffect(() => {
-    if (!snapshot) return;
-    previewSnapshots.current.set(snapshot.conversation.id, snapshot);
-    const currentTab = tabFromSnapshot(snapshot);
-    setTabs((current) =>
-      current.some((item) => item.id === currentTab.id)
-        ? current.map((item) =>
-            item.id === currentTab.id ? currentTab : item,
-          )
-        : [...current, currentTab],
-    );
-  }, [snapshot]);
+  useConversationBootstrap(reportError, activateSnapshot);
   useEffect(() => {
     if (!isTauriRuntime()) {
       setProjects([]);
@@ -443,6 +432,7 @@ export default function useWorkspaceController() {
     if (!targetConversationId) return false;
     setBusy(true);
     try {
+      let context: WorkspaceSnapshot;
       if (!isTauriRuntime()) {
         const source = previewSnapshots.current.get(targetConversationId);
         if (!source) return false;
@@ -454,7 +444,7 @@ export default function useWorkspaceController() {
           createdAt: now,
           updatedAt: now,
         };
-        const context: WorkspaceSnapshot = {
+        context = {
           ...source,
           conversation: {
             ...source.conversation,
@@ -464,29 +454,19 @@ export default function useWorkspaceController() {
           },
           project,
         };
-        previewSnapshots.current.set(targetConversationId, context);
-        const promotedTab = tabFromSnapshot(context);
-        setTabs((current) =>
-          current.map((item) =>
-            item.id === promotedTab.id ? promotedTab : item,
-          ),
+      } else {
+        context = await workspaceApi.promoteConversation(
+          targetConversationId,
+          name,
         );
-        if (targetConversationId === conversationId) activateSnapshot(context);
-        return true;
+        setProjects(await workspaceApi.listProjects());
       }
-      const context = await workspaceApi.promoteConversation(
-        targetConversationId,
-        name,
-      );
-      previewSnapshots.current.set(context.conversation.id, context);
-      const promotedTab = tabFromSnapshot(context);
-      setTabs((current) =>
-        current.map((item) =>
-          item.id === promotedTab.id ? promotedTab : item,
-        ),
-      );
-      if (targetConversationId === conversationId) activateSnapshot(context);
-      setProjects(await workspaceApi.listProjects());
+      if (targetConversationId === conversationId) {
+        activateSnapshot(context);
+      } else {
+        previewSnapshots.current.set(context.conversation.id, context);
+        setTabs((current) => upsertTab(current, tabFromSnapshot(context)));
+      }
       return true;
     } catch (error) {
       reportError(error);
