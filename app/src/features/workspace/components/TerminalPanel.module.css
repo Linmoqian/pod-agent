@@ -19,6 +19,44 @@
   min-height: 42px;
 }
 
+.headerControls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.viewTabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+}
+
+.viewTab {
+  padding: 5px 9px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.viewTab[data-active='true'] {
+  background: var(--color-surface-default);
+  box-shadow: var(--shadow-card);
+  color: var(--color-text-primary);
+}
+
+.viewTab:focus-visible,
+.sshAuthOption:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+}
+
 .titleGroup {
   display: flex;
   align-items: center;
@@ -219,6 +257,199 @@
   margin: -5px 2px 0;
 }
 
+.sshPanel {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: 20px;
+  overflow: auto;
+  padding: 4px 0;
+}
+
+.sshIntro {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.sshIntroIcon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: color-mix(
+    in srgb,
+    var(--color-brand-500) 12%,
+    var(--color-surface-subtle)
+  );
+  color: var(--color-brand-600);
+}
+
+.sshIntro h3 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 15px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.sshIntro p {
+  max-width: 620px;
+  margin: 5px 0 0;
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.sshForm {
+  display: flex;
+  width: min(760px, 100%);
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sshFields {
+  display: grid;
+  grid-template-columns: minmax(0, 1.8fr) minmax(92px, 0.65fr) minmax(0, 1.2fr);
+  gap: 12px;
+}
+
+.sshFields label,
+.sshAuth label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.sshFields input,
+.sshAuth input {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  outline: 0;
+  background: var(--color-surface-default);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-weight: 400;
+  transition:
+    border-color var(--duration-fast) var(--easing-standard),
+    box-shadow var(--duration-fast) var(--easing-standard);
+}
+
+.sshFields input:focus,
+.sshAuth input:focus {
+  border-color: var(--color-brand-500);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--color-brand-500) 14%, transparent);
+}
+
+.sshFields input::placeholder,
+.sshAuth input::placeholder {
+  color: var(--color-text-disabled);
+}
+
+.sshAuth {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-subtle);
+}
+
+.sshAuth legend {
+  padding: 0 5px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.sshAuthOptions {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+}
+
+.sshAuthOption {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.sshAuthOption[data-selected='true'] {
+  background: var(--color-surface-subtle);
+  box-shadow: var(--shadow-card);
+  color: var(--color-text-primary);
+}
+
+.sshFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sshStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+}
+
+.sshStatus[data-status='unavailable'] {
+  color: var(--color-danger-600, #b54747);
+}
+
+.sshStatusDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-text-disabled);
+}
+
+.sshNotice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: min(760px, 100%);
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--color-brand-500) 22%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-brand-500) 6%, transparent);
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.sshNotice svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--color-brand-600);
+}
+
 .locked {
   align-items: center;
   justify-content: center;
@@ -249,6 +480,20 @@
   .composer {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .headerControls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .sshFields {
+    grid-template-columns: 1fr;
   }
 
   .runButton {

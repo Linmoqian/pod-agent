@@ -9,8 +9,11 @@ import { Button } from '@/components/ui/button';
 
 import { workspaceApi } from '../../../services/workspace';
 import { isBrowserDebugRuntime } from '../../../services/runtime';
+import SshPanel from './SshPanel';
 import type { TerminalRunResult } from '../types';
 import styles from './TerminalPanel.module.css';
+
+type TerminalView = 'local' | 'ssh';
 
 type TerminalEntry = {
   id: number;
@@ -87,6 +90,7 @@ export default function TerminalPanel({
   const [command, setCommand] = useState('');
   const [entries, setEntries] = useState<TerminalEntry[]>([]);
   const [running, setRunning] = useState(false);
+  const [view, setView] = useState<TerminalView>('local');
   const sequence = useRef(0);
   const outputRef = useRef<HTMLDivElement>(null);
 
@@ -142,82 +146,123 @@ export default function TerminalPanel({
     }
   };
 
+  const isSshView = view === 'ssh';
+
   return (
-    <section className={styles.panel} aria-labelledby="terminal-title">
+    <section
+      className={styles.panel}
+      aria-labelledby={isSshView ? 'ssh-panel-title' : 'terminal-title'}
+    >
       <header className={styles.header}>
         <div className={styles.titleGroup}>
           <span className={styles.icon} aria-hidden>
             <TerminalIcon size={17} />
           </span>
           <div>
-            <h2 id="terminal-title">终端</h2>
-            <p>开发人员模式 · 当前工程根目录</p>
+            <h2 id="terminal-title">{isSshView ? 'SSH' : '终端'}</h2>
+            <p>
+              {isSshView
+                ? '开发人员模式 · 远程连接配置'
+                : '开发人员模式 · 当前工程根目录'}
+            </p>
           </div>
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className={styles.clearButton}
-          onClick={() => setEntries([])}
-          disabled={!entries.length || running}
-        >
-          <Trash2 size={14} aria-hidden />
-          清空
-        </Button>
+        <div className={styles.headerControls}>
+          <div className={styles.viewTabs} role="tablist" aria-label="开发工具">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={!isSshView}
+              className={styles.viewTab}
+              data-active={!isSshView}
+              onClick={() => setView('local')}
+            >
+              本地终端
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={isSshView}
+              className={styles.viewTab}
+              data-active={isSshView}
+              onClick={() => setView('ssh')}
+            >
+              SSH
+            </button>
+          </div>
+          {!isSshView && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className={styles.clearButton}
+              onClick={() => setEntries([])}
+              disabled={!entries.length || running}
+            >
+              <Trash2 size={14} aria-hidden />
+              清空
+            </Button>
+          )}
+        </div>
       </header>
 
-      <div
-        ref={outputRef}
-        className={styles.output}
-        role="log"
-        aria-live="polite"
-        aria-label="终端输出"
-      >
-        {!entries.length && (
-          <div className={styles.empty}>
-            <TerminalIcon size={24} aria-hidden />
-            <strong>从这里开始</strong>
-            <span>
-              {isBrowserDebugRuntime()
-                ? '例如：git status（浏览器模拟）'
-                : '例如：git status'}
-            </span>
+      {isSshView ? (
+        <SshPanel />
+      ) : (
+        <>
+          <div
+            ref={outputRef}
+            className={styles.output}
+            role="log"
+            aria-live="polite"
+            aria-label="终端输出"
+          >
+            {!entries.length && (
+              <div className={styles.empty}>
+                <TerminalIcon size={24} aria-hidden />
+                <strong>从这里开始</strong>
+                <span>
+                  {isBrowserDebugRuntime()
+                    ? '例如：git status（浏览器模拟）'
+                    : '例如：git status'}
+                </span>
+              </div>
+            )}
+            {entries.map((entry) => (
+              <TerminalEntryView key={entry.id} entry={entry} />
+            ))}
           </div>
-        )}
-        {entries.map((entry) => (
-          <TerminalEntryView key={entry.id} entry={entry} />
-        ))}
-      </div>
 
-      <form className={styles.composer} onSubmit={runCommand}>
-        <label className={styles.commandInput}>
-          <span className={styles.prompt} aria-hidden>
-            $
-          </span>
-          <input
-            aria-label="终端命令"
-            autoComplete="off"
-            spellCheck={false}
-            value={command}
-            onChange={(event) => setCommand(event.target.value)}
-            placeholder="输入命令，例如 git status"
-            disabled={running}
-          />
-        </label>
-        <Button
-          type="submit"
-          className={styles.runButton}
-          disabled={!command.trim() || running}
-        >
-          {running ? '执行中…' : '运行'}
-        </Button>
-      </form>
-      <p className={styles.notice}>
-        {isBrowserDebugRuntime()
-          ? '浏览器调试模式：命令仅在内存中模拟，输出不会写入会话记录。'
-          : '仅开发人员模式可用；命令在本机执行，输出不会写入会话记录。'}
-      </p>
+          <form className={styles.composer} onSubmit={runCommand}>
+            <label className={styles.commandInput}>
+              <span className={styles.prompt} aria-hidden>
+                $
+              </span>
+              <input
+                aria-label="终端命令"
+                autoComplete="off"
+                spellCheck={false}
+                value={command}
+                onChange={(event) => setCommand(event.target.value)}
+                placeholder="输入命令，例如 git status"
+                disabled={running}
+              />
+            </label>
+            <Button
+              type="submit"
+              className={styles.runButton}
+              disabled={!command.trim() || running}
+            >
+              {running ? '执行中…' : '运行'}
+            </Button>
+          </form>
+          <p className={styles.notice}>
+            {isBrowserDebugRuntime()
+              ? '浏览器调试模式：命令仅在内存中模拟，输出不会写入会话记录。'
+              : '仅开发人员模式可用；命令在本机执行，输出不会写入会话记录。'}
+          </p>
+        </>
+      )}
     </section>
   );
 }
