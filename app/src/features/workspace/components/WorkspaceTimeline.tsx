@@ -53,12 +53,31 @@ type WorkspaceTimelineProps = {
   onRetry: (content: string) => void;
 };
 
+const WORKSPACE_SUGGESTIONS = [
+  '帮我梳理一个研究思路',
+  '如何设计多环境育种实验？',
+  '解释混合模型与 BLUP',
+];
+
+function shuffledSuggestions() {
+  const suggestions = [...WORKSPACE_SUGGESTIONS];
+  for (let index = suggestions.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [suggestions[index], suggestions[randomIndex]] = [
+      suggestions[randomIndex],
+      suggestions[index],
+    ];
+  }
+  return suggestions;
+}
+
 function WelcomeWorkspace({
   onSuggestion,
 }: {
   onSuggestion?: (value: string) => void;
 }) {
   const reduced = useReducedMotion();
+  const [suggestions] = useState(shuffledSuggestions);
 
   return (
     <motion.div className={styles.welcome} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28 }}>
@@ -83,13 +102,8 @@ function WelcomeWorkspace({
         </motion.button>
       </motion.div>
       <h1>今天想研究什么？</h1>
-      <p>从一个想法开始，一起把问题研究清楚。你可以直接提问，也可以先添加数据。</p>
       <div className={styles.suggestions}>
-        {[
-          '帮我梳理一个研究思路',
-          '如何设计多环境育种实验？',
-          '解释混合模型与 BLUP',
-        ].map((text) => (
+        {suggestions.map((text) => (
           <button key={text} onClick={() => onSuggestion?.(text)}>
             {text}
             <ArrowUpRight size={14} />

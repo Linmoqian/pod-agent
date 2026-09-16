@@ -1,13 +1,13 @@
 /*
  * 统一承载研究问题、文件选择与文件夹选择的输入器。
  * Created on 2026-09-12
- * Updated on 2026-09-13
+ * Updated on 2026-09-16
  * @author: https://github.com/Linmoqian
  */
 
-import { Plus, ArrowUp, Loader2, X, FileUp, FolderOpen, Database, Keyboard, Square } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { Plus, ArrowUp, Loader2, X, FileUp, FolderOpen, Database, Square } from 'lucide-react';
+import { motion } from 'motion/react';
+import { useLayoutEffect, useRef } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -41,7 +41,6 @@ export default function WorkspaceComposer({
   const canSubmit = Boolean(intent.trim()) && !busy;
   const canStop = busy && canCancel;
   const input = useRef<HTMLTextAreaElement>(null);
-  const [guidanceVisible, setGuidanceVisible] = useState(true);
   useLayoutEffect(() => {
     if (!input.current) return;
     input.current.style.height = 'auto';
@@ -58,12 +57,10 @@ export default function WorkspaceComposer({
         ref={input}
         aria-label="研究问题"
         aria-describedby={busy ? 'workspace-composer-status' : undefined}
-        maxLength={4000}
         value={intent}
         rows={2}
         onChange={(event) => {
           onIntentChange(event.target.value);
-          if (event.target.value) setGuidanceVisible(false);
         }}
         onKeyDown={(event) => {
           if (
@@ -105,50 +102,13 @@ export default function WorkspaceComposer({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <div className={styles.meta}>
-          {busy ? (
+        {busy && (
+          <div className={styles.meta}>
             <span className={styles.status} id="workspace-composer-status" aria-live="polite">
               lian 正在整理思路…
             </span>
-          ) : (
-            <>
-              <span className={styles.counter}>{intent.length}/4000</span>
-              <AnimatePresence initial={false}>
-                {guidanceVisible && (
-                  <motion.span
-                    className={styles.guidance}
-                    initial={{ opacity: 0, width: 0 }}
-                    animate={{ opacity: 1, width: 'auto' }}
-                    exit={{ opacity: 0, width: 0 }}
-                    transition={{ duration: 0.16, ease: 'easeOut' }}
-                  >
-                    <span>Enter 发送 · Shift + Enter 换行</span>
-                    <button
-                      type="button"
-                      className={styles.hideGuidance}
-                      aria-label="隐藏输入提示"
-                      title="隐藏输入提示"
-                      onClick={() => setGuidanceVisible(false)}
-                    >
-                      <X size={12} />
-                    </button>
-                  </motion.span>
-                )}
-              </AnimatePresence>
-              {!guidanceVisible && (
-                <button
-                  type="button"
-                  className={styles.showGuidance}
-                  aria-label="显示输入提示"
-                  title="显示输入提示"
-                  onClick={() => setGuidanceVisible(true)}
-                >
-                  <Keyboard size={14} />
-                </button>
-              )}
-            </>
-          )}
-        </div>
+          </div>
+        )}
         <button
           aria-label={canStop ? '停止 Agent 请求' : '提交研究问题'}
           title={canStop ? '停止 Agent 请求' : '提交研究问题'}

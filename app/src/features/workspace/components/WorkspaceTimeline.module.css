@@ -30,13 +30,6 @@
   line-height: 1.2;
 }
 
-.welcome p {
-  color: var(--color-text-secondary, var(--color-text-disabled));
-  font-size: 13px;
-  max-width: 430px;
-  line-height: 1.7;
-  letter-spacing: 0;
-}
 .welcomeTip { max-width: 420px; color: var(--color-text-disabled); font-size: 11px; line-height: 1.6; }
 
 .message {
