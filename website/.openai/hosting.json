@@ -1,0 +1,7 @@
+{
+  "project_id": "appgprj_6aaac1eab1808191ae9b2adf6a112f88",
+  "static": {
+    "directory": "out",
+    "not_found_handling": "404-page"
+  }
+}

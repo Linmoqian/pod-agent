@@ -1,0 +1,64 @@
+.page {
+  display: grid;
+  place-items: center;
+  min-height: 56vh;
+  padding: 80px 24px;
+  background:
+    linear-gradient(rgba(82, 107, 94, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(82, 107, 94, 0.05) 1px, transparent 1px),
+    var(--paper-soft);
+  background-size: 36px 36px;
+}
+
+.card {
+  display: grid;
+  justify-items: start;
+  width: min(100%, 520px);
+  padding: 34px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  box-shadow: var(--shadow-card);
+}
+
+.card > svg {
+  color: var(--brand-500);
+}
+
+.card > span {
+  margin-top: 23px;
+  color: var(--brand-500);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.card h1 {
+  margin: 13px 0 8px;
+  color: var(--ink-950);
+  font-size: 30px;
+  letter-spacing: -0.05em;
+}
+
+.card p {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: 14px;
+}
+
+.card a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 26px;
+  padding: 10px 13px;
+  border-radius: var(--radius-sm);
+  color: #f6faf6;
+  background: var(--brand-600);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.card a:hover {
+  background: var(--brand-700);
+}

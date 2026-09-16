@@ -1,0 +1,60 @@
+Pod Agent 是面向大豆育种的本地桌面科研助手。官网本身是静态站点，不连接桌面端 Agent，也不会读取你的研究数据；下面分别说明如何启动官网与桌面端。
+
+## 先了解运行边界
+
+桌面端的正式入口是 Tauri IPC。研究数据、项目状态和执行结果由 Rust 与 SQLite 维护，Node Agent 和 Python / ONNX 工作流都通过受控边界参与。模型凭据不应写入官网、提交到 Git，或出现在对话结果中。
+
+## 本地查看官网
+
+在仓库根目录执行：
+
+```bash
+cd website
+pnpm install
+pnpm dev
+```
+
+然后打开 `http://localhost:3000`。官网支持静态导出，发布前可以执行：
+
+```bash
+pnpm lint
+pnpm typecheck
+pnpm build
+```
+
+构建产物位于 `website/out/`，包含首页、文档路由和 404 页面。
+
+## 启动桌面端
+
+桌面端依赖 Rust、Node 和 Python 工具链。在另一个终端进入 `app/`：
+
+```bash
+cd app
+pnpm install
+pnpm tauri:dev
+```
+
+`tauri:dev` 会启动本地 Tauri 工作区。首次启动时先创建临时会话；要导入数据，需要先把临时会话提升为 Project。
+
+## 配置开发期 Agent
+
+如果需要单独调试 Node Agent，可以参考 `app/agent/.env.example` 创建本地 `.env`，配置模型提供商和模型标识，再运行：
+
+```bash
+cd app
+pnpm dev:agent
+```
+
+密钥只通过本地环境或桌面端的安全凭据注入使用。不要把真实密钥写进 `.env`、源码、截图或文档；`.env` 也不应提交到仓库。发布环境由 Rust 从 macOS Keychain 取出凭据，再通过标准输入交给 Agent。
+
+## 第一次研究对话
+
+可以先从不带数据的讨论开始，让 Agent 帮助解释方法、梳理实验问题或规划下一步。导入数据后，工作流会先完成字段推断和质量检查，再生成待确认的 `TaskPlan`。确认计划之后，Rust 才会启动相应的分析执行。
+
+> **安全提示**：无数据时不要把对话中的假设当成真实分析结论。任何数据结论都应回到当前 Project、Dataset、Execution 与 Artifact 中核对。
+
+## 下一步
+
+- 想理解各层职责：阅读[系统架构](/docs/architecture)。
+- 想修改代码或接口：阅读[开发指南](/docs/development)。
+- 想查看源码：访问 [LianAgent GitHub 仓库](https://github.com/LianLab-SCAU/LianAgent)。

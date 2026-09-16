@@ -1,0 +1,123 @@
+.header {
+  position: sticky;
+  z-index: 20;
+  top: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 84%, transparent);
+  background: color-mix(in srgb, var(--paper) 90%, transparent);
+  backdrop-filter: blur(16px);
+}
+
+.inner {
+  display: flex;
+  align-items: center;
+  width: min(1180px, calc(100% - 48px));
+  height: 72px;
+  margin: 0 auto;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  min-width: max-content;
+}
+
+.brand img {
+  width: 112px;
+  height: auto;
+  object-fit: contain;
+}
+
+.productName {
+  padding-left: 11px;
+  border-left: 1px solid var(--line-strong);
+  color: var(--ink-700);
+  font-size: 13px;
+  font-weight: 620;
+  letter-spacing: 0.02em;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  margin-left: auto;
+  color: var(--ink-600);
+  font-size: 14px;
+}
+
+.nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: color 160ms ease;
+}
+
+.nav a:hover {
+  color: var(--brand-700);
+}
+
+.docsButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: 30px;
+  padding: 9px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--brand-700);
+  background: var(--paper);
+  font-size: 13px;
+  font-weight: 650;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.docsButton:hover {
+  border-color: var(--brand-300);
+  background: var(--paper-tint);
+  transform: translateY(-1px);
+}
+
+@media (max-width: 760px) {
+  .inner {
+    width: min(100% - 32px, 620px);
+    height: 64px;
+  }
+
+  .brand {
+    gap: 8px;
+  }
+
+  .brand img {
+    width: 96px;
+  }
+
+  .productName {
+    padding-left: 8px;
+    font-size: 12px;
+  }
+
+  .nav {
+    gap: 12px;
+    margin-left: auto;
+    font-size: 0;
+  }
+
+  .nav a {
+    gap: 0;
+    padding: 8px;
+  }
+
+  .nav a svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .nav a:first-child {
+    display: none;
+  }
+
+  .docsButton {
+    display: none;
+  }
+}

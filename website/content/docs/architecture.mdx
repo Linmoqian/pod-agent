@@ -1,0 +1,61 @@
+Pod Agent 把“研究对话”作为交互单元，把 Project 作为可选的持续科研容器。前端看到的是一个工作区，后端实际维护的是一组有边界的事实和动作。
+
+## 一张边界图
+
+<div className="architectureDiagram">
+  <div className="architectureRow">
+    <div className="architectureNode">React 工作区<small>对话、导入、计划与 Artifact 交互</small></div>
+    <div className="architectureArrow">→</div>
+    <div className="architectureNode">Tauri Rust<small>IPC 校验、路径与状态边界</small></div>
+  </div>
+  <div className="architectureRow">
+    <div className="architectureNode">SQLite / 受管文件<small>业务事实与来源文件</small></div>
+    <div className="architectureArrow">↕</div>
+    <div className="architectureNode">Node Agent<small>LF-JSONL、受控模型交互</small></div>
+    <div className="architectureArrow">↕</div>
+    <div className="architectureNode">Python / ONNX<small>表格分析与本地图像任务</small></div>
+  </div>
+</div>
+
+这张图表达的是职责关系，不是新的远程服务。官网不会新增 IPC、数据库表、Agent 协议或运行时 API。
+
+## React 与 Tauri Rust
+
+React 工作区负责呈现对话、数据导入、TaskPlan、执行状态和 Artifact。前端通过 `app/src/services/workspace.ts` 调用 Tauri 命令；`app/src-tauri/src/commands/` 负责输入校验和调用边界，Rust 领域模型与 DTO 才是接口事实来源。
+
+Rust 层还负责：
+
+- 管理临时会话、Project、Dataset、Execution、Artifact 和 Lineage 的生命周期。
+- 接收 CSV、TSV、TXT、XLSX，并将来源文件复制到受管目录、按 SHA-256 去重。
+- 启动受控的 Node Agent、Python Worker 和图像任务，汇总状态后写入 SQLite。
+- 校验路径、质量、状态与 Artifact 输出，避免 Agent 直接绕过桌面端边界。
+
+## SQLite 是业务事实来源
+
+SQLite 保存项目、消息、数据集、计划和执行产物之间的关系。导入后的结构化处理由 Python Worker 完成，但 Worker 的输入与输出仍由 Rust 工作流控制。数据库 schema 当前由 Rust 服务维护；涉及迁移时，需要考虑备份和恢复路径，而不是在前端另造一份状态。
+
+## Node Agent 与 JSONL
+
+Node Agent 由 Rust 按需启动并保持单一持久实例。会话在内存中按 `conversationId` 区分，进程通过 LF-JSONL 交换消息，协议中的结束原因和错误需要与双方类型保持一致。
+
+规划和讨论的工具边界不同：计划阶段不获得通用文件、Shell 或数据库能力；讨论阶段只允许登记过的 YOLO 工具。Agent 的输出只能携带对当前侧安全且必要的摘要，不能泄露受管目录、绝对路径、检测框、执行日志或凭据。
+
+## Python Worker 与 ONNX
+
+Python Worker 负责表格字段推断、规范化、质量检查和统计分析，运行时需要项目配置的 Conda 环境或有效的 Python 解释器。图像任务通过受控 YOLO 工具调用本地 ONNX / Python 能力；模型对特定目标是否可用，以当前登记的本地权重和任务配置为准。
+
+因此，图像识别结果是模型估计，不应被表述为未经复核的实验事实。官网只介绍能力边界，不展示真实样本、检测框或内部执行记录。
+
+## 一次数据工作流
+
+```text
+研究问题
+  → 临时会话 / Project
+  → Dataset 导入与质量检查
+  → Agent 生成 TaskPlan
+  → 用户确认
+  → Rust 启动分析执行
+  → Execution / Artifact / Lineage
+```
+
+没有 Dataset 时，Agent 可以讨论方法和计划，但不能声称已经读取数据或生成分析结论。这条约束是产品可信度的一部分。

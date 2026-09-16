@@ -1,0 +1,67 @@
+这份指南面向准备修改 Pod Agent 的开发者。站点只记录当前实现中已经存在的入口；如果代码和旧文档不一致，应以命令注册、Rust DTO / 领域模型和前端类型为准。
+
+## 目录职责
+
+| 目录或文件 | 负责什么 |
+| --- | --- |
+| `app/src/features/workspace/` | 当前研究对话、数据导入、计划与 Artifact 交互 |
+| `app/src/services/workspace.ts` | 前端 Tauri IPC 客户端契约 |
+| `app/src-tauri/src/commands/` | IPC 输入校验与命令边界 |
+| `app/src-tauri/src/services/db.rs` | SQLite schema、迁移与持久化 |
+| `app/src-tauri/src/services/planner.rs` | 受控 Node / Pi Agent 的 JSONL 通信 |
+| `app/agent/` | Agent 运行时、工具注册和协议实现 |
+| `app/python/worker.py` | 表格处理、质量检查和统计分析 |
+| `app/src-tauri/src/services/yolo.rs` | 本地图像任务的 Rust 调度与边界 |
+
+`app/src/features/chat/` 保留的是早期 HTTP 流式方案，当前主路由没有使用它。修改对话功能时，先从 `workspace`、`commands/conversation.rs` 和 `services/workspace.ts` 找到当前链路。
+
+## 常用命令
+
+在 `app/` 中，项目 README 记录的主要命令包括：
+
+```bash
+pnpm install
+pnpm tauri:dev
+pnpm dev:agent
+pnpm lint
+pnpm test:run
+pnpm build
+```
+
+官网自己的命令在 `website/README.md` 中维护：
+
+```bash
+pnpm install
+pnpm lint
+pnpm typecheck
+pnpm build
+```
+
+两套命令属于两个独立项目。修改官网不需要迁移、重构或重新打包 Tauri 桌面端。
+
+## 修改 IPC 或数据边界
+
+接口变更时，建议按下面的顺序核对：
+
+1. 先确认 Rust 命令是否注册，以及输入、输出 DTO 和领域模型是否已经改变。
+2. 再同步 `app/src/services/workspace.ts` 与调用组件中的 TypeScript 类型。
+3. 检查 SQLite schema、迁移备份和旧数据兼容性；不要在前端创建第二个事实来源。
+4. 检查 Agent JSONL 消息的字段、结束原因和错误处理是否仍与 Node 侧一致。
+5. 更新面向开发者的文档，并用聚焦的 lint、类型检查或测试证明接口契约。
+
+仓库中的 `docs/api/` 有历史版本说明。它可以帮助理解背景，但不能替代当前命令注册和实际类型；接口发生变化时要同步修正过时描述。
+
+## 贡献时的安全清单
+
+- 开始修改前先查看 `git status` 和相关 diff，保留已有未提交工作。
+- 不提交密钥、Token、私钥、个人环境文件、受管目录绝对路径、检测框或内部执行日志。
+- 不让 Agent 绕过 Rust 的路径、状态、质量和 Artifact 输出校验。
+- 改动保持在一个可验证的语义单元内，不顺手格式化无关文件。
+- 涉及 schema、消息归属或持久化格式时，写清兼容性和恢复路径。
+- 提交前确认官网静态导出的路由、文档直接访问和移动端导航仍然可用。
+
+## 文档站的约束
+
+`website/` 使用 Next.js App Router、MDX 和静态导出。文档内容通过 `content/docs/registry.ts` 集中注册，三篇文章用 `generateStaticParams` 预生成；未知 slug 会进入 404。站点没有 Server Actions、Route Handlers、动态请求、数据库或模型凭据。
+
+如果需要新增文档，先添加本地 MDX，再在注册表里加入 slug、摘要和阅读时间，最后检查文档导航与静态导出结果。产品首页只描述已经在桌面端实现的能力，不把站点做成一个未经授权的 Agent 后端入口。
