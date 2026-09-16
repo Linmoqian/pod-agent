@@ -18,6 +18,7 @@ type WorkbenchTabBarProps = {
   onToggleMenu: () => void;
   tabBarRef: React.RefObject<HTMLDivElement | null>;
   tabs: WorkbenchTab[];
+  showFileTree?: boolean;
   viewMenuOpen: boolean;
 };
 
@@ -29,9 +30,13 @@ export default function WorkbenchTabBar({
   onToggleMenu,
   tabBarRef,
   tabs,
+  showFileTree = true,
   viewMenuOpen,
 }: WorkbenchTabBarProps) {
   const reduced = useReducedMotion();
+  const visibleTabs = showFileTree
+    ? tabs
+    : tabs.filter((tab) => tab.kind === 'task');
   return (
     <div
       ref={tabBarRef}
@@ -40,7 +45,7 @@ export default function WorkbenchTabBar({
       aria-label="育种台任务标签"
     >
       <div className={styles.tabList}>
-        {tabs.map((tab) => {
+        {visibleTabs.map((tab) => {
           const active = tab.id === activeTabId;
           return (
             <motion.div
@@ -104,14 +109,16 @@ export default function WorkbenchTabBar({
               <CheckSquare size={16} />
               <span>任务</span>
             </button>
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => onAdd('files')}
-            >
-              <Folder size={16} />
-              <span>文件</span>
-            </button>
+            {showFileTree && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => onAdd('files')}
+              >
+                <Folder size={16} />
+                <span>文件</span>
+              </button>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

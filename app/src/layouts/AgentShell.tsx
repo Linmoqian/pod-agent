@@ -55,7 +55,7 @@ export default function AgentShell({
   yoloTask,
 }: {
   children: ReactNode;
-  workbench: ReactNode;
+  workbench: ReactNode | ((layout: PanelLayout) => ReactNode);
   workbenchOpen: boolean;
   onToggleWorkbench: () => void;
   projects: Project[];
@@ -67,6 +67,8 @@ export default function AgentShell({
   yoloTask: YoloTask;
 }) {
   const [layout, setLayout] = useState<PanelLayout>(readPanelLayout);
+  const workbenchContent =
+    typeof workbench === 'function' ? workbench(layout) : workbench;
   const leftPanel: PanelId = layout.reversed ? 'workbench' : 'navigation';
   const rightPanel: PanelId = leftPanel === 'navigation' ? 'workbench' : 'navigation';
   const nativeWindow = isTauri();
@@ -121,7 +123,9 @@ export default function AgentShell({
       if (
         next.reversed === current.reversed &&
         next.navigation === current.navigation &&
-        next.workbench === current.workbench
+        next.workbench === current.workbench &&
+        next.showImageRecognition === current.showImageRecognition &&
+        next.showFileTree === current.showFileTree
       ) {
         return current;
       }
@@ -515,7 +519,12 @@ export default function AgentShell({
             </div>
           </nav>
         ) : (
-          <div className={styles.panelBody}><YoloTaskCard task={yoloTask} onOpenResults={onOpenYoloResults} />{workbench}</div>
+          <div className={styles.panelBody}>
+            {layout.showImageRecognition && (
+              <YoloTaskCard task={yoloTask} onOpenResults={onOpenYoloResults} />
+            )}
+            {workbenchContent}
+          </div>
         )}
         <div
           className={styles.resize}
@@ -719,6 +728,8 @@ export default function AgentShell({
               ...value,
               reversed: next.reversed,
               workbench: next.workbench,
+              showImageRecognition: next.showImageRecognition,
+              showFileTree: next.showFileTree,
             }),
             true,
           )

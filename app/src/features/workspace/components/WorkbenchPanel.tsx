@@ -31,6 +31,7 @@ export type WorkbenchPanelProps = {
   onConfirm: (planId: string) => void;
   onCancel: (runId: string) => void;
   onOpenFile: (node: WorkspaceFileNode) => void;
+  showFileTree?: boolean;
   embedded?: boolean;
 };
 
@@ -39,8 +40,15 @@ function EmptyHint({ description }: { description: string }) {
 }
 
 export default function WorkbenchPanel(props: WorkbenchPanelProps) {
-  const { snapshot, latestPlan, latestRun, tasks, activeRunId, embedded } =
-    props;
+  const {
+    snapshot,
+    latestPlan,
+    latestRun,
+    tasks,
+    activeRunId,
+    embedded,
+    showFileTree = true,
+  } = props;
   const reduced = useReducedMotion();
   const {
     activeTabId,
@@ -52,6 +60,7 @@ export default function WorkbenchPanel(props: WorkbenchPanelProps) {
     tabs,
     viewMenuOpen,
   } = useWorkbenchTabs(latestPlan);
+  const renderedTabId = showFileTree ? activeTabId : 'task';
   const runningId =
     activeRunId ?? (latestRun?.status === 'running' ? latestRun.id : null);
   const task = (
@@ -85,25 +94,26 @@ export default function WorkbenchPanel(props: WorkbenchPanelProps) {
         </span>
       </div>
       <WorkbenchTabBar
-        activeTabId={activeTabId}
+        activeTabId={renderedTabId}
         onAdd={addTab}
         onClose={closeTab}
         onSelect={setActiveTabId}
         onToggleMenu={() => setViewMenuOpen((value) => !value)}
         tabBarRef={tabBarRef}
         tabs={tabs}
+        showFileTree={showFileTree}
         viewMenuOpen={viewMenuOpen}
       />
       <AnimatePresence initial={false} mode="wait">
         <motion.div
-          key={activeTabId}
+          key={renderedTabId}
           className={styles.tabContent}
           initial={reduced ? false : { opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
           exit={reduced ? undefined : { opacity: 0, y: -2 }}
           transition={{ duration: 0.16, ease: [0.23, 1, 0.32, 1] }}
         >
-          {tabs.find((tab) => tab.id === activeTabId)?.kind === 'files' ? (
+          {tabs.find((tab) => tab.id === renderedTabId)?.kind === 'files' ? (
             <WorkbenchFileTree onOpenFile={props.onOpenFile} />
           ) : (
             task

@@ -165,9 +165,10 @@ export default function AppLayout() {
       yoloTask={yoloTask}
       workbenchOpen={controller.workbenchOpen}
       onToggleWorkbench={() => controller.setWorkbenchOpen((value) => !value)}
-      workbench={
+      workbench={(panelLayout) => (
         <WorkbenchPanel
           embedded
+          showFileTree={panelLayout.showFileTree}
           snapshot={snapshot}
           latestPlan={latestPlan}
           latestRun={latestRun}
@@ -178,7 +179,7 @@ export default function AppLayout() {
           onCancel={(id) => void controller.cancelWorkflow(id)}
           onOpenFile={openFilePreview}
         />
-      }
+      )}
     >
       <main className={styles.main}>
         <ContextHeader

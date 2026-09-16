@@ -33,6 +33,8 @@ const props = {
     adding: false,
     dragging: false,
     error: '',
+    addConfirmation: null,
+    resolveAddConfirmation: vi.fn(),
     add: vi.fn(),
     loadResultPreview: vi.fn(),
     loadImagePreview: vi.fn(),

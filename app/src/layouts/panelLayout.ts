@@ -10,12 +10,16 @@ export type PanelLayout = {
   reversed: boolean;
   navigation: number;
   workbench: number;
+  showImageRecognition: boolean;
+  showFileTree: boolean;
 };
 
 export const DEFAULT_PANEL_LAYOUT: PanelLayout = {
   reversed: false,
   navigation: 248,
   workbench: 320,
+  showImageRecognition: true,
+  showFileTree: true,
 };
 
 export const PANEL_MIN_WIDTH: Record<PanelId, number> = {
@@ -51,6 +55,14 @@ export function readPanelLayout(): PanelLayout {
           PANEL_MAX_WIDTH.workbench,
           Math.max(PANEL_MIN_WIDTH.workbench, value.workbench),
         ),
+        showImageRecognition:
+          typeof value.showImageRecognition === 'boolean'
+            ? value.showImageRecognition
+            : DEFAULT_PANEL_LAYOUT.showImageRecognition,
+        showFileTree:
+          typeof value.showFileTree === 'boolean'
+            ? value.showFileTree
+            : DEFAULT_PANEL_LAYOUT.showFileTree,
       };
     }
   } catch {

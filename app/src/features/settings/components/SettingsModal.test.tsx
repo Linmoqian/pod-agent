@@ -153,4 +153,28 @@ describe("SettingsModal", () => {
       "true",
     );
   });
+
+  it("在育种台设置中开关图片识别与文件树并持久化", async () => {
+    const user = userEvent.setup();
+    renderSettings();
+    await user.click(screen.getByRole("button", { name: /育种台/ }));
+
+    const imageRecognition = await screen.findByRole("switch", {
+      name: "图片识别",
+    });
+    const fileTree = await screen.findByRole("switch", { name: "文件树" });
+    expect(imageRecognition).toHaveAttribute("aria-checked", "true");
+    expect(fileTree).toHaveAttribute("aria-checked", "true");
+
+    await user.click(imageRecognition);
+    await user.click(fileTree);
+
+    expect(imageRecognition).toHaveAttribute("aria-checked", "false");
+    expect(fileTree).toHaveAttribute("aria-checked", "false");
+    const stored = JSON.parse(
+      window.localStorage.getItem("lian.chat-layout.v1") ?? "{}",
+    );
+    expect(stored.showImageRecognition).toBe(false);
+    expect(stored.showFileTree).toBe(false);
+  });
 });

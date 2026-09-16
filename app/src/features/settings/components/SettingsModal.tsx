@@ -12,6 +12,8 @@ import {
   ChevronDown,
   Code2,
   FlaskConical,
+  FolderTree,
+  ImageIcon,
   Languages,
   Monitor,
   Moon,
@@ -61,6 +63,45 @@ type OptionCardProps = {
   selected: boolean;
   onSelect: () => void;
 };
+
+type FeatureToggleProps = {
+  label: string;
+  description: string;
+  icon: ReactNode;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+};
+
+function FeatureToggle({
+  label,
+  description,
+  icon,
+  checked,
+  onChange,
+}: FeatureToggleProps) {
+  return (
+    <div className={styles.featureToggle}>
+      <span className={styles.featureIcon} aria-hidden>
+        {icon}
+      </span>
+      <span className={styles.featureCopy}>
+        <strong>{label}</strong>
+        <small>{description}</small>
+      </span>
+      <button
+        type="button"
+        role="switch"
+        className={styles.featureSwitch}
+        data-checked={checked}
+        aria-checked={checked}
+        aria-label={label}
+        onClick={() => onChange(!checked)}
+      >
+        <span className={styles.featureSwitchThumb} />
+      </button>
+    </div>
+  );
+}
 
 /* 主题与模式共用的竖排选项卡片 */
 function OptionCard({
@@ -221,7 +262,12 @@ function WorkbenchSection({
   const layout = controlledLayout ?? localLayout;
   const side = layout.reversed ? 'left' : 'right';
   const updateLayout = (
-    changes: Partial<Pick<PanelLayout, 'reversed' | 'workbench'>>,
+    changes: Partial<
+      Pick<
+        PanelLayout,
+        'reversed' | 'workbench' | 'showImageRecognition' | 'showFileTree'
+      >
+    >,
   ) => {
     const next = { ...layout, ...changes };
     if (onLayoutChange) {
@@ -238,7 +284,7 @@ function WorkbenchSection({
         育种台
       </h3>
       <p className={styles.sectionDescription}>
-        配置育种台在工作空间中的停靠位置与面板宽度，改动会立即生效并自动保存。
+        配置育种台的停靠位置、面板宽度与显示内容，改动会立即生效并自动保存。
       </p>
       <div
         className={`${styles.optionGrid} ${styles.layoutOptionGrid}`}
@@ -298,12 +344,34 @@ function WorkbenchSection({
             updateLayout({
               reversed: DEFAULT_PANEL_LAYOUT.reversed,
               workbench: DEFAULT_PANEL_LAYOUT.workbench,
+              showImageRecognition: DEFAULT_PANEL_LAYOUT.showImageRecognition,
+              showFileTree: DEFAULT_PANEL_LAYOUT.showFileTree,
             })
           }
         >
           <RotateCcw size={14} aria-hidden />
           恢复默认布局
         </button>
+      </div>
+      <div
+        className={styles.featureSettings}
+        role="group"
+        aria-label="育种台内容"
+      >
+        <FeatureToggle
+          label="图片识别"
+          description="在育种台中显示图片识别任务。"
+          icon={<ImageIcon size={18} strokeWidth={1.75} />}
+          checked={layout.showImageRecognition}
+          onChange={(showImageRecognition) => updateLayout({ showImageRecognition })}
+        />
+        <FeatureToggle
+          label="文件树"
+          description="在育种台任务标签中提供文件浏览。"
+          icon={<FolderTree size={18} strokeWidth={1.75} />}
+          checked={layout.showFileTree}
+          onChange={(showFileTree) => updateLayout({ showFileTree })}
+        />
       </div>
     </section>
   );
@@ -432,7 +500,7 @@ function SettingsModal({
     icon: ReactNode;
   }> = [
     { id: 'appearance', label: '外观', hint: '主题与界面', keywords: ['浅色', '深色', '系统', '主题', '语言'], icon: <SlidersHorizontal size={16} /> },
-    { id: 'workbench', label: '育种台', hint: '布局与侧栏', keywords: ['育种台', '布局', '位置', '宽度', '左侧', '右侧'], icon: <PanelsTopLeft size={16} /> },
+    { id: 'workbench', label: '育种台', hint: '布局与侧栏', keywords: ['育种台', '布局', '位置', '宽度', '左侧', '右侧', '图片识别', '文件树'], icon: <PanelsTopLeft size={16} /> },
     { id: 'mode', label: '工作模式', hint: '助手行为', keywords: ['新手', '专家', '开发人员', '引导', '调试'], icon: <UserRound size={16} /> },
     ...(experienceMode === 'developer'
       ? [{ id: 'model' as const, label: '模型', hint: '提供商与密钥', keywords: ['模型', '提供商', '密钥', '端点'], icon: <Bot size={16} /> }]
