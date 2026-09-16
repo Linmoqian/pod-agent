@@ -1,5 +1,6 @@
 本项目中不要生产构建和测试
-
+注意及时提交
+本项目需要截图验证
 ## 项目认知
 
 `pod-agent` 是面向大豆育种的本地桌面科研助手。主应用位于 `app/`，采用 Tauri 2、React 19、TypeScript、Rust 与 Python 的组合；`sensor-app/`、`hardware/`、`3D-app/` 为相对独立的传感器、硬件建模和实验性三维表型方向。
