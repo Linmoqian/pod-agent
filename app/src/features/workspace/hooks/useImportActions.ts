@@ -45,6 +45,7 @@ function useDragDrop(inspectPaths: (paths: string[]) => Promise<void>) {
     let disposed = false;
     let unlisten: (() => void) | undefined;
     const onDrop = (event: RuntimeDropEvent) => {
+      if (event.type !== 'drop') return;
       if (disposed || (event.position && isYoloDropTarget(event.position))) return;
       void inspectPaths(event.files.map((file) => file.path));
     };

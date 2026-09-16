@@ -1201,22 +1201,26 @@ export default class BrowserDebugRuntime implements FrontendRuntime {
   }
 
   subscribeDrop(callback: (event: RuntimeDropEvent) => void) {
-    const preventDefault = (event: DragEvent) => event.preventDefault();
-    const onDrop = (event: DragEvent) => {
+    const emitDragEvent = (event: DragEvent, type: RuntimeDropEvent['type']) => {
       event.preventDefault();
-      const files = Array.from(event.dataTransfer?.files ?? []).map((file) => this.registerBrowserFile(file));
-      if (files.length) {
-        callback({
-          files,
-          position: { x: event.clientX, y: event.clientY },
-        });
-      }
+      const files = type === 'drop'
+        ? Array.from(event.dataTransfer?.files ?? []).map((file) => this.registerBrowserFile(file))
+        : [];
+      callback({ type, files, position: { x: event.clientX, y: event.clientY } });
     };
-    document.addEventListener('dragover', preventDefault);
+    const onDragEnter = (event: DragEvent) => emitDragEvent(event, 'enter');
+    const onDragOver = (event: DragEvent) => emitDragEvent(event, 'over');
+    const onDrop = (event: DragEvent) => emitDragEvent(event, 'drop');
+    const onDragLeave = (event: DragEvent) => emitDragEvent(event, 'leave');
+    document.addEventListener('dragenter', onDragEnter);
+    document.addEventListener('dragover', onDragOver);
     document.addEventListener('drop', onDrop);
+    document.addEventListener('dragleave', onDragLeave);
     return Promise.resolve(() => {
-      document.removeEventListener('dragover', preventDefault);
+      document.removeEventListener('dragenter', onDragEnter);
+      document.removeEventListener('dragover', onDragOver);
       document.removeEventListener('drop', onDrop);
+      document.removeEventListener('dragleave', onDragLeave);
     });
   }
 

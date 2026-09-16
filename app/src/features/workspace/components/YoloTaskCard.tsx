@@ -589,9 +589,18 @@ export function useYoloTask() {
     let disposed = false;
     let unlisten: (() => void) | undefined;
     const onDrop = (event: RuntimeDropEvent) => {
-      if (disposed || !event.position || !isYoloDropTarget(event.position)) return;
-      setDragging(false);
-      void dropCallback.current(false, event.files);
+      if (disposed) return;
+      if (event.type === 'leave') {
+        setDragging(false);
+        return;
+      }
+      const isTarget = Boolean(event.position && isYoloDropTarget(event.position));
+      if (event.type === 'drop') {
+        setDragging(false);
+        if (isTarget && event.files.length) void dropCallback.current(false, event.files);
+        return;
+      }
+      if (event.type === 'enter' || event.type === 'over') setDragging(isTarget);
     };
     void runtime.subscribeDrop(onDrop)
       .then((stop) => { if (disposed) stop(); else unlisten = stop; })

@@ -76,10 +76,12 @@ export default class TauriRuntime implements FrontendRuntime {
 
   subscribeDrop(callback: (event: RuntimeDropEvent) => void) {
     return getCurrentWebview().onDragDropEvent((event) => {
-      if (event.payload.type !== 'drop') return;
       callback({
-        files: event.payload.paths.map(nativeFile),
-        position: event.payload.position,
+        type: event.payload.type,
+        files: event.payload.type === 'enter' || event.payload.type === 'drop'
+          ? event.payload.paths.map(nativeFile)
+          : [],
+        position: event.payload.type === 'leave' ? undefined : event.payload.position,
       });
     });
   }

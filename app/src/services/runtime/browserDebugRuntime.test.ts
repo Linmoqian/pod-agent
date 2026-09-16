@@ -172,6 +172,18 @@ describe('BrowserDebugRuntime', () => {
 
     const drops: RuntimeDropEvent[] = [];
     const unlisten = await runtime.subscribeDrop((event) => drops.push(event));
+    const enter = new Event('dragenter', { bubbles: true, cancelable: true }) as DragEvent;
+    Object.defineProperties(enter, {
+      clientX: { value: 24 },
+      clientY: { value: 48 },
+    });
+    document.dispatchEvent(enter);
+    const over = new Event('dragover', { bubbles: true, cancelable: true }) as DragEvent;
+    Object.defineProperties(over, {
+      clientX: { value: 24 },
+      clientY: { value: 48 },
+    });
+    document.dispatchEvent(over);
     const drop = new Event('drop', { bubbles: true, cancelable: true }) as DragEvent;
     Object.defineProperties(drop, {
       dataTransfer: { value: { files: [new File(['photo'], 'drop.jpg', { type: 'image/jpeg' })] } },
@@ -182,8 +194,9 @@ describe('BrowserDebugRuntime', () => {
     unlisten();
 
     const tree = await runtime.invoke<WorkspaceFileNode>('list_workspace_files');
-    expect(drops[0]).toMatchObject({ position: { x: 24, y: 48 } });
-    expect(drops[0].files[0].path).toBe('browser-debug://uploads/3/drop.jpg');
+    expect(drops.map((event) => event.type)).toEqual(['enter', 'over', 'drop']);
+    expect(drops[2]).toMatchObject({ position: { x: 24, y: 48 } });
+    expect(drops[2].files[0].path).toBe('browser-debug://uploads/3/drop.jpg');
     expect(tree.children.some((node) => node.name === 'uploads')).toBe(true);
   });
 

@@ -92,6 +92,7 @@ export type RuntimeEventName = keyof RuntimeEventMap;
 export type RuntimeUnlisten = () => void;
 
 export type RuntimeDropEvent = {
+  type: 'enter' | 'over' | 'drop' | 'leave';
   files: RuntimeFile[];
   position?: { x: number; y: number };
 };
