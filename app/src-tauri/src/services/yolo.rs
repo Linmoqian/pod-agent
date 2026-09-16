@@ -17,7 +17,7 @@ use std::{
 };
 #[cfg(target_os = "macos")]
 use std::{ffi::CString, os::raw::c_char, slice};
-use tauri::{AppHandle, Manager};
+use tauri::{path::BaseDirectory, AppHandle, Manager};
 
 static ENDPOINT: OnceLock<Result<(String, String), String>> = OnceLock::new();
 static CACHE: Mutex<Option<(String, Session)>> = Mutex::new(None);
@@ -28,6 +28,29 @@ const MAX_BATCH_IMAGES: usize = 64;
 const PREP_QUEUE_CAPACITY: usize = 4;
 const MAX_PREP_WORKERS: usize = 4;
 const PIPELINE_CHUNK_SIZE: usize = 32;
+
+fn resource_root(app: &AppHandle) -> Result<PathBuf, String> {
+    if cfg!(debug_assertions) {
+        let app_root = std::fs::canonicalize(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".."))
+            .map_err(|_| "无法解析开发资源目录".to_string())?;
+        return app_root
+            .parent()
+            .map(Path::to_path_buf)
+            .ok_or_else(|| "无法解析开发资源根目录".to_string());
+    }
+    app.path()
+        .resolve("agent-resources", BaseDirectory::Resource)
+        .map_err(|error| format!("无法解析应用资源目录: {error}"))
+}
+
+fn model_manifest_path(root: &Path) -> PathBuf {
+    let packaged_path = root.join("agent/tools/yolo-models.json");
+    if packaged_path.is_file() {
+        packaged_path
+    } else {
+        root.join("app/agent/tools/yolo-models.json")
+    }
+}
 
 fn perf_log(message: impl AsRef<str>) {
     let Some(path) = std::env::var_os("LIAN_YOLO_PERF_LOG") else {
@@ -100,26 +123,34 @@ pub async fn yolo_drop_images(paths: Vec<String>) -> Result<Vec<String>, String>
 }
 
 #[tauri::command]
-pub async fn yolo_detect_image(model_id: String, image_path: String) -> Result<Value, String> {
+pub async fn yolo_detect_image(
+    app: AppHandle,
+    model_id: String,
+    image_path: String,
+) -> Result<Value, String> {
+    let root = resource_root(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap();
         let mut cache = CACHE.lock().map_err(|_| "推理服务不可用")?;
-        infer(root, Request { model_id, image_path, target_class: None, min_confidence: 0.25 }, &mut cache)
+        infer(&root, Request { model_id, image_path, target_class: None, min_confidence: 0.25 }, &mut cache)
     }).await.map_err(|_| "推理任务中断".to_string())?
 }
 
 #[tauri::command]
-pub async fn yolo_detect_images(model_id: String, image_paths: Vec<String>) -> Result<Vec<Value>, String> {
+pub async fn yolo_detect_images(
+    app: AppHandle,
+    model_id: String,
+    image_paths: Vec<String>,
+) -> Result<Vec<Value>, String> {
     if image_paths.len() > MAX_BATCH_IMAGES {
         return Err(format!("单批最多处理 {MAX_BATCH_IMAGES} 张图片"));
     }
     if image_paths.is_empty() {
         return Ok(Vec::new());
     }
+    let root = resource_root(&app)?;
     let started = Instant::now();
     let results = tauri::async_runtime::spawn_blocking(move || {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap();
-        infer_batch(root, &model_id, &image_paths, None, 0.25)
+        infer_batch(&root, &model_id, &image_paths, None, 0.25)
     }).await.map_err(|_| "批量推理任务中断".to_string())??;
     perf_log(format!(
         "command.batch images={} total_ms={}",
@@ -212,9 +243,9 @@ pub async fn yolo_export_csv(output_path: String, rows: Vec<ExportRow>) -> Resul
 }
 
 #[tauri::command]
-pub fn yolo_models() -> Result<Value, String> {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap();
-    let entries: Vec<Value> = serde_json::from_slice(&std::fs::read(root.join("app/agent/tools/yolo-models.json")).map_err(|_| "模型清单不可读")?).map_err(|_| "模型清单无效")?;
+pub fn yolo_models(app: AppHandle) -> Result<Value, String> {
+    let root = resource_root(&app)?;
+    let entries: Vec<Value> = serde_json::from_slice(&std::fs::read(model_manifest_path(&root)).map_err(|_| "模型清单不可读")?).map_err(|_| "模型清单无效")?;
     Ok(Value::Array(entries.into_iter().map(|entry| {
         let primary_available = entry["onnxPath"].as_str().is_some_and(|path| root.join(path).is_file());
         let apple_available = entry["appleOnnxPath"].as_str().is_some_and(|path| root.join(path).is_file());
@@ -367,7 +398,7 @@ fn decode(data: &[f32], channels: usize, anchors: usize, threshold: f32) -> Vec<
 
 fn load_model(root: &Path, model_id: &str, target_class: Option<&str>) -> Result<ModelConfig, String> {
     let models: Vec<Model> = serde_json::from_slice(
-        &std::fs::read(root.join("app/agent/tools/yolo-models.json"))
+        &std::fs::read(model_manifest_path(root))
             .map_err(|_| "模型清单不可读")?,
     ).map_err(|_| "模型清单无效")?;
     let model = models.into_iter().find(|model| model.id == model_id).ok_or("未知模型")?;

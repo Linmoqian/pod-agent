@@ -379,7 +379,8 @@ fn spawn_process(app: &AppHandle, generation: u64) -> AppResult<(AgentProcess, C
 
 fn runtime_paths(app: &AppHandle) -> AppResult<RuntimePaths> {
     if cfg!(debug_assertions) {
-        let app_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..");
+        let app_root = std::fs::canonicalize(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".."))
+            .map_err(|error| AppError::retryable("AGENT_RESOURCE_UNAVAILABLE", error.to_string()))?;
         let resource_root = app_root
             .parent()
             .ok_or_else(|| AppError::new("AGENT_RESOURCE_UNAVAILABLE", "无法解析资源根目录"))?
