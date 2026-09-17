@@ -193,9 +193,8 @@ export default function TerminalPanel({
         </div>
       </header>
 
-      {isSshView ? (
-        <SshPanel />
-      ) : (
+      <SshPanel hidden={!isSshView} />
+      {!isSshView && (
         <>
           <div
             ref={outputRef}

@@ -299,6 +299,192 @@
   line-height: 1.6;
 }
 
+.sshObjects {
+  display: flex;
+  width: min(760px, 100%);
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-subtle);
+}
+
+.sshObjectsHeader,
+.sshEditorHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sshObjectsTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.sshObjectsTitle h3,
+.sshEditorHeader h3 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.sshObjectsTitle > span {
+  min-width: 20px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--color-surface-default);
+  color: var(--color-text-tertiary);
+  font-size: 10px;
+  text-align: center;
+}
+
+.sshNewObject {
+  color: var(--color-brand-600);
+}
+
+.sshObjectList {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px;
+}
+
+.sshObject {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+  padding: 9px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+  color: var(--color-text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--easing-standard),
+    box-shadow var(--duration-fast) var(--easing-standard),
+    background-color var(--duration-fast) var(--easing-standard);
+}
+
+.sshObject:hover,
+.sshObject:focus-visible {
+  border-color: color-mix(
+    in srgb,
+    var(--color-brand-500) 42%,
+    var(--color-border-default)
+  );
+  outline: 0;
+}
+
+.sshObject[data-active='true'] {
+  border-color: color-mix(in srgb, var(--color-brand-500) 70%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--color-brand-500) 7%,
+    var(--color-surface-default)
+  );
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-brand-500) 12%, transparent);
+}
+
+.sshObjectIcon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: color-mix(
+    in srgb,
+    var(--color-brand-500) 10%,
+    var(--color-surface-subtle)
+  );
+  color: var(--color-brand-600);
+}
+
+.sshObjectInfo {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sshObjectInfo strong,
+.sshObjectInfo small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sshObjectInfo strong {
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.sshObjectInfo small {
+  color: var(--color-text-tertiary);
+  font-size: 10px;
+}
+
+.sshObjectStatus {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: var(--color-text-disabled);
+}
+
+.sshObjectStatus[data-status='unavailable'] {
+  background: var(--color-danger-500, #c45c5c);
+}
+
+.sshObjectEmpty,
+.sshEditorEmpty {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+}
+
+.sshObjectEmpty {
+  flex-wrap: wrap;
+  padding: 8px 2px 2px;
+}
+
+.sshObjectEmpty button {
+  margin-left: auto;
+}
+
+.sshEditorHeader {
+  width: min(760px, 100%);
+}
+
+.sshEditorHeader > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sshEditorHeader > div > span {
+  color: var(--color-text-tertiary);
+  font-size: 10px;
+}
+
+.sshDeleteObject {
+  color: var(--color-text-tertiary);
+}
+
+.sshDeleteObject:hover,
+.sshDeleteObject:focus-visible {
+  color: var(--color-danger-600, #b54747);
+}
+
 .sshForm {
   display: flex;
   width: min(760px, 100%);
@@ -313,6 +499,7 @@
 }
 
 .sshFields label,
+.sshObjectName,
 .sshAuth label {
   display: flex;
   min-width: 0;
@@ -324,6 +511,7 @@
 }
 
 .sshFields input,
+.sshObjectName input,
 .sshAuth input {
   width: 100%;
   min-width: 0;
@@ -341,6 +529,7 @@
 }
 
 .sshFields input:focus,
+.sshObjectName input:focus,
 .sshAuth input:focus {
   border-color: var(--color-brand-500);
   box-shadow: 0 0 0 3px
@@ -348,6 +537,7 @@
 }
 
 .sshFields input::placeholder,
+.sshObjectName input::placeholder,
 .sshAuth input::placeholder {
   color: var(--color-text-disabled);
 }
@@ -489,6 +679,10 @@
   }
 
   .sshFields {
+    grid-template-columns: 1fr;
+  }
+
+  .sshObjectList {
     grid-template-columns: 1fr;
   }
 
