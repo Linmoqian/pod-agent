@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   AnimatePresence,
+  LayoutGroup,
   motion,
   useDragControls,
   useReducedMotion,
@@ -41,8 +42,22 @@ import {
   type PanelLayout,
   type WorkbenchModuleId,
 } from './panelLayout';
+import {
+  REDUCED_MOTION_TRANSITION,
+  SPRING_LAYOUT,
+} from '../utils/motion';
 const PANEL_COMPACT_WIDTH = 84;
 const COMPACT_LAYOUT_QUERY = '(max-width: 980px)';
+const PANEL_MOTION_EASE = [0.23, 1, 0.32, 1] as const;
+const PANEL_ENTER_TRANSITION = {
+  duration: 0.18,
+  delay: 0.04,
+  ease: PANEL_MOTION_EASE,
+};
+const PANEL_EXIT_TRANSITION = {
+  duration: 0.14,
+  ease: PANEL_MOTION_EASE,
+};
 type AddableWorkbenchModuleId = Exclude<WorkbenchModuleId, 'taskPanel'>;
 type WorkbenchRenderer = (
   layout: PanelLayout,
@@ -148,7 +163,7 @@ export default function AgentShell({
       ? workbench(layout, addWorkbenchModule, closeWorkbenchModule)
       : workbench;
   const moduleTransition = reduced
-    ? { duration: 0 }
+    ? REDUCED_MOTION_TRANSITION
     : {
         layout: {
           type: 'spring' as const,
@@ -428,18 +443,24 @@ export default function AgentShell({
           y: !reduced && dragging === id ? -4 : 0,
           scale: !reduced && dragging === id ? 1.008 : 1,
         }}
-        exit={{ opacity: 0, scale: reduced ? 1 : 0.985 }}
+        exit={
+          reduced
+            ? { opacity: 0, scale: 1, transition: REDUCED_MOTION_TRANSITION }
+            : {
+                opacity: 0,
+                scale: 0.985,
+                transition: {
+                  opacity: PANEL_EXIT_TRANSITION,
+                  scale: PANEL_EXIT_TRANSITION,
+                },
+              }
+        }
         transition={
           reduced || resizing
-            ? { duration: 0 }
+            ? REDUCED_MOTION_TRANSITION
             : {
-                layout: {
-                  type: 'spring',
-                  stiffness: 420,
-                  damping: 38,
-                  mass: 0.8,
-                },
-                opacity: { duration: 0.14 },
+                layout: SPRING_LAYOUT,
+                opacity: PANEL_ENTER_TRANSITION,
                 filter: { duration: 0.14 },
                 scale: { duration: 0.14 },
                 y: { type: 'spring', stiffness: 430, damping: 34, mass: 0.7 },
@@ -778,30 +799,25 @@ export default function AgentShell({
             aria-hidden="true"
           />
         )}
-        <AnimatePresence initial={false} mode="popLayout">
-          {visible('navigation') && panel('navigation')}
-          <motion.div
-            key="conversation"
-            layout={!resizing}
-            className={styles.center}
-            style={{ order: 1 }}
-            transition={
-              reduced || resizing
-                ? { duration: 0 }
-                : {
-                    layout: {
-                      type: 'spring',
-                      stiffness: 420,
-                      damping: 38,
-                      mass: 0.8,
-                    },
-                  }
-            }
-          >
-            {children}
-          </motion.div>
-          {visible('workbench') && panel('workbench')}
-        </AnimatePresence>
+        <LayoutGroup id="agent-shell-panels">
+          <AnimatePresence initial={false} mode="popLayout">
+            {visible('navigation') && panel('navigation')}
+            <motion.div
+              key="conversation"
+              layout={!resizing}
+              className={styles.center}
+              style={{ order: 1 }}
+              transition={
+                reduced || resizing
+                  ? REDUCED_MOTION_TRANSITION
+                  : { layout: SPRING_LAYOUT }
+              }
+            >
+              {children}
+            </motion.div>
+            {visible('workbench') && panel('workbench')}
+          </AnimatePresence>
+        </LayoutGroup>
         {narrow && mobilePanel && (
           <button
             className={styles.scrim}
