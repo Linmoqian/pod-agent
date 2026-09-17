@@ -307,26 +307,86 @@
   border-radius: var(--radius-md);
   background: var(--color-surface-default);
   color: var(--color-text-primary);
-  text-align: left;
-  cursor: pointer;
   transition:
+    transform var(--duration-fast) var(--easing-standard),
     border-color var(--duration-fast) var(--easing-standard),
     box-shadow var(--duration-fast) var(--easing-standard),
     background-color var(--duration-fast) var(--easing-standard);
 }
 
-.sshObject:active {
-  transform: scale(0.99);
+.sshObject[data-dragging='true'] {
+  opacity: 0.45;
+}
+
+.sshObject[data-overlay='true'] {
+  box-shadow: var(--shadow-card);
+  cursor: grabbing;
+  opacity: 1;
 }
 
 .sshObject:hover,
-.sshObject:focus-visible {
+.sshObject:focus-within {
   border-color: color-mix(
     in srgb,
     var(--color-brand-500) 42%,
     var(--color-border-default)
   );
   outline: 0;
+}
+
+.sshObjectHandle {
+  display: grid;
+  width: 28px;
+  height: 32px;
+  flex: 0 0 28px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-disabled);
+  cursor: grab;
+  touch-action: none;
+}
+
+.sshObjectHandle:hover,
+.sshObjectHandle:focus-visible {
+  background: var(--color-surface-subtle);
+  color: var(--color-text-secondary);
+  outline: 0;
+}
+
+.sshObjectHandle:active {
+  cursor: grabbing;
+}
+
+.sshObjectHandle:disabled {
+  cursor: grabbing;
+}
+
+.sshObjectMain {
+  display: flex;
+  min-width: 0;
+  min-height: 32px;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 9px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sshObjectMain:focus-visible {
+  border-radius: var(--radius-sm);
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+}
+
+.sshObjectMain:active {
+  transform: scale(0.99);
 }
 
 .sshObjectIcon {
@@ -378,6 +438,31 @@
 
 .sshObjectStatus[data-configured='true'] {
   color: var(--color-brand-600);
+}
+
+.sshObjectActions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+}
+
+.sshObjectAction {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-tertiary);
+}
+
+.sshObjectAction:hover:not(:disabled),
+.sshObjectAction:focus-visible:not(:disabled) {
+  background: var(--color-surface-subtle);
+  color: var(--color-text-primary);
+}
+
+.sshObjectDelete:hover:not(:disabled),
+.sshObjectDelete:focus-visible:not(:disabled) {
+  color: var(--color-state-danger);
 }
 
 .sshObjectEmpty {

@@ -71,6 +71,32 @@ describe('TerminalPanel', () => {
     expect(screen.getByText('SSH 对象 2')).toBeInTheDocument();
   });
 
+  it('配置完成后显示连接、测试连接和排序入口', async () => {
+    const user = userEvent.setup();
+    render(<TerminalPanel developerMode />);
+
+    await user.click(screen.getByRole('tab', { name: 'SSH' }));
+    await user.click(
+      screen.getByRole('button', { name: 'SSH 对象 1，打开配置' }),
+    );
+    await user.type(
+      screen.getByLabelText('SSH 主机地址'),
+      'example.internal',
+    );
+    await user.type(screen.getByLabelText('SSH 用户名'), 'developer');
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    expect(
+      screen.getByRole('button', { name: '连接SSH 对象 1' }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole('button', { name: '测试连接SSH 对象 1' }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole('button', { name: '移动SSH 对象 1' }),
+    ).toBeInTheDocument();
+  });
+
   it('非开发人员模式保持终端锁定且不显示 SSH 入口', () => {
     render(<TerminalPanel developerMode={false} />);
 
