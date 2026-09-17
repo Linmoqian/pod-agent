@@ -42,6 +42,10 @@
 .card header { font-size: 12px; margin-bottom: 10px; }
 .card header strong, .card header span, .labels span { display: inline-flex; align-items: center; gap: 5px; }
 .card header strong svg { color: var(--color-brand-500); }
+.headerActions { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; }
+.closeButton { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--color-text-tertiary); cursor: pointer; }
+.closeButton:hover { background: var(--color-surface-subtle); color: var(--color-text-primary); }
+.closeButton:focus-visible { outline: 2px solid var(--color-brand-500); outline-offset: 2px; }
 .card header span { color: var(--color-text-tertiary, #707578); font-size: 11px; }
 .resultStatus { display: inline-flex; align-items: center; gap: 5px; padding: 3px 4px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--color-text-tertiary); font-size: 11px; cursor: pointer; transition: color var(--duration-fast) var(--easing-standard), transform var(--duration-press) var(--easing-standard); }
 .resultStatus:hover { color: var(--color-brand-600); }

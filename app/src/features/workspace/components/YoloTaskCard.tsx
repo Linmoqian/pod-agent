@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { isYoloDropTarget } from '../hooks/yoloDropTarget';
 import { motion, useReducedMotion } from 'motion/react';
-import { ArrowUpRight, CircleAlert, CircleCheck, Clock3, FolderPlus, Images, Pause, Play, Plus, RotateCcw, ScanLine } from 'lucide-react';
+import { ArrowUpRight, CircleAlert, CircleCheck, Clock3, FolderPlus, Images, Pause, Play, Plus, RotateCcw, ScanLine, X } from 'lucide-react';
 import {
   getFrontendRuntime,
   isBrowserPreviewRuntime,
@@ -826,10 +826,12 @@ export type YoloTask = ReturnType<typeof useYoloTask>;
 export default function YoloTaskCard({
   task,
   onOpenResults,
+  onClose,
   density = 'complex',
 }: {
   task: YoloTask;
   onOpenResults: (photoId?: string) => void;
+  onClose?: () => void;
   density?: WorkbenchModuleDensity;
 }) {
   const reduced = useReducedMotion();
@@ -903,7 +905,13 @@ export default function YoloTaskCard({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-    <header><strong><ScanLine size={15} aria-hidden />图片识别</strong><button type="button" className={styles.resultStatus} title="打开图片识别结果" aria-label={`打开图片识别结果，当前状态：${status}`} onClick={() => onOpenResults()}><StatusIcon size={13} aria-hidden />{status}<ArrowUpRight size={12} aria-hidden /></button></header>
+    <header>
+      <strong><ScanLine size={15} aria-hidden />图片识别</strong>
+      <div className={styles.headerActions}>
+        <button type="button" className={styles.resultStatus} title="打开图片识别结果" aria-label={`打开图片识别结果，当前状态：${status}`} onClick={() => onOpenResults()}><StatusIcon size={13} aria-hidden />{status}<ArrowUpRight size={12} aria-hidden /></button>
+        {onClose && <button type="button" className={styles.closeButton} title="关闭图片识别模块" aria-label="关闭图片识别模块" onClick={onClose}><X size={14} aria-hidden /></button>}
+      </div>
+    </header>
     <Select
       value={task.modelId || undefined}
       onValueChange={task.setModelId}

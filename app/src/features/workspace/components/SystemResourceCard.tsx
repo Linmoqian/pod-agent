@@ -4,7 +4,7 @@
  * @author: https://github.com/Linmoqian
  */
 
-import { Activity, Cpu, MemoryStick } from 'lucide-react';
+import { Activity, Cpu, MemoryStick, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import {
@@ -84,8 +84,10 @@ function useSystemResources() {
 
 export default function SystemResourceCard({
   density = 'complex',
+  onClose,
 }: {
   density?: WorkbenchModuleDensity;
+  onClose?: () => void;
 }) {
   const { snapshot, status } = useSystemResources();
   const cpuPercent = clampPercent(snapshot?.cpuPercent ?? 0);
@@ -98,6 +100,7 @@ export default function SystemResourceCard({
           <Activity size={15} aria-hidden />
           计算机资源
         </strong>
+        {onClose && <button type="button" className={styles.closeButton} title="关闭计算机资源模块" aria-label="关闭计算机资源模块" onClick={onClose}><X size={14} aria-hidden /></button>}
       </header>
       <div className={styles.metrics}>
         <div className={styles.metric}>

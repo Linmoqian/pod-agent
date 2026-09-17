@@ -47,6 +47,7 @@ type AddableWorkbenchModuleId = Exclude<WorkbenchModuleId, 'taskPanel'>;
 type WorkbenchRenderer = (
   layout: PanelLayout,
   onAddModule: (moduleId: AddableWorkbenchModuleId) => void,
+  onCloseModule: (moduleId: AddableWorkbenchModuleId) => void,
 ) => ReactNode;
 
 export default function AgentShell({
@@ -130,9 +131,21 @@ export default function AgentShell({
       return next;
     });
   };
+  const closeWorkbenchModule = (moduleId: AddableWorkbenchModuleId) => {
+    const visibilityKey =
+      moduleId === 'imageRecognition'
+        ? 'showImageRecognition'
+        : 'showResourceMonitor';
+    setLayout((current) => {
+      if (!current[visibilityKey]) return current;
+      const next = { ...current, [visibilityKey]: false };
+      persistPanelLayout(next);
+      return next;
+    });
+  };
   const workbenchContent =
     typeof workbench === 'function'
-      ? workbench(layout, addWorkbenchModule)
+      ? workbench(layout, addWorkbenchModule, closeWorkbenchModule)
       : workbench;
   const renderWorkbenchModule = (moduleId: WorkbenchModuleId) => {
     if (moduleId === 'imageRecognition') {
@@ -147,6 +160,7 @@ export default function AgentShell({
             task={yoloTask}
             density={layout.imageRecognitionDensity}
             onOpenResults={onOpenYoloResults}
+            onClose={() => closeWorkbenchModule('imageRecognition')}
           />
         </div>
       );
@@ -159,7 +173,10 @@ export default function AgentShell({
           className={styles.moduleSlot}
           data-workbench-module="resourceMonitor"
         >
-          <SystemResourceCard density={layout.resourceMonitorDensity} />
+          <SystemResourceCard
+            density={layout.resourceMonitorDensity}
+            onClose={() => closeWorkbenchModule('resourceMonitor')}
+          />
         </div>
       );
     }
