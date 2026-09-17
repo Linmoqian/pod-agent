@@ -265,36 +265,30 @@
 
 .sshObjectsHeader {
   display: flex;
+  min-height: 32px;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.sshObjectsTitle {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.sshObjectsTitle h3 {
-  margin: 0;
-  color: var(--color-text-primary);
-  font-size: 13px;
-  font-weight: var(--font-weight-semibold);
-}
-
-.sshObjectsTitle > span {
-  min-width: 20px;
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: var(--color-surface-default);
-  color: var(--color-text-tertiary);
-  font-size: 10px;
-  text-align: center;
+  justify-content: flex-end;
 }
 
 .sshNewObject {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
   color: var(--color-brand-600);
+  transition:
+    transform var(--duration-press) var(--easing-standard),
+    background-color var(--duration-fast) var(--easing-standard),
+    color var(--duration-fast) var(--easing-standard);
+}
+
+.sshNewObject:hover,
+.sshNewObject:focus-visible {
+  background: var(--color-surface-default);
+  color: var(--color-brand-700);
+}
+
+.sshNewObject:active {
+  transform: scale(var(--press-scale));
 }
 
 .sshObjectList {
@@ -395,12 +389,7 @@
 }
 
 .sshObjectEmpty {
-  flex-wrap: wrap;
   padding: 8px 2px 2px;
-}
-
-.sshObjectEmpty button {
-  margin-left: auto;
 }
 
 .sshDeleteObject {

@@ -43,20 +43,15 @@ function isSshObjectConfigured(object: SshObject): boolean {
 function SshObjectList({
   objects,
   onSelect,
-  onCreate,
 }: {
   objects: SshObject[];
   onSelect: (object: SshObject) => void;
-  onCreate: () => void;
 }) {
   if (!objects.length) {
     return (
       <div className={styles.sshObjectEmpty}>
         <Server size={18} aria-hidden />
-        <span>暂无 SSH 对象</span>
-        <Button type="button" size="sm" onClick={onCreate}>
-          新建对象
-        </Button>
+        <span>暂无连接</span>
       </div>
     );
   }
@@ -159,33 +154,28 @@ export default function SshPanel({ hidden = false }: { hidden?: boolean }) {
   return (
     <section
       className={styles.sshPanel}
-      aria-labelledby="ssh-objects-title"
+      aria-label="SSH"
       aria-hidden={hidden}
       hidden={hidden}
     >
-      <section className={styles.sshObjects} aria-labelledby="ssh-objects-title">
+      <section className={styles.sshObjects} aria-label="SSH 连接列表">
         <div className={styles.sshObjectsHeader}>
-          <div className={styles.sshObjectsTitle}>
-            <Server size={17} aria-hidden />
-            <h3 id="ssh-objects-title">SSH 对象</h3>
-            <span>{objects.length}</span>
-          </div>
           <Button
             type="button"
             variant="ghost"
-            size="sm"
+            size="icon-sm"
             className={styles.sshNewObject}
+            aria-label="新建对象"
+            title="新建对象"
             onClick={openCreateDialog}
           >
-            <Plus size={15} aria-hidden />
-            新建对象
+            <Plus size={16} aria-hidden />
           </Button>
         </div>
 
         <SshObjectList
           objects={objects}
           onSelect={openEditDialog}
-          onCreate={openCreateDialog}
         />
       </section>
 

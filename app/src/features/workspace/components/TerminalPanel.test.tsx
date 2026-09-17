@@ -19,7 +19,9 @@ describe('TerminalPanel', () => {
     await user.click(sshTab);
 
     expect(screen.getByRole('heading', { name: 'SSH' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'SSH 对象' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', { name: 'SSH 连接列表' }),
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText('SSH 主机地址')).not.toBeInTheDocument();
     expect(
       screen.queryByText('对象配置仅保存在当前页面内存；SSH 后端接入后可按对象连接远程终端。'),
