@@ -31,6 +31,7 @@ import {
   Layers3,
   MonitorCog,
 } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { useState, type ReactNode } from 'react';
 
 import {
@@ -395,16 +396,19 @@ export default function WorkbenchLayoutEditor({
             </SortableContext>
           </div>
         </aside>
-        <DragOverlay dropAnimation={null}>
-          {activeModule ? (
-            <ModuleCard
-              id={activeModule}
-              layout={layout}
-              onLayoutChange={onLayoutChange}
-              overlay
-            />
-          ) : null}
-        </DragOverlay>
+        {createPortal(
+          <DragOverlay dropAnimation={null}>
+            {activeModule ? (
+              <ModuleCard
+                id={activeModule}
+                layout={layout}
+                onLayoutChange={onLayoutChange}
+                overlay
+              />
+            ) : null}
+          </DragOverlay>,
+          document.body,
+        )}
       </DndContext>
     </div>
   );

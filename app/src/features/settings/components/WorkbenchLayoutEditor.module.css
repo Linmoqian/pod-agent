@@ -142,7 +142,6 @@
   width: min(100%, 480px);
   cursor: grabbing;
   box-shadow: var(--shadow-elevated);
-  transform: rotate(1deg);
 }
 
 .moduleCard[data-hidden='true'] {
