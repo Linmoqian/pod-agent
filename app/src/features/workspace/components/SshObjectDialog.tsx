@@ -74,11 +74,9 @@ export default function SshObjectDialog({
       {draft && (
         <DialogContent className={styles.sshDialog}>
           <DialogHeader className={styles.sshDialogHeader}>
-            <div>
-              <DialogTitle className={styles.sshDialogTitle}>
-                {mode === 'create' ? '新建 SSH 对象' : '配置 SSH 对象'}
-              </DialogTitle>
-            </div>
+            <DialogTitle className={styles.sshDialogTitle}>
+              {mode === 'create' ? '新建 SSH 对象' : '配置 SSH 对象'}
+            </DialogTitle>
             {mode === 'edit' && onDelete && (
               <Button
                 type="button"

@@ -404,34 +404,81 @@
 }
 
 .sshDeleteObject {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-md);
   color: var(--color-text-tertiary);
+  opacity: 1;
+  transition:
+    transform var(--duration-press) var(--easing-standard),
+    background-color var(--duration-fast) var(--easing-standard),
+    color var(--duration-fast) var(--easing-standard);
 }
 
 .sshDeleteObject:hover,
 .sshDeleteObject:focus-visible {
+  background: var(--color-surface-subtle);
+  outline: 0;
   color: var(--color-danger-600, #b54747);
 }
 
+.sshDeleteObject:active {
+  transform: scale(var(--press-scale));
+}
+
 .sshDialog {
-  width: min(620px, calc(100% - 24px));
+  width: min(620px, calc(100vw - 32px));
+  max-width: 620px;
   max-height: min(680px, calc(100vh - 32px));
-  overflow-y: auto;
-  background: var(--color-surface-canvas);
+  gap: 0;
+  overflow: hidden auto;
+  padding: 0;
+  border-color: color-mix(
+    in srgb,
+    var(--color-border-default) 88%,
+    transparent
+  );
+  border-radius: var(--radius-xl);
+  background: var(--material-modal);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-elevated);
+  -webkit-backdrop-filter: blur(var(--blur-modal));
+  backdrop-filter: blur(var(--blur-modal));
+}
+
+.sshDialog > button[data-slot='dialog-close'] {
+  top: 16px;
+  right: 16px;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-md);
+  color: var(--color-text-tertiary);
+  opacity: 1;
+}
+
+.sshDialog > button[data-slot='dialog-close']:hover {
+  background: var(--color-surface-subtle);
+  color: var(--color-text-primary);
 }
 
 .sshDialogHeader {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   flex-direction: row;
   justify-content: space-between;
   gap: 16px;
-  padding-right: 30px;
+  padding: 24px 58px 16px 24px;
+  text-align: left;
 }
 
 .sshDialogTitle {
+  min-width: 0;
+  margin: 0;
   color: var(--color-text-primary);
-  font-size: 17px;
-  line-height: 1.25;
+  font-size: var(--font-size-subtitle);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-title);
+  line-height: var(--line-height-tight);
 }
 
 .sshForm {
@@ -439,6 +486,7 @@
   width: 100%;
   flex-direction: column;
   gap: 14px;
+  padding: 0 24px;
 }
 
 .sshFields {
@@ -464,13 +512,15 @@
 .sshAuth input {
   width: 100%;
   min-width: 0;
-  padding: 9px 10px;
+  height: 40px;
+  padding: 9px 12px;
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-md);
   outline: 0;
   background: var(--color-surface-default);
   color: var(--color-text-primary);
   font: inherit;
+  font-size: 13px;
   font-weight: 400;
   transition:
     border-color var(--duration-fast) var(--easing-standard),
@@ -541,12 +591,18 @@
 
 .sshDialogFooter {
   display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 2px;
-  padding-top: 16px;
-  border-top: 1px solid var(--color-border-subtle);
+  margin: 2px -24px 0;
+  padding: 14px 24px 18px;
+  border-top: 1px solid color-mix(
+    in srgb,
+    var(--color-border-subtle) 88%,
+    transparent
+  );
+  background: color-mix(in srgb, var(--color-surface-subtle) 58%, transparent);
 }
 
 .sshDialogStatus {
@@ -568,6 +624,62 @@
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.sshDialogActions > button {
+  min-width: 72px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--radius-md);
+  transition:
+    transform var(--duration-press) var(--easing-standard),
+    background-color var(--duration-fast) var(--easing-standard),
+    color var(--duration-fast) var(--easing-standard),
+    border-color var(--duration-fast) var(--easing-standard),
+    box-shadow var(--duration-fast) var(--easing-standard);
+}
+
+.sshDialogActions > button:active:not(:disabled) {
+  transform: scale(var(--press-scale));
+}
+
+.sshDialogActions > button[data-variant='outline'] {
+  border-color: var(--color-border-default);
+  background: var(--color-surface-default);
+  color: var(--color-text-secondary);
+  box-shadow: none;
+}
+
+.sshDialogActions > button[data-variant='outline']:hover:not(:disabled) {
+  border-color: color-mix(
+    in srgb,
+    var(--color-brand-500) 34%,
+    var(--color-border-default)
+  );
+  background: var(--color-surface-subtle);
+  color: var(--color-text-primary);
+}
+
+.sshDialogActions > button:last-child:not(:disabled) {
+  border-color: var(--color-brand-600);
+  background: var(--color-brand-600);
+  color: var(--color-text-inverse);
+  font-weight: var(--font-weight-semibold);
+  box-shadow: 0 6px 14px color-mix(
+    in srgb,
+    var(--color-brand-600) 18%,
+    transparent
+  );
+}
+
+.sshDialogActions > button:last-child:hover:not(:disabled) {
+  border-color: var(--color-brand-700);
+  background: var(--color-brand-700);
+  box-shadow: 0 8px 18px color-mix(
+    in srgb,
+    var(--color-brand-600) 24%,
+    transparent
+  );
 }
 
 .locked {
@@ -621,12 +733,24 @@
   }
 
   .sshDialog {
-    padding: 18px;
+    padding: 0;
+  }
+
+  .sshDialogHeader {
+    padding: 20px 54px 14px 18px;
+  }
+
+  .sshForm {
+    padding: 0 18px;
   }
 
   .sshDialogFooter {
     align-items: stretch;
     flex-direction: column;
+    margin-right: -18px;
+    margin-left: -18px;
+    padding-right: 18px;
+    padding-left: 18px;
   }
 
   .sshDialogActions {
