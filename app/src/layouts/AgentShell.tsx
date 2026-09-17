@@ -38,6 +38,7 @@ import {
   readPanelLayout,
   type PanelId,
   type PanelLayout,
+  type WorkbenchModuleId,
 } from './panelLayout';
 const PANEL_COMPACT_WIDTH = 84;
 const COMPACT_LAYOUT_QUERY = '(max-width: 980px)';
@@ -113,6 +114,45 @@ export default function AgentShell({
   const reloadApplication = () => {
     window.location.reload();
   };
+  const renderWorkbenchModule = (moduleId: WorkbenchModuleId) => {
+    if (moduleId === 'imageRecognition') {
+      if (!layout.showImageRecognition) return null;
+      return (
+        <div
+          key={moduleId}
+          className={styles.moduleSlot}
+          data-workbench-module="imageRecognition"
+        >
+          <YoloTaskCard
+            task={yoloTask}
+            density={layout.imageRecognitionDensity}
+            onOpenResults={onOpenYoloResults}
+          />
+        </div>
+      );
+    }
+    if (moduleId === 'resourceMonitor') {
+      if (!layout.showResourceMonitor) return null;
+      return (
+        <div
+          key={moduleId}
+          className={styles.moduleSlot}
+          data-workbench-module="resourceMonitor"
+        >
+          <SystemResourceCard density={layout.resourceMonitorDensity} />
+        </div>
+      );
+    }
+    return (
+      <div
+        key={moduleId}
+        className={`${styles.moduleSlot} ${styles.taskModuleSlot}`}
+        data-workbench-module="taskPanel"
+      >
+        {workbenchContent}
+      </div>
+    );
+  };
   const cancelDragDelay = () => {
     if (dragDelay.current === null) return;
     window.clearTimeout(dragDelay.current);
@@ -127,7 +167,10 @@ export default function AgentShell({
         next.workbench === current.workbench &&
         next.showImageRecognition === current.showImageRecognition &&
         next.showFileTree === current.showFileTree &&
-        next.showResourceMonitor === current.showResourceMonitor
+        next.showResourceMonitor === current.showResourceMonitor &&
+        next.workbenchOrder.join('|') === current.workbenchOrder.join('|') &&
+        next.imageRecognitionDensity === current.imageRecognitionDensity &&
+        next.resourceMonitorDensity === current.resourceMonitorDensity
       ) {
         return current;
       }
@@ -522,11 +565,7 @@ export default function AgentShell({
           </nav>
         ) : (
           <div className={styles.panelBody}>
-            {layout.showImageRecognition && (
-              <YoloTaskCard task={yoloTask} onOpenResults={onOpenYoloResults} />
-            )}
-            {layout.showResourceMonitor && <SystemResourceCard />}
-            {workbenchContent}
+            {layout.workbenchOrder.map(renderWorkbenchModule)}
           </div>
         )}
         <div
@@ -734,6 +773,9 @@ export default function AgentShell({
               showImageRecognition: next.showImageRecognition,
               showFileTree: next.showFileTree,
               showResourceMonitor: next.showResourceMonitor,
+              workbenchOrder: [...next.workbenchOrder],
+              imageRecognitionDensity: next.imageRecognitionDensity,
+              resourceMonitorDensity: next.resourceMonitorDensity,
             }),
             true,
           )

@@ -6,6 +6,15 @@
 
 export type PanelId = 'navigation' | 'workbench';
 
+export const WORKBENCH_MODULE_IDS = [
+  'imageRecognition',
+  'resourceMonitor',
+  'taskPanel',
+] as const;
+
+export type WorkbenchModuleId = (typeof WORKBENCH_MODULE_IDS)[number];
+export type WorkbenchModuleDensity = 'simple' | 'complex';
+
 export type PanelLayout = {
   reversed: boolean;
   navigation: number;
@@ -13,6 +22,9 @@ export type PanelLayout = {
   showImageRecognition: boolean;
   showFileTree: boolean;
   showResourceMonitor: boolean;
+  workbenchOrder: WorkbenchModuleId[];
+  imageRecognitionDensity: WorkbenchModuleDensity;
+  resourceMonitorDensity: WorkbenchModuleDensity;
 };
 
 export const DEFAULT_PANEL_LAYOUT: PanelLayout = {
@@ -22,6 +34,9 @@ export const DEFAULT_PANEL_LAYOUT: PanelLayout = {
   showImageRecognition: true,
   showFileTree: true,
   showResourceMonitor: true,
+  workbenchOrder: [...WORKBENCH_MODULE_IDS],
+  imageRecognitionDensity: 'complex',
+  resourceMonitorDensity: 'complex',
 };
 
 export const PANEL_MIN_WIDTH: Record<PanelId, number> = {
@@ -35,6 +50,26 @@ export const PANEL_MAX_WIDTH: Record<PanelId, number> = {
 };
 
 export const PANEL_LAYOUT_STORAGE_KEY = 'lian.chat-layout.v1';
+
+function isWorkbenchModuleId(value: unknown): value is WorkbenchModuleId {
+  return typeof value === 'string' && WORKBENCH_MODULE_IDS.includes(value as WorkbenchModuleId);
+}
+
+function readWorkbenchOrder(value: unknown) {
+  const order = Array.isArray(value) ? value.filter(isWorkbenchModuleId) : [];
+  const unique = order.filter((moduleId, index) => order.indexOf(moduleId) === index);
+  return [
+    ...unique,
+    ...WORKBENCH_MODULE_IDS.filter((moduleId) => !unique.includes(moduleId)),
+  ];
+}
+
+function readDensity(
+  value: unknown,
+  fallback: WorkbenchModuleDensity,
+): WorkbenchModuleDensity {
+  return value === 'simple' || value === 'complex' ? value : fallback;
+}
 
 export function readPanelLayout(): PanelLayout {
   try {
@@ -69,12 +104,24 @@ export function readPanelLayout(): PanelLayout {
           typeof value.showResourceMonitor === 'boolean'
             ? value.showResourceMonitor
             : DEFAULT_PANEL_LAYOUT.showResourceMonitor,
+        workbenchOrder: readWorkbenchOrder(value.workbenchOrder),
+        imageRecognitionDensity: readDensity(
+          value.imageRecognitionDensity,
+          DEFAULT_PANEL_LAYOUT.imageRecognitionDensity,
+        ),
+        resourceMonitorDensity: readDensity(
+          value.resourceMonitorDensity,
+          DEFAULT_PANEL_LAYOUT.resourceMonitorDensity,
+        ),
       };
     }
   } catch {
     /* 布局偏好不可读时使用默认值。 */
   }
-  return DEFAULT_PANEL_LAYOUT;
+  return {
+    ...DEFAULT_PANEL_LAYOUT,
+    workbenchOrder: [...DEFAULT_PANEL_LAYOUT.workbenchOrder],
+  };
 }
 
 export function persistPanelLayout(next: PanelLayout) {

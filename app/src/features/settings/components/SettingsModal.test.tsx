@@ -6,7 +6,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { version } from "../../../../package.json";
 import SettingsModal from "./SettingsModal";
@@ -183,5 +183,34 @@ describe("SettingsModal", () => {
     expect(stored.showImageRecognition).toBe(false);
     expect(stored.showFileTree).toBe(false);
     expect(stored.showResourceMonitor).toBe(false);
+  });
+
+  it("分别持久化图片识别与资源监视的简单样式", async () => {
+    const user = userEvent.setup();
+    renderSettings();
+    await user.click(screen.getByRole("button", { name: /育种台/ }));
+
+    const imageStyle = within(
+      await screen.findByRole("group", { name: "图片识别样式" }),
+    );
+    const resourceStyle = within(
+      await screen.findByRole("group", { name: "资源监视样式" }),
+    );
+    await user.click(imageStyle.getByRole("button", { name: "简单" }));
+    await user.click(resourceStyle.getByRole("button", { name: "简单" }));
+
+    expect(imageStyle.getByRole("button", { name: "简单" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(resourceStyle.getByRole("button", { name: "简单" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    const stored = JSON.parse(
+      window.localStorage.getItem("lian.chat-layout.v1") ?? "{}",
+    );
+    expect(stored.imageRecognitionDensity).toBe("simple");
+    expect(stored.resourceMonitorDensity).toBe("simple");
   });
 });

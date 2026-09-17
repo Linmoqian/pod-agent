@@ -1,4 +1,11 @@
 .card { margin: 12px 0; padding: 12px; border: var(--border-default); border-radius: var(--radius-lg); min-width: 0; background: var(--color-surface-default); color: var(--color-text-primary); }
+.card[data-density='simple'] { padding: 10px; }
+.card[data-density='simple'] .modelSelect,
+.card[data-density='simple'] .stage,
+.card[data-density='simple'] .message { display: none; }
+.card[data-density='simple'] header { margin-bottom: 6px; }
+.card[data-density='simple'] .labels { margin-top: 4px; }
+.card[data-density='simple'] progress { margin: 7px 0; }
 .addConfirmDialog {
   width: min(360px, calc(100vw - 32px));
   max-width: 360px;

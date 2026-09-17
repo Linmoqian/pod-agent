@@ -1,5 +1,6 @@
 /* 计算机资源监视卡：展示桌面端 CPU 与内存的实时使用情况。
  * Created on 2026-09-17
+ * Updated on 2026-09-17
  * @author: https://github.com/Linmoqian
  */
 
@@ -11,6 +12,7 @@ import {
   isBrowserPreviewRuntime,
   type RuntimeResourceSnapshot,
 } from '../../../services/runtime';
+import type { WorkbenchModuleDensity } from '../../../layouts/panelLayout';
 import styles from './SystemResourceCard.module.css';
 
 const RESOURCE_REFRESH_INTERVAL_MS = 1500;
@@ -80,13 +82,17 @@ function useSystemResources() {
   return { snapshot, status };
 }
 
-export default function SystemResourceCard() {
+export default function SystemResourceCard({
+  density = 'complex',
+}: {
+  density?: WorkbenchModuleDensity;
+}) {
   const { snapshot, status } = useSystemResources();
   const cpuPercent = clampPercent(snapshot?.cpuPercent ?? 0);
   const memoryPercent = clampPercent(snapshot?.memoryPercent ?? 0);
 
   return (
-    <section className={styles.card} aria-label="计算机资源监视">
+    <section className={styles.card} data-density={density} aria-label="计算机资源监视">
       <header>
         <strong>
           <Activity size={15} aria-hidden />
@@ -115,7 +121,7 @@ export default function SystemResourceCard() {
             <strong>
               {status === 'preview'
                 ? '—'
-                : `${formatPercent(memoryPercent)}${snapshot ? ` · ${formatMemory(snapshot.usedMemoryBytes)} / ${formatMemory(snapshot.totalMemoryBytes)}` : ''}`}
+                : `${formatPercent(memoryPercent)}${density === 'complex' && snapshot ? ` · ${formatMemory(snapshot.usedMemoryBytes)} / ${formatMemory(snapshot.totalMemoryBytes)}` : ''}`}
             </strong>
           </div>
           <div className={styles.track} data-tone={resourceTone(memoryPercent)} aria-hidden>

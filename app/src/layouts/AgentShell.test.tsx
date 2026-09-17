@@ -4,6 +4,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import AgentShell from './AgentShell';
 import { isTauri } from '@tauri-apps/api/core';
 import type { YoloTask } from '../features/workspace/components/YoloTaskCard';
+import { PANEL_LAYOUT_STORAGE_KEY } from './panelLayout';
 
 vi.mock('@tauri-apps/api/core', async (importOriginal) => ({
   ...await importOriginal<typeof import('@tauri-apps/api/core')>(),
@@ -214,6 +215,39 @@ it('Agent 推理任务不抢占当前对话视图', () => {
   );
   expect(props.onOpenYoloResults).not.toHaveBeenCalled();
   expect(screen.getByLabelText('对话草稿')).toBeInTheDocument();
+});
+
+it('按育种台偏好排列模块并传递简单样式', () => {
+  window.localStorage.setItem(
+    PANEL_LAYOUT_STORAGE_KEY,
+    JSON.stringify({
+      reversed: false,
+      navigation: 248,
+      workbench: 320,
+      showImageRecognition: true,
+      showFileTree: true,
+      showResourceMonitor: true,
+      workbenchOrder: ['taskPanel', 'resourceMonitor', 'imageRecognition'],
+      imageRecognitionDensity: 'simple',
+      resourceMonitorDensity: 'simple',
+    }),
+  );
+  render(shell());
+
+  const workbench = screen.getByLabelText('育种台');
+  expect(
+    Array.from(workbench.querySelectorAll('[data-workbench-module]')).map(
+      (module) => module.getAttribute('data-workbench-module'),
+    ),
+  ).toEqual(['taskPanel', 'resourceMonitor', 'imageRecognition']);
+  expect(screen.getByLabelText('图片推理任务')).toHaveAttribute(
+    'data-density',
+    'simple',
+  );
+  expect(screen.getByLabelText('计算机资源监视')).toHaveAttribute(
+    'data-density',
+    'simple',
+  );
 });
 
 it('重新挂载恢复位置与宽度，损坏的偏好安全回退', () => {

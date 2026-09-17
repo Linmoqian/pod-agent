@@ -1,6 +1,6 @@
 /*
  * Created on 2026-09-08
- * Updated on 2026-09-16
+ * Updated on 2026-09-17
  * @author: https://github.com/Linmoqian
  */
 
@@ -63,10 +63,6 @@
 
 @media (max-width: 560px) {
   .optionGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .featureSettings {
     grid-template-columns: 1fr;
   }
 }
@@ -300,98 +296,6 @@
     background: var(--color-surface-disabled);
     color: var(--color-text-primary);
   }
-}
-
-.featureSettings {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
-}
-
-.featureToggle {
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--space-3);
-  min-height: 72px;
-  padding: var(--space-3);
-  border: var(--border-subtle);
-  border-radius: 14px;
-  background: var(--color-surface-default);
-}
-
-.featureIcon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--color-brand-500) 10%, transparent);
-  color: var(--color-brand-600);
-}
-
-.featureCopy {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.featureCopy strong {
-  color: var(--color-text-primary);
-  font-size: var(--font-size-label);
-  font-weight: var(--font-weight-semibold);
-}
-
-.featureCopy small {
-  color: var(--color-text-tertiary);
-  font-size: var(--font-size-caption);
-  line-height: var(--line-height-title);
-}
-
-.featureSwitch {
-  position: relative;
-  width: 38px;
-  height: 22px;
-  flex: 0 0 auto;
-  padding: 2px;
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-full);
-  background: var(--color-surface-disabled);
-  cursor: pointer;
-  transition:
-    background-color var(--duration-fast) var(--easing-standard),
-    border-color var(--duration-fast) var(--easing-standard),
-    transform var(--duration-press) var(--easing-standard);
-}
-
-.featureSwitch:active {
-  transform: scale(0.97);
-}
-
-.featureSwitch:focus-visible {
-  outline: 2px solid var(--color-brand-500);
-  outline-offset: 2px;
-}
-
-.featureSwitch[data-checked='true'] {
-  border-color: var(--color-brand-600);
-  background: var(--color-brand-600);
-}
-
-.featureSwitchThumb {
-  display: block;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--color-surface-default);
-  box-shadow: 0 1px 2px rgb(15 23 42 / 18%);
-  transition: transform var(--duration-fast) var(--easing-standard);
-}
-
-.featureSwitch[data-checked='true'] .featureSwitchThumb {
-  transform: translateX(14px);
 }
 
 /* 关于区:品牌图标 + 名称/版本/简介/作者 */

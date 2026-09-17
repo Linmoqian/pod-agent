@@ -1,4 +1,8 @@
-/* Agent 工作空间视觉系统。Created on 2026-09-15 @author: https://github.com/Linmoqian */
+/* Agent 工作空间视觉系统。
+ * Created on 2026-09-15
+ * Updated on 2026-09-17
+ * @author: https://github.com/Linmoqian
+ */
 .shell {
   height: 100dvh;
   display: flex;
@@ -195,9 +199,18 @@
   display: none;
 }
 .panelBody {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   overflow: auto;
+}
+.moduleSlot {
+  min-width: 0;
+}
+.taskModuleSlot {
+  min-height: 0;
+  flex: 1;
 }
 .resize {
   position: absolute;

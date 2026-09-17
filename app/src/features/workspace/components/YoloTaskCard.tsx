@@ -1,5 +1,6 @@
 /* 图片推理队列与完成归档动效。
  * Created on 2026-09-15
+ * Updated on 2026-09-17
  * @author: https://github.com/Linmoqian
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -10,6 +11,7 @@ import {
   getFrontendRuntime,
   isBrowserPreviewRuntime,
 } from '../../../services/runtime';
+import type { WorkbenchModuleDensity } from '../../../layouts/panelLayout';
 import type {
   RuntimeDropEvent,
   RuntimeFile,
@@ -824,9 +826,11 @@ export type YoloTask = ReturnType<typeof useYoloTask>;
 export default function YoloTaskCard({
   task,
   onOpenResults,
+  density = 'complex',
 }: {
   task: YoloTask;
   onOpenResults: (photoId?: string) => void;
+  density?: WorkbenchModuleDensity;
 }) {
   const reduced = useReducedMotion();
   const runtimeMode = getFrontendRuntime().mode;
@@ -878,7 +882,7 @@ export default function YoloTaskCard({
         : photos.length
           ? CircleCheck
           : Clock3;
-  return <section className={styles.card} data-yolo-drop-target data-dragging={task.dragging} aria-label="图片推理任务">
+  return <section className={styles.card} data-density={density} data-yolo-drop-target data-dragging={task.dragging} aria-label="图片推理任务">
     <Dialog
       open={task.addConfirmation !== null}
       onOpenChange={(open) => {

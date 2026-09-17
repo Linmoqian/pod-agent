@@ -8,13 +8,10 @@
  */
 
 import {
-  Activity,
   Bot,
   ChevronDown,
   Code2,
   FlaskConical,
-  FolderTree,
-  ImageIcon,
   Languages,
   Monitor,
   Moon,
@@ -47,6 +44,7 @@ import BrandMark from "../../../components/common/BrandMark";
 import { ProviderSettingsPanel } from "../../providers/components/ProviderSettingsModal";
 import { useSettings } from "../context";
 import type { ExperienceMode, ThemePreference } from "../types";
+import WorkbenchLayoutEditor from "./WorkbenchLayoutEditor";
 import {
   DEFAULT_PANEL_LAYOUT,
   PANEL_MAX_WIDTH,
@@ -64,45 +62,6 @@ type OptionCardProps = {
   selected: boolean;
   onSelect: () => void;
 };
-
-type FeatureToggleProps = {
-  label: string;
-  description: string;
-  icon: ReactNode;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-};
-
-function FeatureToggle({
-  label,
-  description,
-  icon,
-  checked,
-  onChange,
-}: FeatureToggleProps) {
-  return (
-    <div className={styles.featureToggle}>
-      <span className={styles.featureIcon} aria-hidden>
-        {icon}
-      </span>
-      <span className={styles.featureCopy}>
-        <strong>{label}</strong>
-        <small>{description}</small>
-      </span>
-      <button
-        type="button"
-        role="switch"
-        className={styles.featureSwitch}
-        data-checked={checked}
-        aria-checked={checked}
-        aria-label={label}
-        onClick={() => onChange(!checked)}
-      >
-        <span className={styles.featureSwitchThumb} />
-      </button>
-    </div>
-  );
-}
 
 /* 主题与模式共用的竖排选项卡片 */
 function OptionCard({
@@ -255,25 +214,16 @@ function ModeSection() {
 function WorkbenchSection({
   layout: controlledLayout,
   onLayoutChange,
+  onDraggingChange,
 }: {
   layout?: PanelLayout;
   onLayoutChange?: (next: PanelLayout) => void;
+  onDraggingChange?: (dragging: boolean) => void;
 }) {
   const [localLayout, setLocalLayout] = useState(readPanelLayout);
   const layout = controlledLayout ?? localLayout;
   const side = layout.reversed ? 'left' : 'right';
-  const updateLayout = (
-    changes: Partial<
-      Pick<
-        PanelLayout,
-        | 'reversed'
-        | 'workbench'
-        | 'showImageRecognition'
-        | 'showFileTree'
-        | 'showResourceMonitor'
-      >
-    >,
-  ) => {
+  const updateLayout = (changes: Partial<PanelLayout>) => {
     const next = { ...layout, ...changes };
     if (onLayoutChange) {
       onLayoutChange(next);
@@ -352,6 +302,9 @@ function WorkbenchSection({
               showImageRecognition: DEFAULT_PANEL_LAYOUT.showImageRecognition,
               showFileTree: DEFAULT_PANEL_LAYOUT.showFileTree,
               showResourceMonitor: DEFAULT_PANEL_LAYOUT.showResourceMonitor,
+              workbenchOrder: [...DEFAULT_PANEL_LAYOUT.workbenchOrder],
+              imageRecognitionDensity: DEFAULT_PANEL_LAYOUT.imageRecognitionDensity,
+              resourceMonitorDensity: DEFAULT_PANEL_LAYOUT.resourceMonitorDensity,
             })
           }
         >
@@ -359,33 +312,11 @@ function WorkbenchSection({
           恢复默认布局
         </button>
       </div>
-      <div
-        className={styles.featureSettings}
-        role="group"
-        aria-label="育种台内容"
-      >
-        <FeatureToggle
-          label="图片识别"
-          description="在育种台中显示图片识别任务。"
-          icon={<ImageIcon size={18} strokeWidth={1.75} />}
-          checked={layout.showImageRecognition}
-          onChange={(showImageRecognition) => updateLayout({ showImageRecognition })}
-        />
-        <FeatureToggle
-          label="文件树"
-          description="在育种台任务标签中提供文件浏览。"
-          icon={<FolderTree size={18} strokeWidth={1.75} />}
-          checked={layout.showFileTree}
-          onChange={(showFileTree) => updateLayout({ showFileTree })}
-        />
-        <FeatureToggle
-          label="资源监视"
-          description="在育种台中显示 CPU 与内存监视。"
-          icon={<Activity size={18} strokeWidth={1.75} />}
-          checked={layout.showResourceMonitor}
-          onChange={(showResourceMonitor) => updateLayout({ showResourceMonitor })}
-        />
-      </div>
+      <WorkbenchLayoutEditor
+        layout={layout}
+        onLayoutChange={updateLayout}
+        onDraggingChange={onDraggingChange}
+      />
     </section>
   );
 }
@@ -503,6 +434,7 @@ function SettingsModal({
 }: SettingsModalProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>('appearance');
   const [query, setQuery] = useState('');
+  const [isWorkbenchDragging, setIsWorkbenchDragging] = useState(false);
   const reduceMotion = useReducedMotion();
   const { experienceMode } = useSettings();
   const sections: ReadonlyArray<{
@@ -540,6 +472,9 @@ function SettingsModal({
       <DialogOverlay className={styles.modalOverlay} />
       <DialogContent
         className={`${styles.modalContent} sm:max-w-[760px]`}
+        onEscapeKeyDown={(event) => {
+          if (isWorkbenchDragging) event.preventDefault();
+        }}
       >
         <div className={styles.settingsLayout}>
           <aside className={styles.settingsNav} aria-label="设置分类">
@@ -610,6 +545,7 @@ function SettingsModal({
                     <WorkbenchSection
                       layout={layout}
                       onLayoutChange={onLayoutChange}
+                      onDraggingChange={setIsWorkbenchDragging}
                     />
                   )}
                   {activeSection === 'mode' && <ModeSection />}
