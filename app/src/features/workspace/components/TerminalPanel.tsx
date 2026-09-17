@@ -2,7 +2,7 @@
 // Created on 2026-09-16
 // @author: https://github.com/Linmoqian
 
-import { Terminal as TerminalIcon, Trash2 } from 'lucide-react';
+import { Play, Terminal as TerminalIcon } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -190,19 +190,6 @@ export default function TerminalPanel({
               SSH
             </button>
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className={styles.clearButton}
-            aria-hidden={isSshView}
-            tabIndex={isSshView ? -1 : undefined}
-            onClick={() => setEntries([])}
-            disabled={isSshView || !entries.length || running}
-          >
-            <Trash2 size={14} aria-hidden />
-            清空
-          </Button>
         </div>
       </header>
 
@@ -250,10 +237,13 @@ export default function TerminalPanel({
             </label>
             <Button
               type="submit"
+              size="icon"
               className={styles.runButton}
+              aria-label={running ? '执行中' : '运行'}
+              title={running ? '执行中' : '运行命令'}
               disabled={!command.trim() || running}
             >
-              {running ? '执行中…' : '运行'}
+              <Play size={15} aria-hidden />
             </Button>
           </form>
           <p className={styles.notice}>
