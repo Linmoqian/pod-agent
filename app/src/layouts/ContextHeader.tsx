@@ -542,7 +542,6 @@ export default function ContextHeader(props: ContextHeaderProps) {
               }}
               onBlur={commitTabRename}
             />
-            {!tab.projectId && <span className={styles.unsavedTabDot} aria-hidden />}
           </div>
         ) : (
           <button
@@ -562,17 +561,17 @@ export default function ContextHeader(props: ContextHeaderProps) {
           >
             {!tab.projectId && <MessageSquare size={13} strokeWidth={1.8} aria-hidden />}
             <span>{tab.label}</span>
-            {!tab.projectId && <span className={styles.unsavedTabDot} aria-hidden />}
           </button>
         )}
         <button
           type="button"
-          className={styles.closeTab}
+          className={`${styles.closeTab} ${!tab.projectId ? styles.unsavedTabClose : ''}`}
           aria-label={`关闭${tab.label}`}
           disabled={props.busy}
           onClick={() => requestCloseTab(tab)}
         >
-          <X size={14} />
+          {!tab.projectId && <span className={styles.unsavedTabDot} aria-hidden />}
+          <X className={!tab.projectId ? styles.unsavedTabCloseIcon : undefined} size={14} />
         </button>
       </motion.div>
     );
@@ -609,10 +608,10 @@ export default function ContextHeader(props: ContextHeaderProps) {
           >
             {!tab.projectId && <MessageSquare size={13} strokeWidth={1.8} aria-hidden />}
             <span>{tab.label}</span>
-            {!tab.projectId && <span className={styles.unsavedTabDot} aria-hidden />}
           </span>
           <span className={styles.closeTab} aria-hidden>
-            <X size={14} />
+            {!tab.projectId && <span className={styles.unsavedTabDot} />}
+            {tab.projectId && <X size={14} />}
           </span>
         </motion.div>
       </div>

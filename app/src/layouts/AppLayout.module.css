@@ -292,13 +292,33 @@
 }
 
 .unsavedTabDot {
+  grid-area: 1 / 1;
   width: 6px;
   height: 6px;
   flex: 0 0 6px;
-  margin-left: 2px;
   border-radius: 50%;
   background: var(--color-brand-500);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-brand-500) 14%, transparent);
+  transition: opacity var(--duration-fast) var(--easing-standard),
+    transform var(--duration-fast) var(--easing-standard);
+}
+.unsavedTabCloseIcon {
+  grid-area: 1 / 1;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.78);
+  transition: opacity var(--duration-fast) var(--easing-standard),
+    transform var(--duration-fast) var(--easing-standard);
+}
+.unsavedTabClose:hover .unsavedTabDot,
+.unsavedTabClose:focus-visible .unsavedTabDot {
+  opacity: 0;
+  transform: scale(0.78);
+}
+.unsavedTabClose:hover .unsavedTabCloseIcon,
+.unsavedTabClose:focus-visible .unsavedTabCloseIcon {
+  opacity: 1;
+  transform: scale(1);
 }
 .eyebrow,
 .projectRow h1,
