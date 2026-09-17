@@ -273,7 +273,7 @@
 
 .newTabMenu {
   position: absolute;
-  z-index: 5;
+  z-index: 20;
   top: calc(100% - var(--space-2));
   right: var(--space-1);
   display: grid;
