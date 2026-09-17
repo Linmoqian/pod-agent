@@ -85,13 +85,6 @@
   font-weight: var(--font-weight-semibold);
 }
 
-.titleGroup p,
-.notice {
-  margin: 3px 0 0;
-  color: var(--color-text-tertiary);
-  font-size: 12px;
-}
-
 .output {
   display: flex;
   flex: 1;
@@ -249,54 +242,14 @@
   transform: scale(0.97);
 }
 
-.notice {
-  margin: -5px 2px 0;
-}
-
 .sshPanel {
   display: flex;
   flex: 1;
   min-height: 0;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
   overflow: auto;
   padding: 4px 0;
-}
-
-.sshIntro {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.sshIntroIcon {
-  display: grid;
-  width: 38px;
-  height: 38px;
-  flex: 0 0 38px;
-  place-items: center;
-  border-radius: var(--radius-md);
-  background: color-mix(
-    in srgb,
-    var(--color-brand-500) 12%,
-    var(--color-surface-subtle)
-  );
-  color: var(--color-brand-600);
-}
-
-.sshIntro h3 {
-  margin: 0;
-  color: var(--color-text-primary);
-  font-size: 15px;
-  font-weight: var(--font-weight-semibold);
-}
-
-.sshIntro p {
-  max-width: 620px;
-  margin: 5px 0 0;
-  color: var(--color-text-tertiary);
-  font-size: 12px;
-  line-height: 1.6;
 }
 
 .sshObjects {
@@ -310,8 +263,7 @@
   background: var(--color-surface-subtle);
 }
 
-.sshObjectsHeader,
-.sshEditorHeader {
+.sshObjectsHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -324,8 +276,7 @@
   gap: 7px;
 }
 
-.sshObjectsTitle h3,
-.sshEditorHeader h3 {
+.sshObjectsTitle h3 {
   margin: 0;
   color: var(--color-text-primary);
   font-size: 13px;
@@ -348,7 +299,7 @@
 
 .sshObjectList {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: 1fr;
   gap: 8px;
 }
 
@@ -370,6 +321,10 @@
     background-color var(--duration-fast) var(--easing-standard);
 }
 
+.sshObject:active {
+  transform: scale(0.99);
+}
+
 .sshObject:hover,
 .sshObject:focus-visible {
   border-color: color-mix(
@@ -378,16 +333,6 @@
     var(--color-border-default)
   );
   outline: 0;
-}
-
-.sshObject[data-active='true'] {
-  border-color: color-mix(in srgb, var(--color-brand-500) 70%, transparent);
-  background: color-mix(
-    in srgb,
-    var(--color-brand-500) 7%,
-    var(--color-surface-default)
-  );
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-brand-500) 12%, transparent);
 }
 
 .sshObjectIcon {
@@ -431,19 +376,17 @@
 }
 
 .sshObjectStatus {
-  width: 7px;
-  height: 7px;
-  flex: 0 0 7px;
-  border-radius: 50%;
-  background: var(--color-text-disabled);
+  flex: 0 0 auto;
+  color: var(--color-text-tertiary);
+  font-size: 10px;
+  white-space: nowrap;
 }
 
-.sshObjectStatus[data-status='unavailable'] {
-  background: var(--color-danger-500, #c45c5c);
+.sshObjectStatus[data-configured='true'] {
+  color: var(--color-brand-600);
 }
 
-.sshObjectEmpty,
-.sshEditorEmpty {
+.sshObjectEmpty {
   display: flex;
   align-items: center;
   gap: 9px;
@@ -460,22 +403,6 @@
   margin-left: auto;
 }
 
-.sshEditorHeader {
-  width: min(760px, 100%);
-}
-
-.sshEditorHeader > div {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.sshEditorHeader > div > span {
-  color: var(--color-text-tertiary);
-  font-size: 10px;
-}
-
 .sshDeleteObject {
   color: var(--color-text-tertiary);
 }
@@ -485,11 +412,32 @@
   color: var(--color-danger-600, #b54747);
 }
 
+.sshDialog {
+  width: min(620px, calc(100% - 24px));
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  background: var(--color-surface-canvas);
+}
+
+.sshDialogHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sshDialogSubtitle {
+  display: block;
+  margin-top: 6px;
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+}
+
 .sshForm {
   display: flex;
-  width: min(760px, 100%);
+  width: 100%;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
 
 .sshFields {
@@ -590,14 +538,15 @@
   color: var(--color-text-primary);
 }
 
-.sshFooter {
+.sshDialogFooter {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  padding-top: 2px;
 }
 
-.sshStatus {
+.sshDialogStatus {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -605,35 +554,15 @@
   font-size: 11px;
 }
 
-.sshStatus[data-status='unavailable'] {
+.sshDialogStatus[data-status='error'] {
   color: var(--color-danger-600, #b54747);
 }
 
-.sshStatusDot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--color-text-disabled);
-}
-
-.sshNotice {
+.sshDialogActions {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: flex-end;
   gap: 8px;
-  width: min(760px, 100%);
-  padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--color-brand-500) 22%, transparent);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--color-brand-500) 6%, transparent);
-  color: var(--color-text-tertiary);
-  font-size: 11px;
-  line-height: 1.55;
-}
-
-.sshNotice svg {
-  flex: 0 0 auto;
-  margin-top: 1px;
-  color: var(--color-brand-600);
 }
 
 .locked {
@@ -684,6 +613,23 @@
 
   .sshObjectList {
     grid-template-columns: 1fr;
+  }
+
+  .sshDialog {
+    padding: 18px;
+  }
+
+  .sshDialogFooter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .sshDialogActions {
+    width: 100%;
+  }
+
+  .sshDialogActions button {
+    flex: 1;
   }
 
   .runButton {

@@ -8,7 +8,6 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 
 import { workspaceApi } from '../../../services/workspace';
-import { isBrowserDebugRuntime } from '../../../services/runtime';
 import SshPanel from './SshPanel';
 import type { TerminalRunResult } from '../types';
 import styles from './TerminalPanel.module.css';
@@ -160,11 +159,6 @@ export default function TerminalPanel({
           </span>
           <div>
             <h2 id="terminal-title">{isSshView ? 'SSH' : '终端'}</h2>
-            <p>
-              {isSshView
-                ? '开发人员模式 · 远程连接配置'
-                : '开发人员模式 · 当前工程根目录'}
-            </p>
           </div>
         </div>
         <div className={styles.headerControls}>
@@ -207,11 +201,7 @@ export default function TerminalPanel({
               <div className={styles.empty}>
                 <TerminalIcon size={24} aria-hidden />
                 <strong>从这里开始</strong>
-                <span>
-                  {isBrowserDebugRuntime()
-                    ? '例如：git status（浏览器模拟）'
-                    : '例如：git status'}
-                </span>
+                <span>例如：git status</span>
               </div>
             )}
             {entries.map((entry) => (
@@ -245,11 +235,6 @@ export default function TerminalPanel({
               <Play size={15} aria-hidden />
             </Button>
           </form>
-          <p className={styles.notice}>
-            {isBrowserDebugRuntime()
-              ? '浏览器调试模式：命令仅在内存中模拟，输出不会写入会话记录。'
-              : '仅开发人员模式可用；命令在本机执行，输出不会写入会话记录。'}
-          </p>
         </>
       )}
     </section>
