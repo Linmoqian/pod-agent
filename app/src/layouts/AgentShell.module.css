@@ -182,6 +182,9 @@
   touch-action: none;
   user-select: none;
 }
+.panelHeader > .workbenchGrip {
+  color: var(--color-brand-600);
+}
 .panelHeader > .grip:active {
   cursor: grabbing;
   transform: none;

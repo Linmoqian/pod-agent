@@ -23,6 +23,7 @@ import {
   RefreshCw,
   Search,
   Settings,
+  Sprout,
   X,
 } from 'lucide-react';
 import SettingsModal from '../features/settings/components/SettingsModal';
@@ -400,7 +401,9 @@ export default function AgentShell({
       >
         <div className={styles.panelHeader}>
           <button
-            className={styles.grip}
+            className={`${styles.grip} ${
+              id === 'workbench' ? styles.workbenchGrip : ''
+            }`}
             aria-label={`拖动${label}，或用左右方向键换位`}
             title="拖动到窗口另一侧"
             onPointerDown={(event) => {
@@ -470,7 +473,13 @@ export default function AgentShell({
             }}
           >
             {compact ? (
-              id === 'navigation' ? <PanelLeft size={17} /> : <PanelRight size={17} />
+              id === 'navigation' ? (
+                <PanelLeft size={17} />
+              ) : (
+                <Sprout size={17} aria-hidden />
+              )
+            ) : id === 'workbench' ? (
+              <Sprout size={16} aria-hidden />
             ) : (
               <GripVertical size={14} />
             )}
