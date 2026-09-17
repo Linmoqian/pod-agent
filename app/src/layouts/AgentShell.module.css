@@ -208,6 +208,23 @@
   min-height: 0;
   overflow: auto;
 }
+.workbenchBody {
+  overflow: hidden;
+}
+.workbenchPinned {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+.workbenchPinned > .taskModuleSlot {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+.workbenchModules {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 14px 20px;
+}
 .moduleSlot {
   min-width: 0;
 }

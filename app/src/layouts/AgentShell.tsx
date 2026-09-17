@@ -43,6 +43,11 @@ import {
 } from './panelLayout';
 const PANEL_COMPACT_WIDTH = 84;
 const COMPACT_LAYOUT_QUERY = '(max-width: 980px)';
+type AddableWorkbenchModuleId = Exclude<WorkbenchModuleId, 'taskPanel'>;
+type WorkbenchRenderer = (
+  layout: PanelLayout,
+  onAddModule: (moduleId: AddableWorkbenchModuleId) => void,
+) => ReactNode;
 
 export default function AgentShell({
   children,
@@ -58,7 +63,7 @@ export default function AgentShell({
   yoloTask,
 }: {
   children: ReactNode;
-  workbench: ReactNode | ((layout: PanelLayout) => ReactNode);
+  workbench: ReactNode | WorkbenchRenderer;
   workbenchOpen: boolean;
   onToggleWorkbench: () => void;
   projects: Project[];
@@ -70,8 +75,6 @@ export default function AgentShell({
   yoloTask: YoloTask;
 }) {
   const [layout, setLayout] = useState<PanelLayout>(readPanelLayout);
-  const workbenchContent =
-    typeof workbench === 'function' ? workbench(layout) : workbench;
   const leftPanel: PanelId = layout.reversed ? 'workbench' : 'navigation';
   const rightPanel: PanelId = leftPanel === 'navigation' ? 'workbench' : 'navigation';
   const nativeWindow = isTauri();
@@ -115,6 +118,22 @@ export default function AgentShell({
   const reloadApplication = () => {
     window.location.reload();
   };
+  const addWorkbenchModule = (moduleId: AddableWorkbenchModuleId) => {
+    const visibilityKey =
+      moduleId === 'imageRecognition'
+        ? 'showImageRecognition'
+        : 'showResourceMonitor';
+    setLayout((current) => {
+      if (current[visibilityKey]) return current;
+      const next = { ...current, [visibilityKey]: true };
+      persistPanelLayout(next);
+      return next;
+    });
+  };
+  const workbenchContent =
+    typeof workbench === 'function'
+      ? workbench(layout, addWorkbenchModule)
+      : workbench;
   const renderWorkbenchModule = (moduleId: WorkbenchModuleId) => {
     if (moduleId === 'imageRecognition') {
       if (!layout.showImageRecognition) return null;
@@ -573,8 +592,15 @@ export default function AgentShell({
             </div>
           </nav>
         ) : (
-          <div className={styles.panelBody}>
-            {layout.workbenchOrder.map(renderWorkbenchModule)}
+          <div className={`${styles.panelBody} ${styles.workbenchBody}`}>
+            <div className={styles.workbenchPinned}>
+              {renderWorkbenchModule('taskPanel')}
+            </div>
+            <div className={styles.workbenchModules}>
+              {layout.workbenchOrder
+                .filter((moduleId) => moduleId !== 'taskPanel')
+                .map(renderWorkbenchModule)}
+            </div>
           </div>
         )}
         <div

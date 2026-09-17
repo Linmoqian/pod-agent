@@ -4,11 +4,14 @@
  * @author: https://github.com/Linmoqian
  */
 
-import { CheckSquare, Folder, Plus, X } from 'lucide-react';
+import { Activity, Check, CheckSquare, Folder, ImageIcon, Plus, X } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 
+import type { WorkbenchModuleId } from '../../../layouts/panelLayout';
 import styles from './WorkbenchPanel.module.css';
 import type { WorkbenchTab } from './useWorkbenchTabs';
+
+type AddableWorkbenchModuleId = Exclude<WorkbenchModuleId, 'taskPanel'>;
 
 type WorkbenchTabBarProps = {
   activeTabId: string;
@@ -20,6 +23,8 @@ type WorkbenchTabBarProps = {
   tabs: WorkbenchTab[];
   showFileTree?: boolean;
   viewMenuOpen: boolean;
+  onAddModule?: (moduleId: AddableWorkbenchModuleId) => void;
+  moduleVisibility?: Record<AddableWorkbenchModuleId, boolean>;
 };
 
 export default function WorkbenchTabBar({
@@ -32,6 +37,8 @@ export default function WorkbenchTabBar({
   tabs,
   showFileTree = true,
   viewMenuOpen,
+  onAddModule,
+  moduleVisibility,
 }: WorkbenchTabBarProps) {
   const reduced = useReducedMotion();
   const visibleTabs = showFileTree
@@ -86,8 +93,8 @@ export default function WorkbenchTabBar({
       <button
         type="button"
         className={styles.newTab}
-        aria-label="新建育种台任务标签"
-        title="新建任务标签"
+        aria-label="添加育种台视图或模块"
+        title="添加视图或模块"
         onClick={onToggleMenu}
         aria-haspopup="menu"
         aria-expanded={viewMenuOpen}
@@ -99,7 +106,7 @@ export default function WorkbenchTabBar({
           <motion.div
             className={styles.newTabMenu}
             role="menu"
-            aria-label="新建育种台视图"
+            aria-label="添加育种台视图和模块"
             initial={reduced ? false : { opacity: 0, y: -4, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={reduced ? undefined : { opacity: 0, y: -4, scale: 0.98 }}
@@ -118,6 +125,43 @@ export default function WorkbenchTabBar({
                 <Folder size={16} />
                 <span>文件</span>
               </button>
+            )}
+            {onAddModule && (
+              <>
+                <div className={styles.menuDivider} role="separator" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={moduleVisibility?.imageRecognition}
+                  onClick={() => {
+                    onAddModule('imageRecognition');
+                    onToggleMenu();
+                  }}
+                >
+                  <ImageIcon size={16} />
+                  <span>
+                    图片识别模块
+                    {moduleVisibility?.imageRecognition ? '（已添加）' : ''}
+                  </span>
+                  {moduleVisibility?.imageRecognition && <Check size={14} />}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={moduleVisibility?.resourceMonitor}
+                  onClick={() => {
+                    onAddModule('resourceMonitor');
+                    onToggleMenu();
+                  }}
+                >
+                  <Activity size={16} />
+                  <span>
+                    计算机资源模块
+                    {moduleVisibility?.resourceMonitor ? '（已添加）' : ''}
+                  </span>
+                  {moduleVisibility?.resourceMonitor && <Check size={14} />}
+                </button>
+              </>
             )}
           </motion.div>
         )}

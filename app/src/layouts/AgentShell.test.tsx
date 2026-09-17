@@ -250,6 +250,28 @@ it('按育种台偏好排列模块并传递简易样式', () => {
   );
 });
 
+it('任务面板固定在育种台顶部，其余模块保留用户顺序', () => {
+  window.localStorage.setItem(
+    PANEL_LAYOUT_STORAGE_KEY,
+    JSON.stringify({
+      reversed: false,
+      navigation: 248,
+      workbench: 320,
+      showImageRecognition: true,
+      showFileTree: true,
+      showResourceMonitor: true,
+      workbenchOrder: ['resourceMonitor', 'imageRecognition', 'taskPanel'],
+    }),
+  );
+  render(shell());
+
+  expect(
+    Array.from(
+      screen.getByLabelText('育种台').querySelectorAll('[data-workbench-module]'),
+    ).map((module) => module.getAttribute('data-workbench-module')),
+  ).toEqual(['taskPanel', 'resourceMonitor', 'imageRecognition']);
+});
+
 it('重新挂载恢复位置与宽度，损坏的偏好安全回退', () => {
   const view = render(shell());
   fireEvent.click(screen.getByLabelText('移动会话侧栏到右侧'));

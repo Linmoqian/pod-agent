@@ -329,6 +329,19 @@
   background: var(--color-surface-disabled);
   color: var(--color-text-primary);
 }
+.newTabMenu button:disabled {
+  color: var(--color-text-disabled);
+  cursor: default;
+}
+.newTabMenu button:disabled svg:last-child {
+  margin-left: auto;
+  color: var(--color-brand-500);
+}
+.menuDivider {
+  height: 1px;
+  margin: 4px 5px;
+  background: var(--color-border-subtle);
+}
 
 .tabContent {
   min-height: 0;
@@ -577,6 +590,10 @@
   box-shadow: none;
   background: transparent;
   backdrop-filter: none;
+}
+.panel.pinned {
+  height: auto;
+  overflow: visible;
 }
 
 /* 工作区专用的轻量空态提示 */

@@ -51,6 +51,7 @@ type WorkbenchLayoutEditorProps = {
 type ModuleCardProps = WorkbenchLayoutEditorProps & {
   id: WorkbenchModuleId;
   overlay?: boolean;
+  draggable?: boolean;
   sortable?: ReturnType<typeof useSortable>;
 };
 
@@ -251,6 +252,7 @@ function ModuleCard({
   onLayoutChange,
   id,
   overlay = false,
+  draggable = true,
   sortable,
 }: ModuleCardProps) {
   const meta = MODULE_META[id];
@@ -263,7 +265,7 @@ function ModuleCard({
       data-hidden={!visible}
     >
       <div className={styles.moduleHeader}>
-        {!overlay && (
+        {!overlay && draggable && (
           <button
             type="button"
             className={styles.dragHandle}
@@ -326,10 +328,13 @@ export default function WorkbenchLayoutEditor({
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
-  const activeModule = activeId && isWorkbenchModuleId(activeId) ? activeId : null;
+  const activeModule =
+    activeId && isWorkbenchModuleId(activeId) && activeId !== 'taskPanel'
+      ? activeId
+      : null;
 
   const handleDragStart = ({ active }: DragStartEvent) => {
-    if (!isWorkbenchModuleId(active.id)) return;
+    if (!isWorkbenchModuleId(active.id) || active.id === 'taskPanel') return;
     setActiveId(active.id);
     onDraggingChange?.(true);
   };
@@ -339,13 +344,21 @@ export default function WorkbenchLayoutEditor({
     const overModuleId = over && isWorkbenchModuleId(over.id) ? over.id : null;
     setActiveId(null);
     onDraggingChange?.(false);
-    if (!activeModuleId || !overModuleId || activeModuleId === overModuleId) return;
-    const oldIndex = layout.workbenchOrder.indexOf(activeModuleId);
-    const newIndex = layout.workbenchOrder.indexOf(overModuleId);
+    if (
+      !activeModuleId ||
+      !overModuleId ||
+      activeModuleId === 'taskPanel' ||
+      overModuleId === 'taskPanel' ||
+      activeModuleId === overModuleId
+    )
+      return;
+    const sortableOrder = layout.workbenchOrder.filter((id) => id !== 'taskPanel');
+    const oldIndex = sortableOrder.indexOf(activeModuleId);
+    const newIndex = sortableOrder.indexOf(overModuleId);
     if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
     onLayoutChange({
       ...layout,
-      workbenchOrder: arrayMove(layout.workbenchOrder, oldIndex, newIndex),
+      workbenchOrder: ['taskPanel', ...arrayMove(sortableOrder, oldIndex, newIndex)],
     });
   };
 
@@ -359,7 +372,7 @@ export default function WorkbenchLayoutEditor({
       <div className={styles.editorHeading}>
         <div>
           <strong>育种台预览</strong>
-          <span>拖动模块调整顺序，卡片内可切换显示密度。</span>
+          <span>任务面板固定在顶部，其余模块可拖动排序。</span>
         </div>
         <Activity size={17} aria-hidden />
       </div>
@@ -380,19 +393,27 @@ export default function WorkbenchLayoutEditor({
             {layout.showFileTree && <span>文件树</span>}
           </div>
           <div className={styles.moduleList}>
+            <ModuleCard
+              id="taskPanel"
+              layout={layout}
+              onLayoutChange={onLayoutChange}
+              draggable={false}
+            />
             <SortableContext
-              items={layout.workbenchOrder}
+              items={layout.workbenchOrder.filter((id) => id !== 'taskPanel')}
               strategy={verticalListSortingStrategy}
             >
-              {layout.workbenchOrder.map((id) => (
-                <SortableModuleCard
-                  key={id}
-                  id={id}
-                  layout={layout}
-                  onLayoutChange={onLayoutChange}
-                  activeId={activeId}
-                />
-              ))}
+              {layout.workbenchOrder
+                .filter((id) => id !== 'taskPanel')
+                .map((id) => (
+                  <SortableModuleCard
+                    key={id}
+                    id={id}
+                    layout={layout}
+                    onLayoutChange={onLayoutChange}
+                    activeId={activeId}
+                  />
+                ))}
             </SortableContext>
           </div>
         </aside>

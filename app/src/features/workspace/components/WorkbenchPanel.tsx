@@ -14,12 +14,15 @@ import type {
   WorkspaceSnapshot,
 } from '../types';
 import type { WorkbenchTask } from '../workbenchTasks';
+import type { WorkbenchModuleId } from '../../../layouts/panelLayout';
 import TaskPlanPanel from './TaskPlanPanel';
 import WorkbenchFileTree from './WorkbenchFileTree';
 import WorkbenchTaskList from './WorkbenchTaskList';
 import styles from './WorkbenchPanel.module.css';
 import WorkbenchTabBar from './WorkbenchTabBar';
 import useWorkbenchTabs from './useWorkbenchTabs';
+
+type AddableWorkbenchModuleId = Exclude<WorkbenchModuleId, 'taskPanel'>;
 
 export type WorkbenchPanelProps = {
   snapshot: WorkspaceSnapshot;
@@ -31,8 +34,11 @@ export type WorkbenchPanelProps = {
   onConfirm: (planId: string) => void;
   onCancel: (runId: string) => void;
   onOpenFile: (node: WorkspaceFileNode) => void;
+  onAddModule?: (moduleId: AddableWorkbenchModuleId) => void;
+  moduleVisibility?: Record<AddableWorkbenchModuleId, boolean>;
   showFileTree?: boolean;
   embedded?: boolean;
+  pinned?: boolean;
 };
 
 function EmptyHint({ description }: { description: string }) {
@@ -47,6 +53,7 @@ export default function WorkbenchPanel(props: WorkbenchPanelProps) {
     tasks,
     activeRunId,
     embedded,
+    pinned,
     showFileTree = true,
   } = props;
   const reduced = useReducedMotion();
@@ -81,7 +88,9 @@ export default function WorkbenchPanel(props: WorkbenchPanelProps) {
     </div>
   );
   return (
-    <aside className={`${styles.panel} ${embedded ? styles.embedded : ''}`}>
+    <aside
+      className={`${styles.panel} ${embedded ? styles.embedded : ''} ${pinned ? styles.pinned : ''}`}
+    >
       <div className={styles.title}>
         <b>
           <Sprout size={18} aria-hidden />
@@ -103,6 +112,8 @@ export default function WorkbenchPanel(props: WorkbenchPanelProps) {
         tabs={tabs}
         showFileTree={showFileTree}
         viewMenuOpen={viewMenuOpen}
+        onAddModule={props.onAddModule}
+        moduleVisibility={props.moduleVisibility}
       />
       <AnimatePresence initial={false} mode="wait">
         <motion.div

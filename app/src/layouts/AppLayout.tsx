@@ -165,10 +165,16 @@ export default function AppLayout() {
       yoloTask={yoloTask}
       workbenchOpen={controller.workbenchOpen}
       onToggleWorkbench={() => controller.setWorkbenchOpen((value) => !value)}
-      workbench={(panelLayout) => (
+      workbench={(panelLayout, onAddModule) => (
         <WorkbenchPanel
           embedded
+          pinned
           showFileTree={panelLayout.showFileTree}
+          onAddModule={onAddModule}
+          moduleVisibility={{
+            imageRecognition: panelLayout.showImageRecognition,
+            resourceMonitor: panelLayout.showResourceMonitor,
+          }}
           snapshot={snapshot}
           latestPlan={latestPlan}
           latestRun={latestRun}
