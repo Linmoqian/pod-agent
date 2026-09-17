@@ -255,10 +255,6 @@ export default function ContextHeader(props: ContextHeaderProps) {
     }
     setNaming(null);
   };
-  const closeUnsavedConversation = () => {
-    const currentTab = props.tabs.find((tab) => tab.id === props.activeTabId);
-    if (currentTab) requestCloseTab(currentTab);
-  };
   const discardClosingTab = () => {
     if (closingTab) props.onCloseTab(closingTab.id);
     setClosingTab(null);
@@ -546,12 +542,14 @@ export default function ContextHeader(props: ContextHeaderProps) {
               }}
               onBlur={commitTabRename}
             />
+            {!tab.projectId && <span className={styles.unsavedTabDot} aria-hidden />}
           </div>
         ) : (
           <button
             type="button"
             role="tab"
             aria-selected={active}
+            aria-label={!tab.projectId ? `${tab.label}，未保存` : tab.label}
             className={`${styles.tabLabel} ${!tab.projectId ? styles.temporaryTabLabel : ''}`}
             disabled={props.busy}
             onClick={() => {
@@ -564,6 +562,7 @@ export default function ContextHeader(props: ContextHeaderProps) {
           >
             {!tab.projectId && <MessageSquare size={13} strokeWidth={1.8} aria-hidden />}
             <span>{tab.label}</span>
+            {!tab.projectId && <span className={styles.unsavedTabDot} aria-hidden />}
           </button>
         )}
         <button
@@ -610,6 +609,7 @@ export default function ContextHeader(props: ContextHeaderProps) {
           >
             {!tab.projectId && <MessageSquare size={13} strokeWidth={1.8} aria-hidden />}
             <span>{tab.label}</span>
+            {!tab.projectId && <span className={styles.unsavedTabDot} aria-hidden />}
           </span>
           <span className={styles.closeTab} aria-hidden>
             <X size={14} />
@@ -1001,13 +1001,11 @@ export default function ContextHeader(props: ContextHeaderProps) {
         materialCount={props.materialCount}
         developerMode={props.developerMode}
         terminalOpen={props.terminalOpen}
-        busy={props.busy}
         onSwitchProject={props.onSwitchProject}
         onStartNewConversation={props.onStartNewConversation}
         onCreateProject={createProject}
         onArchiveProject={props.onArchiveProject}
         onOpenTerminal={props.onOpenTerminal}
-        onCloseUnsavedConversation={closeUnsavedConversation}
       />
       <ContextHeaderDialogs
         naming={naming}

@@ -4,13 +4,7 @@
  * @author: https://github.com/Linmoqian
  */
 
-import {
-  Circle,
-  Plus,
-  Terminal,
-  Trash2,
-  X,
-} from 'lucide-react';
+import { Plus, Terminal, Trash2 } from 'lucide-react';
 
 import {
   AlertDialog,
@@ -43,13 +37,11 @@ type ProjectContextControlsProps = {
   materialCount: number;
   developerMode: boolean;
   terminalOpen: boolean;
-  busy: boolean;
   onSwitchProject: (projectId: string) => void;
   onStartNewConversation: () => void;
   onCreateProject: () => void;
   onArchiveProject: () => void;
   onOpenTerminal: () => void;
-  onCloseUnsavedConversation: () => void;
 };
 
 export default function ContextHeaderActions({
@@ -61,13 +53,11 @@ export default function ContextHeaderActions({
   materialCount,
   developerMode,
   terminalOpen,
-  busy,
   onSwitchProject,
   onStartNewConversation,
   onCreateProject,
   onArchiveProject,
   onOpenTerminal,
-  onCloseUnsavedConversation,
 }: ProjectContextControlsProps) {
   return (
     <>
@@ -138,29 +128,6 @@ export default function ContextHeaderActions({
               <b>{materialCount}</b> 材料
             </span>
           </div>
-        )}
-        {!inProject && (
-          <button
-            type="button"
-            className={styles.unsavedDot}
-            aria-label="关闭未保存的临时会话"
-            title="未保存的临时会话，点击关闭"
-            disabled={busy}
-            onClick={onCloseUnsavedConversation}
-          >
-            <Circle
-              className={styles.unsavedDotIcon}
-              size={8}
-              fill="currentColor"
-              aria-hidden
-            />
-            <X
-              className={styles.unsavedCloseIcon}
-              size={14}
-              strokeWidth={1.9}
-              aria-hidden
-            />
-          </button>
         )}
         {inProject && (
           <Button
