@@ -272,16 +272,11 @@
   display: flex;
   flex: 0 0 auto;
 }
-.projectContext,
-.projectRow,
 .headerActions {
   display: flex;
   align-items: center;
   min-width: 0;
   gap: 8px;
-}
-.projectContext {
-  flex: 0 1 auto;
 }
 .headerActions {
   flex: 0 0 auto;
@@ -319,51 +314,6 @@
 .unsavedTabClose:focus-visible .unsavedTabCloseIcon {
   opacity: 1;
   transform: scale(1);
-}
-.eyebrow,
-.projectRow h1,
-.divider,
-.contextStats {
-  display: none;
-}
-.contextSwitcher {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  max-width: 260px;
-  padding: 6px 0;
-  border: 0;
-  color: var(--color-text-primary);
-  background: transparent;
-  font-size: 13px;
-  font-weight: 550;
-}
-.contextSwitcher span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.contextSwitcher::after {
-  content: '';
-  width: 5px;
-  height: 5px;
-  border-right: 1px solid currentColor;
-  border-bottom: 1px solid currentColor;
-  transform: rotate(45deg);
-}
-.contextMenu {
-  width: min(260px, calc(100vw - 24px));
-  padding: 5px;
-  border-color: var(--color-border-default);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-default);
-  color: var(--color-text-primary);
-  box-shadow: var(--shadow-elevated);
-}
-.contextMenu [data-slot='dropdown-menu-item'] {
-  min-height: 32px;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
 }
 .tabContextMenu {
   position: fixed;
@@ -779,14 +729,6 @@
     transparent
   );
 }
-.newProject {
-  font-size: 12px;
-  color: var(--color-text-tertiary);
-  box-shadow: none;
-}
-.archiveButton {
-  color: var(--color-text-tertiary);
-}
 .workspace {
   display: flex;
   flex-direction: column;
@@ -800,11 +742,7 @@
   }
   .tab { max-width: 130px; }
   .tabGroupLabel { display: none; }
-  .projectContext { display: none; }
   .headerActions { margin-left: auto; }
-  .contextSwitcher {
-    max-width: 140px;
-  }
 }
 @media (max-width: 520px) {
   .saveSessionDialog {

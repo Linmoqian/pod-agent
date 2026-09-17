@@ -178,10 +178,6 @@ export default function ContextHeader(props: ContextHeaderProps) {
       return blocks;
     }, []);
   }, [groupByTab, tabGroups, props.tabs]);
-  const createProject = () => {
-    setName('');
-    setNaming('create');
-  };
   const requestCloseTab = (tab: WorkspaceTab) => {
     if (tab.projectId) {
       props.onCloseTab(tab.id);
@@ -992,18 +988,8 @@ export default function ContextHeader(props: ContextHeaderProps) {
         </div>
       )}
       <ContextHeaderActions
-        inProject={props.inProject}
-        contextLabel={props.contextLabel}
-        projects={props.projects}
-        datasetCount={props.datasetCount}
-        artifactCount={props.artifactCount}
-        materialCount={props.materialCount}
         developerMode={props.developerMode}
         terminalOpen={props.terminalOpen}
-        onSwitchProject={props.onSwitchProject}
-        onStartNewConversation={props.onStartNewConversation}
-        onCreateProject={createProject}
-        onArchiveProject={props.onArchiveProject}
         onOpenTerminal={props.onOpenTerminal}
       />
       <ContextHeaderDialogs
