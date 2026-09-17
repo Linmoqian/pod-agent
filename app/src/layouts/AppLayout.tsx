@@ -175,7 +175,6 @@ export default function AppLayout() {
             imageRecognition: panelLayout.showImageRecognition,
             resourceMonitor: panelLayout.showResourceMonitor,
           }}
-          snapshot={snapshot}
           latestPlan={latestPlan}
           latestRun={latestRun}
           tasks={workbenchTasks}

@@ -5,14 +5,8 @@
  */
 
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { Sprout } from 'lucide-react';
 
-import type {
-  TaskPlan,
-  WorkflowRun,
-  WorkspaceFileNode,
-  WorkspaceSnapshot,
-} from '../types';
+import type { TaskPlan, WorkflowRun, WorkspaceFileNode } from '../types';
 import type { WorkbenchTask } from '../workbenchTasks';
 import type { WorkbenchModuleId } from '../../../layouts/panelLayout';
 import TaskPlanPanel from './TaskPlanPanel';
@@ -25,7 +19,6 @@ import useWorkbenchTabs from './useWorkbenchTabs';
 type AddableWorkbenchModuleId = Exclude<WorkbenchModuleId, 'taskPanel'>;
 
 export type WorkbenchPanelProps = {
-  snapshot: WorkspaceSnapshot;
   latestPlan?: TaskPlan;
   latestRun?: WorkflowRun;
   tasks: readonly WorkbenchTask[];
@@ -47,7 +40,6 @@ function EmptyHint({ description }: { description: string }) {
 
 export default function WorkbenchPanel(props: WorkbenchPanelProps) {
   const {
-    snapshot,
     latestPlan,
     latestRun,
     tasks,
@@ -91,17 +83,6 @@ export default function WorkbenchPanel(props: WorkbenchPanelProps) {
     <aside
       className={`${styles.panel} ${embedded ? styles.embedded : ''} ${pinned ? styles.pinned : ''}`}
     >
-      <div className={styles.title}>
-        <b>
-          <Sprout size={18} aria-hidden />
-          育种台
-        </b>
-        <span>
-          {snapshot.overview
-            ? `${snapshot.overview.materialCount} 材料 · ${snapshot.overview.executionCount} 次执行`
-            : '等待任务'}
-        </span>
-      </div>
       <WorkbenchTabBar
         activeTabId={renderedTabId}
         onAdd={addTab}
