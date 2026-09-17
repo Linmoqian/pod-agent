@@ -250,14 +250,16 @@ it('按育种台偏好排列模块并传递简易样式', () => {
   );
 });
 
-it('模块右上角关闭后保存隐藏状态', () => {
+it('模块右上角关闭后保存隐藏状态', async () => {
   render(shell());
 
   fireEvent.click(screen.getByRole('button', { name: '关闭图片识别模块' }));
   fireEvent.click(screen.getByRole('button', { name: '关闭计算机资源模块' }));
 
-  expect(screen.queryByLabelText('图片推理任务')).not.toBeInTheDocument();
-  expect(screen.queryByLabelText('计算机资源监视')).not.toBeInTheDocument();
+  await waitFor(() => {
+    expect(screen.queryByLabelText('图片推理任务')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('计算机资源监视')).not.toBeInTheDocument();
+  });
   expect(JSON.parse(localStorage.getItem(PANEL_LAYOUT_STORAGE_KEY) ?? '{}')).toMatchObject({
     showImageRecognition: false,
     showResourceMonitor: false,

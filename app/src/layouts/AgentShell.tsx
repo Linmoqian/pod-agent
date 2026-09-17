@@ -147,12 +147,35 @@ export default function AgentShell({
     typeof workbench === 'function'
       ? workbench(layout, addWorkbenchModule, closeWorkbenchModule)
       : workbench;
+  const moduleTransition = reduced
+    ? { duration: 0 }
+    : {
+        layout: {
+          type: 'spring' as const,
+          stiffness: 460,
+          damping: 38,
+          mass: 0.8,
+        },
+        opacity: {
+          duration: 0.14,
+          ease: [0.23, 1, 0.32, 1] as const,
+        },
+        transform: {
+          duration: 0.18,
+          ease: [0.23, 1, 0.32, 1] as const,
+        },
+      };
   const renderWorkbenchModule = (moduleId: WorkbenchModuleId) => {
     if (moduleId === 'imageRecognition') {
       if (!layout.showImageRecognition) return null;
       return (
-        <div
+        <motion.div
           key={moduleId}
+          layout="position"
+          initial={false}
+          animate={{ opacity: 1, transform: 'translateY(0)' }}
+          exit={reduced ? { opacity: 0 } : { opacity: 0, transform: 'translateY(-6px)' }}
+          transition={moduleTransition}
           className={styles.moduleSlot}
           data-workbench-module="imageRecognition"
         >
@@ -162,14 +185,19 @@ export default function AgentShell({
             onOpenResults={onOpenYoloResults}
             onClose={() => closeWorkbenchModule('imageRecognition')}
           />
-        </div>
+        </motion.div>
       );
     }
     if (moduleId === 'resourceMonitor') {
       if (!layout.showResourceMonitor) return null;
       return (
-        <div
+        <motion.div
           key={moduleId}
+          layout="position"
+          initial={false}
+          animate={{ opacity: 1, transform: 'translateY(0)' }}
+          exit={reduced ? { opacity: 0 } : { opacity: 0, transform: 'translateY(-6px)' }}
+          transition={moduleTransition}
           className={styles.moduleSlot}
           data-workbench-module="resourceMonitor"
         >
@@ -177,17 +205,22 @@ export default function AgentShell({
             density={layout.resourceMonitorDensity}
             onClose={() => closeWorkbenchModule('resourceMonitor')}
           />
-        </div>
+        </motion.div>
       );
     }
     return (
-      <div
+      <motion.div
         key={moduleId}
+        layout="position"
+        initial={false}
+        animate={{ opacity: 1, transform: 'translateY(0)' }}
+        exit={reduced ? { opacity: 0 } : { opacity: 0, transform: 'translateY(-6px)' }}
+        transition={moduleTransition}
         className={`${styles.moduleSlot} ${styles.taskModuleSlot}`}
         data-workbench-module="taskPanel"
       >
         {workbenchContent}
-      </div>
+      </motion.div>
     );
   };
   const cancelDragDelay = () => {
@@ -614,9 +647,11 @@ export default function AgentShell({
               {renderWorkbenchModule('taskPanel')}
             </div>
             <div className={styles.workbenchModules}>
-              {layout.workbenchOrder
-                .filter((moduleId) => moduleId !== 'taskPanel')
-                .map(renderWorkbenchModule)}
+              <AnimatePresence initial={false} mode="popLayout">
+                {layout.workbenchOrder
+                  .filter((moduleId) => moduleId !== 'taskPanel')
+                  .map(renderWorkbenchModule)}
+              </AnimatePresence>
             </div>
           </div>
         )}
