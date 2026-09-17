@@ -1,6 +1,7 @@
 /*
  * 设置模态测试:独立页面切换、主题副作用、模式持久化与系统跟随。
  * Created on 2026-09-08
+ * Updated on 2026-09-17
  * @author: https://github.com/Linmoqian
  */
 
@@ -163,11 +164,16 @@ describe("SettingsModal", () => {
       name: "图片识别",
     });
     const fileTree = await screen.findByRole("switch", { name: "文件树" });
+    const resourceMonitor = await screen.findByRole("switch", {
+      name: "资源监视",
+    });
     expect(imageRecognition).toHaveAttribute("aria-checked", "true");
     expect(fileTree).toHaveAttribute("aria-checked", "true");
+    expect(resourceMonitor).toHaveAttribute("aria-checked", "true");
 
     await user.click(imageRecognition);
     await user.click(fileTree);
+    await user.click(resourceMonitor);
 
     expect(imageRecognition).toHaveAttribute("aria-checked", "false");
     expect(fileTree).toHaveAttribute("aria-checked", "false");
@@ -176,5 +182,6 @@ describe("SettingsModal", () => {
     );
     expect(stored.showImageRecognition).toBe(false);
     expect(stored.showFileTree).toBe(false);
+    expect(stored.showResourceMonitor).toBe(false);
   });
 });

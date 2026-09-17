@@ -1,6 +1,6 @@
 /* 可移动、可调宽的 Agent 对话工作台。
  * Created on 2026-09-14
- * Updated on 2026-09-16
+ * Updated on 2026-09-17
  * @author: https://github.com/Linmoqian
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -126,7 +126,8 @@ export default function AgentShell({
         next.navigation === current.navigation &&
         next.workbench === current.workbench &&
         next.showImageRecognition === current.showImageRecognition &&
-        next.showFileTree === current.showFileTree
+        next.showFileTree === current.showFileTree &&
+        next.showResourceMonitor === current.showResourceMonitor
       ) {
         return current;
       }
@@ -524,7 +525,7 @@ export default function AgentShell({
             {layout.showImageRecognition && (
               <YoloTaskCard task={yoloTask} onOpenResults={onOpenYoloResults} />
             )}
-            <SystemResourceCard />
+            {layout.showResourceMonitor && <SystemResourceCard />}
             {workbenchContent}
           </div>
         )}
@@ -732,6 +733,7 @@ export default function AgentShell({
               workbench: next.workbench,
               showImageRecognition: next.showImageRecognition,
               showFileTree: next.showFileTree,
+              showResourceMonitor: next.showResourceMonitor,
             }),
             true,
           )

@@ -3,7 +3,7 @@
  * @author: https://github.com/Linmoqian
  */
 
-import { Activity, CircleAlert, CircleCheck, Cpu, MemoryStick } from 'lucide-react';
+import { Activity, Cpu, MemoryStick } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import {
@@ -80,18 +80,10 @@ function useSystemResources() {
   return { snapshot, status };
 }
 
-function statusText(status: ResourceStatus) {
-  if (status === 'loading') return '读取中';
-  if (status === 'preview') return '桌面端可用';
-  if (status === 'error') return '暂不可用';
-  return '监视中';
-}
-
 export default function SystemResourceCard() {
   const { snapshot, status } = useSystemResources();
   const cpuPercent = clampPercent(snapshot?.cpuPercent ?? 0);
   const memoryPercent = clampPercent(snapshot?.memoryPercent ?? 0);
-  const StatusIcon = status === 'error' ? CircleAlert : status === 'ready' ? CircleCheck : Activity;
 
   return (
     <section className={styles.card} aria-label="计算机资源监视">
@@ -100,10 +92,6 @@ export default function SystemResourceCard() {
           <Activity size={15} aria-hidden />
           计算机资源
         </strong>
-        <span className={styles.status} data-status={status}>
-          <StatusIcon size={13} aria-hidden />
-          {statusText(status)}
-        </span>
       </header>
       <div className={styles.metrics}>
         <div className={styles.metric}>
@@ -135,10 +123,6 @@ export default function SystemResourceCard() {
           </div>
         </div>
       </div>
-      <footer>
-        <span>仅采集系统概览，不影响推理任务。</span>
-        <span>{status === 'ready' ? '每 1.5 秒更新' : '等待数据'}</span>
-      </footer>
     </section>
   );
 }

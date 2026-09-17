@@ -3,11 +3,12 @@
  * 选项卡片为同组互斥单选,以 aria-pressed 表达选中态;
  * 主题/模式状态读写走 SettingsContext,由其负责持久化与 <html data-theme>。
  * Created on 2026-09-08
- * Updated on 2026-09-16
+ * Updated on 2026-09-17
  * @author: https://github.com/Linmoqian
  */
 
 import {
+  Activity,
   Bot,
   ChevronDown,
   Code2,
@@ -265,7 +266,11 @@ function WorkbenchSection({
     changes: Partial<
       Pick<
         PanelLayout,
-        'reversed' | 'workbench' | 'showImageRecognition' | 'showFileTree'
+        | 'reversed'
+        | 'workbench'
+        | 'showImageRecognition'
+        | 'showFileTree'
+        | 'showResourceMonitor'
       >
     >,
   ) => {
@@ -346,6 +351,7 @@ function WorkbenchSection({
               workbench: DEFAULT_PANEL_LAYOUT.workbench,
               showImageRecognition: DEFAULT_PANEL_LAYOUT.showImageRecognition,
               showFileTree: DEFAULT_PANEL_LAYOUT.showFileTree,
+              showResourceMonitor: DEFAULT_PANEL_LAYOUT.showResourceMonitor,
             })
           }
         >
@@ -371,6 +377,13 @@ function WorkbenchSection({
           icon={<FolderTree size={18} strokeWidth={1.75} />}
           checked={layout.showFileTree}
           onChange={(showFileTree) => updateLayout({ showFileTree })}
+        />
+        <FeatureToggle
+          label="资源监视"
+          description="在育种台中显示 CPU 与内存监视。"
+          icon={<Activity size={18} strokeWidth={1.75} />}
+          checked={layout.showResourceMonitor}
+          onChange={(showResourceMonitor) => updateLayout({ showResourceMonitor })}
         />
       </div>
     </section>
@@ -500,7 +513,7 @@ function SettingsModal({
     icon: ReactNode;
   }> = [
     { id: 'appearance', label: '外观', hint: '主题与界面', keywords: ['浅色', '深色', '系统', '主题', '语言'], icon: <SlidersHorizontal size={16} /> },
-    { id: 'workbench', label: '育种台', hint: '布局与侧栏', keywords: ['育种台', '布局', '位置', '宽度', '左侧', '右侧', '图片识别', '文件树'], icon: <PanelsTopLeft size={16} /> },
+    { id: 'workbench', label: '育种台', hint: '布局与侧栏', keywords: ['育种台', '布局', '位置', '宽度', '左侧', '右侧', '图片识别', '文件树', '资源监视'], icon: <PanelsTopLeft size={16} /> },
     { id: 'mode', label: '工作模式', hint: '助手行为', keywords: ['新手', '专家', '开发人员', '引导', '调试'], icon: <UserRound size={16} /> },
     ...(experienceMode === 'developer'
       ? [{ id: 'model' as const, label: '模型', hint: '提供商与密钥', keywords: ['模型', '提供商', '密钥', '端点'], icon: <Bot size={16} /> }]

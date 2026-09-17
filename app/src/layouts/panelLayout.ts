@@ -1,6 +1,6 @@
 /* 会话侧栏与育种台共享的停靠布局偏好。
  * Created on 2026-09-16
- * Updated on 2026-09-16
+ * Updated on 2026-09-17
  * @author: https://github.com/Linmoqian
  */
 
@@ -12,6 +12,7 @@ export type PanelLayout = {
   workbench: number;
   showImageRecognition: boolean;
   showFileTree: boolean;
+  showResourceMonitor: boolean;
 };
 
 export const DEFAULT_PANEL_LAYOUT: PanelLayout = {
@@ -20,6 +21,7 @@ export const DEFAULT_PANEL_LAYOUT: PanelLayout = {
   workbench: 320,
   showImageRecognition: true,
   showFileTree: true,
+  showResourceMonitor: true,
 };
 
 export const PANEL_MIN_WIDTH: Record<PanelId, number> = {
@@ -63,6 +65,10 @@ export function readPanelLayout(): PanelLayout {
           typeof value.showFileTree === 'boolean'
             ? value.showFileTree
             : DEFAULT_PANEL_LAYOUT.showFileTree,
+        showResourceMonitor:
+          typeof value.showResourceMonitor === 'boolean'
+            ? value.showResourceMonitor
+            : DEFAULT_PANEL_LAYOUT.showResourceMonitor,
       };
     }
   } catch {

@@ -9,8 +9,7 @@
 }
 
 .card header,
-.metricHeader,
-.card footer {
+.metricHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -32,22 +31,6 @@
 .card header strong svg,
 .metricHeader span svg {
   color: var(--color-brand-500);
-}
-
-.status {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--color-text-tertiary);
-  font-size: 11px;
-}
-
-.status[data-status='error'] {
-  color: var(--color-state-danger, var(--color-danger-600, #b54747));
-}
-
-.status[data-status='preview'] {
-  color: var(--color-text-tertiary);
 }
 
 .metrics {
@@ -96,10 +79,4 @@
 
 .track[data-tone='danger'] > span {
   background: var(--color-state-danger, #b54747);
-}
-
-.card footer {
-  margin-top: 10px;
-  color: var(--color-text-tertiary);
-  font-size: 10px;
 }
