@@ -16,8 +16,9 @@ import {
   removeCustomProvider,
   setCurrentModel,
   setCustomProviderModels,
+  updateCustomProvider,
 } from "../store/providersSlice";
-import type { ModelSelection } from "../types";
+import type { CustomProviderConfig, ModelSelection } from "../types";
 import {
   CUSTOM_PROVIDER_PREFIX,
   generateCustomProviderId,
@@ -45,6 +46,14 @@ export type ModelOptionGroup = {
   providerId: string;
   providerName: string;
   options: Array<{ label: string; value: string }>;
+};
+
+export type CustomProviderDraft = {
+  id?: string;
+  name: string;
+  baseUrl: string;
+  modelIds: string[];
+  apiKey?: string;
 };
 
 /** 从注册表收集提供商行,附带密钥尾缀预览 */
@@ -120,40 +129,28 @@ export function useProviderSettings() {
     setRows(await collectProviderRows());
   }, []);
 
-  const addCustom = useCallback(
-    (name: string, baseUrl: string) => {
-      if (!isValidCustomProviderUrl(baseUrl)) {
-        throw new Error("PROVIDER_URL_INVALID:自定义 Provider 地址无效");
+  const saveCustomProvider = useCallback(
+    async (draft: CustomProviderDraft) => {
+      const name = draft.name.trim();
+      const baseUrl = draft.baseUrl.trim().replace(/\/+$/, "");
+      const modelIds = [...new Set(draft.modelIds.map((id) => id.trim()).filter(Boolean))];
+      if (!name || !isValidCustomProviderUrl(baseUrl)) {
+        throw new Error("PROVIDER_URL_INVALID:请填写提供商名称与有效的 http(s) 地址");
       }
-      dispatch(
-        addCustomProvider({
-          id: generateCustomProviderId(),
-          name,
-          // 统一去掉尾部斜杠,便于 registry 拼 /models
-          baseUrl: baseUrl.replace(/\/+$/, ""),
-        }),
-      );
-    },
-    [dispatch],
-  );
-
-  const addLlm = useCallback(
-    async (name: string, baseUrl: string, key: string) => {
-      if (!isValidCustomProviderUrl(baseUrl) || !key.trim()) {
-        throw new Error("PROVIDER_URL_INVALID:自定义 Provider 地址或密钥无效");
+      const id = draft.id ?? generateCustomProviderId();
+      if (draft.apiKey?.trim()) {
+        await saveProviderKey(id, draft.apiKey);
       }
-      const id = generateCustomProviderId();
-      // 先确认密钥已落入 Keychain，避免 Keychain 失败后留下不可用的 Provider 配置。
-      await saveProviderKey(id, key);
-      dispatch(
-        addCustomProvider({
-          id,
-          name,
-          baseUrl: baseUrl.replace(/\/+$/, ""),
-          modelIds: [name],
-        }),
-      );
+      const config: CustomProviderConfig = {
+        id,
+        name,
+        baseUrl,
+        ...(modelIds.length ? { modelIds } : {}),
+      };
+      if (draft.id) dispatch(updateCustomProvider(config));
+      else dispatch(addCustomProvider(config));
       setRows(await collectProviderRows());
+      return id;
     },
     [dispatch],
   );
@@ -171,17 +168,18 @@ export function useProviderSettings() {
   );
 
   const removeCustom = useCallback(
-    async (providerId: string) => {
+    async (providerId: string): Promise<boolean> => {
       if (isTauriRuntime()) {
         try {
           // 先清理 Keychain，清除失败时保留配置，避免无提示地遗留密钥。
           await clearProviderKey(providerId);
         } catch (error) {
           toast.error(errorText(error));
-          return;
+          return false;
         }
       }
       dispatch(removeCustomProvider(providerId));
+      return true;
     },
     [dispatch],
   );
@@ -233,8 +231,7 @@ export function useProviderSettings() {
     modelGroups,
     saveKey,
     clearKey,
-    addCustom,
-    addLlm,
+    saveCustomProvider,
     addYolo,
     removeCustom,
     removeYolo,

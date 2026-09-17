@@ -40,6 +40,22 @@ export const providersSlice = createSlice({
     ) {
       state.customProviders.push(action.payload);
     },
+    updateCustomProvider(
+      state,
+      action: PayloadAction<CustomProviderConfig>,
+    ) {
+      const index = state.customProviders.findIndex(
+        (config) => config.id === action.payload.id,
+      );
+      if (index < 0) return;
+      state.customProviders[index] = action.payload;
+      if (
+        state.currentModel?.providerId === action.payload.id &&
+        !(action.payload.modelIds ?? []).includes(state.currentModel.modelId)
+      ) {
+        state.currentModel = null;
+      }
+    },
     setCustomProviderModels(
       state,
       action: PayloadAction<{ providerId: string; modelIds: string[] }>,
@@ -90,6 +106,7 @@ export const providersSlice = createSlice({
 export const {
   setCustomProviders,
   addCustomProvider,
+  updateCustomProvider,
   setCustomProviderModels,
   setCustomYoloModels,
   addCustomYoloModel,

@@ -9,6 +9,7 @@ import reducer, {
   removeCustomProvider,
   setCurrentModel,
   setCustomProviders,
+  updateCustomProvider,
 } from "../store/providersSlice";
 
 describe("providersSlice", () => {
@@ -44,6 +45,38 @@ describe("providersSlice", () => {
     );
     state = reducer(state, removeCustomProvider("custom-1"));
     expect(state.customProviders).toHaveLength(0);
+    expect(state.currentModel).toBeNull();
+  });
+
+  it("更新自定义提供商时同步配置并失效已移除的模型", () => {
+    let state = reducer(undefined, { type: "init" });
+    state = reducer(
+      state,
+      addCustomProvider({
+        id: "custom-1",
+        name: "本地 Ollama",
+        baseUrl: "http://localhost:11434/v1",
+        modelIds: ["qwen3"],
+      }),
+    );
+    state = reducer(
+      state,
+      setCurrentModel({ providerId: "custom-1", modelId: "qwen3" }),
+    );
+    state = reducer(
+      state,
+      updateCustomProvider({
+        id: "custom-1",
+        name: "实验室 vLLM",
+        baseUrl: "http://localhost:8000/v1",
+        modelIds: ["glm-4"],
+      }),
+    );
+    expect(state.customProviders[0]).toMatchObject({
+      name: "实验室 vLLM",
+      baseUrl: "http://localhost:8000/v1",
+      modelIds: ["glm-4"],
+    });
     expect(state.currentModel).toBeNull();
   });
 
