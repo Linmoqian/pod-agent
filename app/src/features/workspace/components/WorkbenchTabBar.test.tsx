@@ -35,7 +35,7 @@ function renderMenu(
 it('加号菜单提供图片识别和计算机资源模块', () => {
   const { onAddModule, onToggleMenu } = renderMenu();
 
-  fireEvent.click(screen.getByRole('menuitem', { name: '图片识别模块' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: '图片识别' }));
 
   expect(onAddModule).toHaveBeenCalledWith('imageRecognition');
   expect(onToggleMenu).toHaveBeenCalledTimes(1);
@@ -45,9 +45,9 @@ it('已经显示的模块不可重复添加', () => {
   renderMenu({ imageRecognition: true, resourceMonitor: false });
 
   expect(
-    screen.getByRole('menuitem', { name: '图片识别模块（已添加）' }),
+    screen.getByRole('menuitem', { name: '图片识别' }),
   ).toBeDisabled();
   expect(
-    screen.getByRole('menuitem', { name: '计算机资源模块' }),
+    screen.getByRole('menuitem', { name: '计算机资源' }),
   ).toBeEnabled();
 });

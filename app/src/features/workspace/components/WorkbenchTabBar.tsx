@@ -139,10 +139,7 @@ export default function WorkbenchTabBar({
                   }}
                 >
                   <ImageIcon size={16} />
-                  <span>
-                    图片识别模块
-                    {moduleVisibility?.imageRecognition ? '（已添加）' : ''}
-                  </span>
+                  <span>图片识别</span>
                   {moduleVisibility?.imageRecognition && <Check size={14} />}
                 </button>
                 <button
@@ -155,10 +152,7 @@ export default function WorkbenchTabBar({
                   }}
                 >
                   <Activity size={16} />
-                  <span>
-                    计算机资源模块
-                    {moduleVisibility?.resourceMonitor ? '（已添加）' : ''}
-                  </span>
+                  <span>计算机资源</span>
                   {moduleVisibility?.resourceMonitor && <Check size={14} />}
                 </button>
               </>
