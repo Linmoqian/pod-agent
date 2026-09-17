@@ -145,7 +145,7 @@ function DensitySwitch({
           aria-pressed={density === value}
           onClick={() => onChange(value)}
         >
-          {value === 'simple' ? '简单' : '复杂'}
+          {value === 'simple' ? '简易' : '完整'}
         </button>
       ))}
     </div>

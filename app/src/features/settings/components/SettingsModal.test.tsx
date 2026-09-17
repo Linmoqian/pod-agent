@@ -185,7 +185,7 @@ describe("SettingsModal", () => {
     expect(stored.showResourceMonitor).toBe(false);
   });
 
-  it("分别持久化图片识别与资源监视的简单样式", async () => {
+  it("分别持久化图片识别与资源监视的简易样式", async () => {
     const user = userEvent.setup();
     renderSettings();
     await user.click(screen.getByRole("button", { name: /育种台/ }));
@@ -196,14 +196,14 @@ describe("SettingsModal", () => {
     const resourceStyle = within(
       await screen.findByRole("group", { name: "资源监视样式" }),
     );
-    await user.click(imageStyle.getByRole("button", { name: "简单" }));
-    await user.click(resourceStyle.getByRole("button", { name: "简单" }));
+    await user.click(imageStyle.getByRole("button", { name: "简易" }));
+    await user.click(resourceStyle.getByRole("button", { name: "简易" }));
 
-    expect(imageStyle.getByRole("button", { name: "简单" })).toHaveAttribute(
+    expect(imageStyle.getByRole("button", { name: "简易" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
-    expect(resourceStyle.getByRole("button", { name: "简单" })).toHaveAttribute(
+    expect(resourceStyle.getByRole("button", { name: "简易" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );

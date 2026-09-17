@@ -217,7 +217,7 @@ it('Agent 推理任务不抢占当前对话视图', () => {
   expect(screen.getByLabelText('对话草稿')).toBeInTheDocument();
 });
 
-it('按育种台偏好排列模块并传递简单样式', () => {
+it('按育种台偏好排列模块并传递简易样式', () => {
   window.localStorage.setItem(
     PANEL_LAYOUT_STORAGE_KEY,
     JSON.stringify({

@@ -16,7 +16,7 @@ beforeEach(() => {
 });
 
 describe('panelLayout', () => {
-  it('为旧布局补齐模块顺序和复杂样式默认值', () => {
+  it('为旧布局补齐模块顺序和完整样式默认值', () => {
     window.localStorage.setItem(
       PANEL_LAYOUT_STORAGE_KEY,
       JSON.stringify({
