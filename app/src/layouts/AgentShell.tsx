@@ -178,7 +178,7 @@ function WorkbenchRail({
   };
 
   return (
-    <div className={styles.workbenchRail} aria-label="育种台模块">
+    <div className={`${styles.workbenchRail} ${styles.panelReveal}`} aria-label="育种台模块">
       {order.map((moduleId) => (
         <Popover key={moduleId}>
           <Hint
@@ -282,6 +282,11 @@ export default function AgentShell({
   const menu = useRef<HTMLMenuElement>(null);
   const menuTrigger = useRef<HTMLElement | null>(null);
   const reduced = useReducedMotion();
+  // 拖拽时正文按“上一次展开态宽度”渲染并裁切，避免内容随每一帧重排。
+  const expandedWidth = useRef<Record<PanelId, number>>({
+    navigation: DEFAULT_PANEL_LAYOUT.navigation,
+    workbench: DEFAULT_PANEL_LAYOUT.workbench,
+  });
   const reloadApplication = () => {
     window.location.reload();
   };
@@ -525,6 +530,7 @@ export default function AgentShell({
   const panel = (id: PanelId) => {
     const isLeft = id === leftPanel;
     const compact = layout[id] < PANEL_COMPACT_SNAP_THRESHOLD;
+    const frozenWidth = resizing === id ? expandedWidth.current[id] : undefined;
     const label = id === 'navigation' ? '会话侧栏' : '育种台';
     const dragControls = id === 'navigation' ? navigationDrag : workbenchDrag;
     const close = () =>
@@ -536,6 +542,9 @@ export default function AgentShell({
     const begin = (event: React.PointerEvent<HTMLElement>, resize: boolean) => {
       if (!event.isPrimary || event.button !== 0 || gesture.current) return;
       event.preventDefault();
+      if (resize && layout[id] >= PANEL_COMPACT_SNAP_THRESHOLD) {
+        expandedWidth.current[id] = layout[id];
+      }
       window.getSelection()?.removeAllRanges();
       event.currentTarget.setPointerCapture(event.pointerId);
       gesture.current = {
@@ -691,7 +700,7 @@ export default function AgentShell({
         data-compact={compact ? 'true' : undefined}
         aria-label={label}
       >
-        <div className={styles.panelHeader}>
+        <div className={styles.panelHeader} style={frozenWidth ? { width: frozenWidth } : undefined}>
           <button
             className={`${styles.grip} ${
               id === 'workbench' ? styles.workbenchGrip : ''
@@ -792,7 +801,11 @@ export default function AgentShell({
           </button>
         </div>
         {id === 'navigation' ? (
-          <nav className={styles.navigation} aria-label="会话与项目">
+          <nav
+            className={`${styles.navigation} ${styles.panelReveal}`}
+            style={frozenWidth ? { width: frozenWidth } : undefined}
+            aria-label="会话与项目"
+          >
             <Hint
               label="新的临时会话"
               enabled={compact}
@@ -901,7 +914,10 @@ export default function AgentShell({
             renderModule={renderWorkbenchModule}
           />
         ) : (
-          <div className={`${styles.panelBody} ${styles.workbenchBody}`}>
+          <div
+            className={`${styles.panelBody} ${styles.workbenchBody} ${styles.panelReveal}`}
+            style={frozenWidth ? { width: frozenWidth } : undefined}
+          >
             <div className={styles.workbenchPinned}>
               {renderWorkbenchModule('taskPanel')}
             </div>

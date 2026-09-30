@@ -149,6 +149,25 @@
   border-radius: var(--radius-lg);
   background: var(--color-surface-subtle);
 }
+/* 松手吸附时宽度平滑收回；拖拽中必须跟手，不做过渡。 */
+.panel {
+  transition: width 140ms ease;
+}
+.shell[data-resizing='true'] .panel {
+  transition: none;
+}
+/* 正文与图标柱互换时淡入，避免瞬间跳变；拖拽期间内容宽度被冻结，不会逐帧重排。 */
+.panelReveal {
+  animation: panelReveal 160ms ease both;
+}
+@keyframes panelReveal {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
 .panel[data-drag-source='true'] {
   z-index: 14;
   will-change: transform;
@@ -251,20 +270,21 @@
   min-height: 0;
   flex: 1;
 }
+/* 抓取区完全落在面板内：面板是 overflow:hidden，跨边界的部分会被裁掉而抓不到。 */
 .resize {
   position: absolute;
   z-index: 12;
-  width: 7px;
+  width: 8px;
   top: 0;
   bottom: 0;
   cursor: col-resize;
   touch-action: none;
 }
 .panel[data-side='left'] .resize {
-  right: -4px;
+  right: 0;
 }
 .panel[data-side='right'] .resize {
-  left: -4px;
+  left: 0;
 }
 .resize:hover,
 .resize:focus-visible {
@@ -517,6 +537,9 @@
 @media (prefers-reduced-motion: reduce) {
   .panel {
     transition: none;
+  }
+  .panelReveal {
+    animation: none;
   }
 }
 @media (hover: hover) and (pointer: fine) {
