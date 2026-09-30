@@ -41,8 +41,11 @@ export const DEFAULT_PANEL_LAYOUT: PanelLayout = {
 
 export const PANEL_MIN_WIDTH: Record<PanelId, number> = {
   navigation: 52,
-  workbench: 280,
+  workbench: 84,
 };
+
+/* 侧栏压到该宽度时改用图标 rail 呈现，两条侧栏共用同一阈值。 */
+export const PANEL_COMPACT_WIDTH = 84;
 
 export const PANEL_MAX_WIDTH: Record<PanelId, number> = {
   navigation: 420,

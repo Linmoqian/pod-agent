@@ -163,6 +163,12 @@ export default function AppLayout() {
       onSwitchProject={switchProject}
       onOpenYoloResults={openYoloResults}
       yoloTask={yoloTask}
+      taskCounts={{
+        pending: workbenchTasks.filter(
+          (task) => task.status === 'queued' || task.status === 'running',
+        ).length,
+        total: workbenchTasks.length,
+      }}
       workbenchOpen={controller.workbenchOpen}
       onToggleWorkbench={() => controller.setWorkbenchOpen((value) => !value)}
       workbench={(panelLayout, onAddModule) => (

@@ -149,8 +149,8 @@
   border-radius: var(--radius-lg);
   background: var(--color-surface-subtle);
 }
-.panel[aria-label='育种台'] {
-  min-width: 280px;
+.panel[data-panel='workbench'] {
+  min-width: 84px;
 }
 .panel[data-drag-source='true'] {
   z-index: 14;
@@ -321,8 +321,45 @@
 .panel[data-compact='true'] .projectList button {
   margin-bottom: 2px;
 }
-.panel[data-compact='true'] .panelBody {
-  display: none;
+/* 育种台压到最扁时的模块图标柱：图标 + 关键数字徽标，详情走悬停提示。 */
+.workbenchRail {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 0;
+  overflow-y: auto;
+}
+.workbenchRail button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 46px;
+  padding: 7px 0 6px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-text-tertiary);
+}
+.workbenchRail button[data-active='true'] {
+  background: var(--color-surface-disabled);
+  color: var(--color-text-primary);
+}
+.workbenchRailBadge {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+.workbenchRailBadge[data-tone='warning'] {
+  color: var(--color-state-warning);
+}
+.workbenchRailBadge[data-tone='danger'] {
+  color: var(--color-state-danger);
 }
 .panel[data-compact='true'] .navFooter {
   width: 36px;
@@ -474,6 +511,7 @@
 }
 @media (hover: hover) and (pointer: fine) {
   .titlebar button:hover,
+  .workbenchRail button:hover,
   .navigation button:hover,
   .contextMenu button:hover {
     background: var(--color-surface-disabled);

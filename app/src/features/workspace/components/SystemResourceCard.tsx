@@ -5,19 +5,10 @@
  */
 
 import { Activity, Cpu, MemoryStick, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
 
-import {
-  getFrontendRuntime,
-  isBrowserPreviewRuntime,
-  type RuntimeResourceSnapshot,
-} from '../../../services/runtime';
 import type { WorkbenchModuleDensity } from '../../../layouts/panelLayout';
+import { useSystemResources } from '../hooks/useSystemResources';
 import styles from './SystemResourceCard.module.css';
-
-const RESOURCE_REFRESH_INTERVAL_MS = 1500;
-
-type ResourceStatus = 'loading' | 'ready' | 'preview' | 'error';
 
 function clampPercent(value: number) {
   return Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
@@ -36,50 +27,6 @@ function resourceTone(value: number) {
   if (value >= 85) return 'danger';
   if (value >= 65) return 'warning';
   return 'normal';
-}
-
-function useSystemResources() {
-  const runtime = getFrontendRuntime();
-  const [snapshot, setSnapshot] = useState<RuntimeResourceSnapshot | null>(null);
-  const [status, setStatus] = useState<ResourceStatus>(
-    isBrowserPreviewRuntime() ? 'preview' : 'loading',
-  );
-
-  useEffect(() => {
-    let disposed = false;
-    let timer: number | undefined;
-
-    if (runtime.mode === 'browser-preview') {
-      setStatus('preview');
-      return () => {
-        disposed = true;
-      };
-    }
-
-    const read = async () => {
-      try {
-        const next = await runtime.invoke<RuntimeResourceSnapshot>('system_resources');
-        if (disposed) return;
-        setSnapshot(next);
-        setStatus('ready');
-      } catch {
-        if (disposed) return;
-        setStatus('error');
-      } finally {
-        if (!disposed) {
-          timer = window.setTimeout(read, RESOURCE_REFRESH_INTERVAL_MS);
-        }
-      }
-    };
-
-    void read();
-    return () => {
-      disposed = true;
-      if (timer !== undefined) window.clearTimeout(timer);
-    };
-  }, [runtime]);
-
-  return { snapshot, status };
 }
 
 export default function SystemResourceCard({

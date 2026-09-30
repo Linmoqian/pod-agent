@@ -21,16 +21,19 @@ import {
 import { isTauri } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
+  Activity,
   ArrowLeftRight,
   Copy,
   Folder,
   GripVertical,
+  ListChecks,
   MessageSquare,
   Minus,
   PanelLeft,
   PanelRight,
   Plus,
   RefreshCw,
+  ScanLine,
   Search,
   Settings,
   Sprout,
@@ -42,13 +45,16 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import SettingsModal from '../features/settings/components/SettingsModal';
+import { useSystemResources } from '../features/workspace/hooks/useSystemResources';
 import type { Project } from '../features/workspace/types';
 import styles from './AgentShell.module.css';
 import YoloTaskCard, { type YoloTask } from '../features/workspace/components/YoloTaskCard';
 import SystemResourceCard from '../features/workspace/components/SystemResourceCard';
 import {
   DEFAULT_PANEL_LAYOUT,
+  PANEL_COMPACT_WIDTH,
   PANEL_MAX_WIDTH,
   PANEL_MIN_WIDTH,
   persistPanelLayout,
@@ -61,7 +67,6 @@ import {
   REDUCED_MOTION_TRANSITION,
   SPRING_LAYOUT,
 } from '../utils/motion';
-const PANEL_COMPACT_WIDTH = 84;
 const COMPACT_LAYOUT_QUERY = '(max-width: 980px)';
 const PANEL_MOTION_EASE = [0.23, 1, 0.32, 1] as const;
 const PANEL_ENTER_TRANSITION = {
@@ -103,6 +108,99 @@ function Hint({
   );
 }
 
+const WORKBENCH_MODULE_META: Record<
+  WorkbenchModuleId,
+  { label: string; icon: ReactElement }
+> = {
+  taskPanel: { label: '任务', icon: <ListChecks size={17} /> },
+  imageRecognition: { label: '图片识别', icon: <ScanLine size={17} /> },
+  resourceMonitor: { label: '计算机资源', icon: <Activity size={17} /> },
+};
+
+/* 育种台压到最扁时的模块图标柱：徽标给出关键数字，悬停看详情，点击用浮层承载完整模块。
+ * 资源轮询放在这里，只有图标柱真正挂载时才会发起请求。 */
+function WorkbenchRail({
+  order,
+  yoloTask,
+  taskCounts,
+  activeModule,
+  side,
+  onOpenModule,
+}: {
+  order: WorkbenchModuleId[];
+  yoloTask: YoloTask;
+  taskCounts?: { pending: number; total: number };
+  activeModule: WorkbenchModuleId | null;
+  side: 'left' | 'right';
+  onOpenModule: (moduleId: WorkbenchModuleId) => void;
+}) {
+  const { snapshot } = useSystemResources();
+  const photos = yoloTask.photos;
+  const pendingPhotos = photos.filter(
+    (photo) => photo.status !== 'done' && photo.status !== 'error',
+  ).length;
+  const donePhotos = photos.filter((photo) => photo.status === 'done').length;
+  const cpuPercent = snapshot ? Math.round(snapshot.cpuPercent) : null;
+  const memoryPercent = snapshot ? Math.round(snapshot.memoryPercent) : null;
+
+  const hints: Record<WorkbenchModuleId, string> = {
+    taskPanel: taskCounts
+      ? `任务 · 进行中 ${taskCounts.pending} 项，共 ${taskCounts.total} 项`
+      : '任务',
+    imageRecognition: photos.length
+      ? `图片识别 · 待处理 ${pendingPhotos} 张，已完成 ${donePhotos} 张`
+      : '图片识别 · 等待图片',
+    resourceMonitor: snapshot
+      ? `计算机资源 · CPU ${cpuPercent}% · 内存 ${memoryPercent}%`
+      : '计算机资源',
+  };
+
+  const badges: Record<WorkbenchModuleId, string | undefined> = {
+    taskPanel:
+      taskCounts && taskCounts.pending > 0 ? String(taskCounts.pending) : undefined,
+    imageRecognition: pendingPhotos > 0 ? String(pendingPhotos) : undefined,
+    resourceMonitor: cpuPercent === null ? undefined : `${cpuPercent}%`,
+  };
+
+  const tones: Record<WorkbenchModuleId, string | undefined> = {
+    taskPanel: undefined,
+    imageRecognition: undefined,
+    resourceMonitor:
+      cpuPercent === null || cpuPercent < 65
+        ? undefined
+        : cpuPercent >= 85
+          ? 'danger'
+          : 'warning',
+  };
+
+  return (
+    <div className={styles.workbenchRail} aria-label="育种台模块">
+      {order.map((moduleId) => (
+        <Hint
+          key={moduleId}
+          label={hints[moduleId]}
+          enabled
+          side={side === 'left' ? 'right' : 'left'}
+        >
+          <button
+            type="button"
+            aria-label={WORKBENCH_MODULE_META[moduleId].label}
+            data-active={activeModule === moduleId ? 'true' : undefined}
+            onClick={() => onOpenModule(moduleId)}
+          >
+            {WORKBENCH_MODULE_META[moduleId].icon}
+            {badges[moduleId] && (
+              <span className={styles.workbenchRailBadge} data-tone={tones[moduleId]}>
+                {badges[moduleId]}
+              </span>
+            )}
+          </button>
+        </Hint>
+      ))}
+    </div>
+  );
+}
+
 export default function AgentShell({
   children,
   workbench,
@@ -115,6 +213,7 @@ export default function AgentShell({
   onSwitchProject,
   onOpenYoloResults,
   yoloTask,
+  taskCounts,
 }: {
   children: ReactNode;
   workbench: ReactNode | WorkbenchRenderer;
@@ -127,6 +226,7 @@ export default function AgentShell({
   onSwitchProject: (id: string) => void;
   onOpenYoloResults: (photoId?: string) => void;
   yoloTask: YoloTask;
+  taskCounts?: { pending: number; total: number };
 }) {
   const [layout, setLayout] = useState<PanelLayout>(readPanelLayout);
   const leftPanel: PanelId = layout.reversed ? 'workbench' : 'navigation';
@@ -142,6 +242,7 @@ export default function AgentShell({
   const [mobilePanel, setMobilePanel] = useState<PanelId | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [maximized, setMaximized] = useState(false);
+  const [compactModule, setCompactModule] = useState<WorkbenchModuleId | null>(null);
   const [query, setQuery] = useState('');
   const [dragging, setDragging] = useState<PanelId | null>(null);
   const [resizing, setResizing] = useState<PanelId | null>(null);
@@ -184,9 +285,12 @@ export default function AgentShell({
           : command === 'toggleMaximize'
             ? appWindow.toggleMaximize()
             : appWindow.close();
-      void action.catch(() => undefined);
-    } catch {
-      // 非 Tauri 环境没有原生窗口，忽略。
+      // 权限缺失或环境不支持时不影响界面，但保留线索，避免再次静默失效。
+      void action.catch((error: unknown) => {
+        console.warn(`窗口命令 ${command} 失败`, error);
+      });
+    } catch (error) {
+      console.warn('窗口命令不可用', error);
     }
   };
   const addWorkbenchModule = (moduleId: AddableWorkbenchModuleId) => {
@@ -369,6 +473,10 @@ export default function AgentShell({
       unlisten?.();
     };
   }, [customTitlebar]);
+  // 侧栏一旦恢复宽度，浮层里的模块会与面板正文重复挂载，直接收起。
+  useEffect(() => {
+    if (layout.workbench > PANEL_COMPACT_WIDTH) setCompactModule(null);
+  }, [layout.workbench]);
   useEffect(() => {
     const media = window.matchMedia(COMPACT_LAYOUT_QUERY);
     const update = () => {
@@ -409,7 +517,7 @@ export default function AgentShell({
     updateLayout((value) => ({ ...value, reversed: !value.reversed }), true);
   const panel = (id: PanelId) => {
     const isLeft = id === leftPanel;
-    const compact = id === 'navigation' && layout[id] <= PANEL_COMPACT_WIDTH;
+    const compact = layout[id] <= PANEL_COMPACT_WIDTH;
     const label = id === 'navigation' ? '会话侧栏' : '育种台';
     const dragControls = id === 'navigation' ? navigationDrag : workbenchDrag;
     const close = () =>
@@ -567,6 +675,7 @@ export default function AgentShell({
           width: layout[id],
           order: isLeft ? 0 : 2,
         }}
+        data-panel={id}
         data-side={isLeft ? 'left' : 'right'}
         data-drag-source={dragging === id ? 'true' : undefined}
         data-drag-peer={dragging && dragging !== id ? 'true' : undefined}
@@ -774,6 +883,15 @@ export default function AgentShell({
               <span>lian / 研究助手</span>
             </div>
           </nav>
+        ) : compact ? (
+          <WorkbenchRail
+            order={layout.workbenchOrder}
+            yoloTask={yoloTask}
+            taskCounts={taskCounts}
+            activeModule={compactModule}
+            side={leftPanel === 'workbench' ? 'left' : 'right'}
+            onOpenModule={setCompactModule}
+          />
         ) : (
           <div className={`${styles.panelBody} ${styles.workbenchBody}`}>
             <div className={styles.workbenchPinned}>
@@ -1001,6 +1119,24 @@ export default function AgentShell({
           <li className={styles.menuDivider} />
           <li><button role="menuitem" onClick={() => { setContextMenu(null); reloadApplication(); }}><RefreshCw size={15} />刷新应用</button></li>
       </motion.menu>
+      )}
+      {compactModule && (
+        <Sheet
+          open
+          onOpenChange={(open) => {
+            if (!open) setCompactModule(null);
+          }}
+        >
+          <SheetContent
+            side={leftPanel === 'workbench' ? 'left' : 'right'}
+            className="w-[380px] max-w-[88vw] overflow-y-auto"
+          >
+            <SheetHeader>
+              <SheetTitle>{WORKBENCH_MODULE_META[compactModule].label}</SheetTitle>
+            </SheetHeader>
+            {renderWorkbenchModule(compactModule)}
+          </SheetContent>
+        </Sheet>
       )}
       <SettingsModal
         open={settingsOpen}
