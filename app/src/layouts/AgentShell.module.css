@@ -286,9 +286,25 @@
 .panel[data-side='right'] .resize {
   left: 0;
 }
-.resize:hover,
-.resize:focus-visible {
-  background: color-mix(in srgb, var(--color-brand-500) 35%, transparent);
+/* 热区保持 8px 好抓，视觉指示只画 2px，避免拖动时出现一条粗绿条。 */
+.resize::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-radius: 1px;
+  background: transparent;
+}
+.panel[data-side='left'] .resize::after {
+  right: 0;
+}
+.panel[data-side='right'] .resize::after {
+  left: 0;
+}
+.resize:hover::after,
+.resize:focus-visible::after {
+  background: color-mix(in srgb, var(--color-brand-500) 70%, transparent);
 }
 .navigation {
   overflow-y: auto;
