@@ -17,10 +17,15 @@ pnpm run tauri dev
 # 目录说明
 
 app 为主要Agent开发
+
 3D-app 为点云测试，实验功能
+
 sensor-app 为传感器的代码，采用CPP手写，可忽略
+
 hardware 为硬件设计部分，可忽略
+
 website 为本Agent的宣传网页，可忽略
+
 tests为测调试脚本，功能的简单实现，是最小原理的示范，但实际是用更高层的抽象和组合，仅供学习
 
 # 开发手册
