@@ -39,13 +39,16 @@ export const DEFAULT_PANEL_LAYOUT: PanelLayout = {
   resourceMonitorDensity: 'complex',
 };
 
-export const PANEL_MIN_WIDTH: Record<PanelId, number> = {
-  navigation: 52,
-  workbench: 84,
-};
+/* 两条侧栏压到该宽度时改用图标 rail 呈现：宽度与图标规格完全一致，避免左右不对称。 */
+export const PANEL_COMPACT_WIDTH = 64;
 
-/* 侧栏压到该宽度时改用图标 rail 呈现，两条侧栏共用同一阈值。 */
-export const PANEL_COMPACT_WIDTH = 84;
+/* 拖到该宽度以下即吸附为 rail，避免出现把完整卡片挤成一条的中间态。 */
+export const PANEL_COMPACT_SNAP_THRESHOLD = 160;
+
+export const PANEL_MIN_WIDTH: Record<PanelId, number> = {
+  navigation: PANEL_COMPACT_WIDTH,
+  workbench: PANEL_COMPACT_WIDTH,
+};
 
 export const PANEL_MAX_WIDTH: Record<PanelId, number> = {
   navigation: 420,
@@ -65,6 +68,15 @@ function readWorkbenchOrder(value: unknown) {
     ...unique,
     ...WORKBENCH_MODULE_IDS.filter((moduleId) => !unique.includes(moduleId)),
   ];
+}
+
+/* 收窄到吸附阈值以内时统一收成 rail 宽度。 */
+function readWidth(value: number, panel: PanelId) {
+  const width = Math.min(
+    PANEL_MAX_WIDTH[panel],
+    Math.max(PANEL_MIN_WIDTH[panel], value),
+  );
+  return width <= PANEL_COMPACT_SNAP_THRESHOLD ? PANEL_COMPACT_WIDTH : width;
 }
 
 function readDensity(
@@ -87,14 +99,8 @@ export function readPanelLayout(): PanelLayout {
     ) {
       return {
         reversed: value.reversed,
-        navigation: Math.min(
-          PANEL_MAX_WIDTH.navigation,
-          Math.max(PANEL_MIN_WIDTH.navigation, value.navigation),
-        ),
-        workbench: Math.min(
-          PANEL_MAX_WIDTH.workbench,
-          Math.max(PANEL_MIN_WIDTH.workbench, value.workbench),
-        ),
+        navigation: readWidth(value.navigation, 'navigation'),
+        workbench: readWidth(value.workbench, 'workbench'),
         showImageRecognition:
           typeof value.showImageRecognition === 'boolean'
             ? value.showImageRecognition

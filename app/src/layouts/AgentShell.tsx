@@ -59,6 +59,7 @@ import YoloTaskCard, { type YoloTask } from '../features/workspace/components/Yo
 import SystemResourceCard from '../features/workspace/components/SystemResourceCard';
 import {
   DEFAULT_PANEL_LAYOUT,
+  PANEL_COMPACT_SNAP_THRESHOLD,
   PANEL_COMPACT_WIDTH,
   PANEL_MAX_WIDTH,
   PANEL_MIN_WIDTH,
@@ -523,7 +524,7 @@ export default function AgentShell({
     updateLayout((value) => ({ ...value, reversed: !value.reversed }), true);
   const panel = (id: PanelId) => {
     const isLeft = id === leftPanel;
-    const compact = layout[id] <= PANEL_COMPACT_WIDTH;
+    const compact = layout[id] < PANEL_COMPACT_SNAP_THRESHOLD;
     const label = id === 'navigation' ? '会话侧栏' : '育种台';
     const dragControls = id === 'navigation' ? navigationDrag : workbenchDrag;
     const close = () =>
@@ -586,7 +587,9 @@ export default function AgentShell({
       gesture.current = null;
       setResizing(null);
       if (active.resize) {
-        const width = pending?.id === id ? pending.width : layout[id];
+        const raw = pending?.id === id ? pending.width : layout[id];
+        const width =
+          raw < PANEL_COMPACT_SNAP_THRESHOLD ? PANEL_COMPACT_WIDTH : raw;
         updateLayout(
           (value) => (value[id] === width ? value : { ...value, [id]: width }),
           true,
