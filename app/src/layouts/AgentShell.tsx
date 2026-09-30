@@ -3,7 +3,13 @@
  * Updated on 2026-09-17
  * @author: https://github.com/Linmoqian
  */
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import {
   AnimatePresence,
   LayoutGroup,
@@ -31,6 +37,11 @@ import {
   Square,
   X,
 } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import SettingsModal from '../features/settings/components/SettingsModal';
 import type { Project } from '../features/workspace/types';
 import styles from './AgentShell.module.css';
@@ -68,6 +79,29 @@ type WorkbenchRenderer = (
   onAddModule: (moduleId: AddableWorkbenchModuleId) => void,
   onCloseModule: (moduleId: AddableWorkbenchModuleId) => void,
 ) => ReactNode;
+
+/* 侧栏压到最扁时按钮只剩图标，用提示补回语义；展开态直接返回子元素，不额外包一层。 */
+function Hint({
+  label,
+  enabled,
+  side = 'right',
+  children,
+}: {
+  label: string;
+  enabled: boolean;
+  side?: 'top' | 'right' | 'bottom' | 'left';
+  children: ReactElement;
+}) {
+  if (!enabled) return children;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side={side} sideOffset={8}>
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 export default function AgentShell({
   children,
@@ -479,6 +513,9 @@ export default function AgentShell({
       setDragging(null);
       setTargetSide(null);
     };
+    const conversationLabel = projectId
+      ? projects.find((project) => project.id === projectId)?.name || '项目对话'
+      : '临时会话';
     return (
       <motion.aside
         key={id}
@@ -542,7 +579,7 @@ export default function AgentShell({
               id === 'workbench' ? styles.workbenchGrip : ''
             }`}
             aria-label={`拖动${label}，或用左右方向键换位`}
-            title="拖动到窗口另一侧"
+            title={compact ? `${label} · 拖动到窗口另一侧` : '拖动到窗口另一侧'}
             onPointerDown={(event) => {
               if (narrow || !event.isPrimary || event.button !== 0) return;
               event.preventDefault();
@@ -610,10 +647,10 @@ export default function AgentShell({
             }}
           >
             {compact ? (
-              id === 'navigation' ? (
-                <PanelLeft size={17} />
+              id === 'workbench' ? (
+                <Sprout size={16} aria-hidden />
               ) : (
-                <Sprout size={17} aria-hidden />
+                <GripVertical size={15} />
               )
             ) : id === 'workbench' ? (
               <Sprout size={16} aria-hidden />
@@ -638,33 +675,47 @@ export default function AgentShell({
         </div>
         {id === 'navigation' ? (
           <nav className={styles.navigation} aria-label="会话与项目">
-            <button
-              className={styles.newChat}
-              disabled={busy}
-              onClick={onNewConversation}
+            <Hint
+              label="新的临时会话"
+              enabled={compact}
+              side={isLeft ? 'right' : 'left'}
             >
-              <Plus size={17} />
-              <span>新的临时会话</span>
-            </button>
-            <label className={styles.search}>
-              <Search size={15} />
-              <input
-                aria-label="搜索项目"
-                placeholder="搜索项目…"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-              />
-            </label>
+              <button
+                className={styles.newChat}
+                disabled={busy}
+                onClick={onNewConversation}
+              >
+                <Plus size={17} />
+                <span>新的临时会话</span>
+              </button>
+            </Hint>
+            <Hint
+              label="搜索项目"
+              enabled={compact}
+              side={isLeft ? 'right' : 'left'}
+            >
+              <label className={styles.search}>
+                <Search size={15} />
+                <input
+                  aria-label="搜索项目"
+                  placeholder="搜索项目…"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+              </label>
+            </Hint>
             <div className={styles.sectionLabel}>当前对话</div>
-            <div className={styles.current}>
-              <MessageSquare size={16} />
-              <span>
-                {projectId
-                  ? projects.find((p) => p.id === projectId)?.name || '项目对话'
-                  : '临时会话'}
-              </span>
-              <i />
-            </div>
+            <Hint
+              label={conversationLabel}
+              enabled={compact}
+              side={isLeft ? 'right' : 'left'}
+            >
+              <div className={styles.current}>
+                <MessageSquare size={16} />
+                <span>{conversationLabel}</span>
+                <i />
+              </div>
+            </Hint>
             <div className={styles.sectionLabel}>
               项目{' '}
               <span>
@@ -679,15 +730,27 @@ export default function AgentShell({
                     p.name.toLowerCase().includes(query.toLowerCase()),
                 )
                 .map((project) => (
-                  <button
+                  <Hint
                     key={project.id}
-                    disabled={busy}
-                    aria-current={project.id === projectId ? 'page' : undefined}
-                    onClick={() => onSwitchProject(project.id)}
+                    label={project.name}
+                    enabled={compact}
+                    side={isLeft ? 'right' : 'left'}
                   >
-                    <Folder size={16} />
-                    <span>{project.name}</span>
-                  </button>
+                    <button
+                      disabled={busy}
+                      aria-current={project.id === projectId ? 'page' : undefined}
+                      onClick={() => onSwitchProject(project.id)}
+                    >
+                      {compact ? (
+                        <span className={styles.projectInitial} aria-hidden="true">
+                          {project.name.trim().slice(0, 1) || '项'}
+                        </span>
+                      ) : (
+                        <Folder size={16} />
+                      )}
+                      <span className={styles.projectName}>{project.name}</span>
+                    </button>
+                  </Hint>
                 ))}
               {!projects.some(
                 (p) =>
@@ -702,10 +765,12 @@ export default function AgentShell({
               )}
             </div>
             <div className={styles.navFooter}>
-              <button aria-label="打开设置" onClick={() => setSettingsOpen(true)}>
-                <Settings size={16} />
-                <span>设置</span>
-              </button>
+              <Hint label="设置" enabled={compact} side={isLeft ? 'right' : 'left'}>
+                <button aria-label="打开设置" onClick={() => setSettingsOpen(true)}>
+                  <Settings size={16} />
+                  <span>设置</span>
+                </button>
+              </Hint>
               <span>lian / 研究助手</span>
             </div>
           </nav>

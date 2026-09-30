@@ -302,7 +302,8 @@
 .panel[data-compact='true'] .navFooter > button span,
 .panel[data-compact='true'] .navFooter > span,
 .panel[data-compact='true'] .current span,
-.panel[data-compact='true'] .current i {
+.panel[data-compact='true'] .current i,
+.panel[data-compact='true'] .projectList button .projectName {
   display: none;
 }
 .panel[data-compact='true'] .search {
@@ -327,6 +328,27 @@
   width: 36px;
   margin-top: auto;
   border-top: 0;
+}
+/* 紧凑态用首字气泡替代被压缩到只剩省略号的项目名。 */
+.projectInitial {
+  display: none;
+}
+.panel[data-compact='true'] .projectInitial {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-surface-disabled);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+.panel[data-compact='true'] .projectList button[aria-current='page'] .projectInitial {
+  background: var(--color-brand-500);
+  color: var(--color-surface-default);
 }
 .navigation button {
   display: flex;
