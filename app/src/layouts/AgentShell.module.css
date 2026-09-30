@@ -60,6 +60,24 @@
   flex-shrink: 0;
   gap: 3px;
 }
+/* Windows 自绘标题栏：窗口按钮贴右侧边缘，居中字标需要为它让位。 */
+.titlebar[data-native-windows='true'] {
+  padding-right: 0;
+}
+.titlebar[data-native-windows='true'] .wordmark {
+  max-width: calc(100% - 330px);
+}
+.titlebar .windowControls {
+  display: flex;
+  align-self: stretch;
+  align-items: stretch;
+  margin-left: 6px;
+}
+.titlebar .windowControls button {
+  width: 46px;
+  height: auto;
+  border-radius: 0;
+}
 .titlebar button:focus-visible {
   outline: 2px solid var(--color-brand-500);
   outline-offset: 2px;
@@ -438,6 +456,14 @@
   .contextMenu button:hover {
     background: var(--color-surface-disabled);
     color: var(--color-text-primary);
+  }
+  .titlebar .windowControls button:hover {
+    background: var(--color-surface-disabled);
+    color: var(--color-text-primary);
+  }
+  .titlebar .windowControls .closeControl:hover {
+    background: var(--color-accent-red);
+    color: var(--color-surface-default);
   }
   .panelHeader button:hover {
     background: transparent;

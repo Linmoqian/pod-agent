@@ -13,11 +13,14 @@ import {
   type PanInfo,
 } from 'motion/react';
 import { isTauri } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
   ArrowLeftRight,
+  Copy,
   Folder,
   GripVertical,
   MessageSquare,
+  Minus,
   PanelLeft,
   PanelRight,
   Plus,
@@ -25,6 +28,7 @@ import {
   Search,
   Settings,
   Sprout,
+  Square,
   X,
 } from 'lucide-react';
 import SettingsModal from '../features/settings/components/SettingsModal';
@@ -95,12 +99,15 @@ export default function AgentShell({
   const rightPanel: PanelId = leftPanel === 'navigation' ? 'workbench' : 'navigation';
   const nativeWindow = isTauri();
   const mac = /Mac/i.test(navigator.platform);
+  // Windows 走自绘标题栏（tauri.windows.conf.json 关闭 decorations），需要自己提供窗口按钮。
+  const customTitlebar = nativeWindow && /Win/i.test(navigator.platform);
   const [navigationOpen, setNavigationOpen] = useState(true);
   const [narrow, setNarrow] = useState(
     () => window.matchMedia(COMPACT_LAYOUT_QUERY).matches,
   );
   const [mobilePanel, setMobilePanel] = useState<PanelId | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [maximized, setMaximized] = useState(false);
   const [query, setQuery] = useState('');
   const [dragging, setDragging] = useState<PanelId | null>(null);
   const [resizing, setResizing] = useState<PanelId | null>(null);
@@ -133,6 +140,20 @@ export default function AgentShell({
   const reduced = useReducedMotion();
   const reloadApplication = () => {
     window.location.reload();
+  };
+  const runWindowCommand = (command: 'minimize' | 'toggleMaximize' | 'close') => {
+    try {
+      const appWindow = getCurrentWindow();
+      const action =
+        command === 'minimize'
+          ? appWindow.minimize()
+          : command === 'toggleMaximize'
+            ? appWindow.toggleMaximize()
+            : appWindow.close();
+      void action.catch(() => undefined);
+    } catch {
+      // 非 Tauri 环境没有原生窗口，忽略。
+    }
   };
   const addWorkbenchModule = (moduleId: AddableWorkbenchModuleId) => {
     const visibilityKey =
@@ -288,6 +309,32 @@ export default function AgentShell({
     cancelDragDelay();
     if (resizeFrame.current !== null) window.cancelAnimationFrame(resizeFrame.current);
   }, []);
+  // 自绘标题栏的“最大化/还原”图标需要跟随窗口真实状态；非 Tauri 环境没有原生窗口。
+  useEffect(() => {
+    if (!customTitlebar) return;
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    try {
+      const appWindow = getCurrentWindow();
+      const syncMaximized = () => {
+        void appWindow.isMaximized().then(setMaximized).catch(() => undefined);
+      };
+      void appWindow
+        .onResized(syncMaximized)
+        .then((stop) => {
+          if (disposed) stop();
+          else unlisten = stop;
+        })
+        .catch(() => undefined);
+      syncMaximized();
+    } catch {
+      // 浏览器调试或单元测试环境没有原生窗口，忽略。
+    }
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [customTitlebar]);
   useEffect(() => {
     const media = window.matchMedia(COMPACT_LAYOUT_QUERY);
     const update = () => {
@@ -759,6 +806,7 @@ export default function AgentShell({
         className={styles.titlebar}
         aria-label="工作空间顶部栏"
         data-native-mac={nativeWindow && mac ? 'true' : undefined}
+        data-native-windows={customTitlebar ? 'true' : undefined}
         data-tauri-drag-region={nativeWindow ? '' : undefined}
         onContextMenu={(event) => event.stopPropagation()}
       >
@@ -789,6 +837,32 @@ export default function AgentShell({
             <RefreshCw size={15} />
           </button>
         </div>
+        {customTitlebar && (
+          <div className={styles.windowControls}>
+            <button
+              aria-label="最小化"
+              title="最小化"
+              onClick={() => runWindowCommand('minimize')}
+            >
+              <Minus size={15} />
+            </button>
+            <button
+              aria-label={maximized ? '向下还原' : '最大化'}
+              title={maximized ? '向下还原' : '最大化'}
+              onClick={() => runWindowCommand('toggleMaximize')}
+            >
+              {maximized ? <Copy size={13} /> : <Square size={12} />}
+            </button>
+            <button
+              aria-label="关闭"
+              title="关闭"
+              className={styles.closeControl}
+              onClick={() => runWindowCommand('close')}
+            >
+              <X size={15} />
+            </button>
+          </div>
+        )}
       </header>
       <div className={styles.body}>
         {dragging && (
