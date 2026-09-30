@@ -344,7 +344,7 @@
   background: transparent;
   color: var(--color-text-tertiary);
 }
-.workbenchRail button[data-active='true'] {
+.workbenchRail button[data-state='open'] {
   background: var(--color-surface-disabled);
   color: var(--color-text-primary);
 }

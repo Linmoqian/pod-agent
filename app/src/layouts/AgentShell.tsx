@@ -45,7 +45,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { toast } from 'sonner';
 import SettingsModal from '../features/settings/components/SettingsModal';
 import { useSystemResources } from '../features/workspace/hooks/useSystemResources';
@@ -124,16 +128,14 @@ function WorkbenchRail({
   order,
   yoloTask,
   taskCounts,
-  activeModule,
   side,
-  onOpenModule,
+  renderModule,
 }: {
   order: WorkbenchModuleId[];
   yoloTask: YoloTask;
   taskCounts?: { pending: number; total: number };
-  activeModule: WorkbenchModuleId | null;
   side: 'left' | 'right';
-  onOpenModule: (moduleId: WorkbenchModuleId) => void;
+  renderModule: (moduleId: WorkbenchModuleId) => ReactNode;
 }) {
   const { snapshot } = useSystemResources();
   const photos = yoloTask.photos;
@@ -177,26 +179,32 @@ function WorkbenchRail({
   return (
     <div className={styles.workbenchRail} aria-label="育种台模块">
       {order.map((moduleId) => (
-        <Hint
-          key={moduleId}
-          label={hints[moduleId]}
-          enabled
-          side={side === 'left' ? 'right' : 'left'}
-        >
-          <button
-            type="button"
-            aria-label={WORKBENCH_MODULE_META[moduleId].label}
-            data-active={activeModule === moduleId ? 'true' : undefined}
-            onClick={() => onOpenModule(moduleId)}
+        <Popover key={moduleId}>
+          <Hint
+            label={hints[moduleId]}
+            enabled
+            side={side === 'left' ? 'right' : 'left'}
           >
-            {WORKBENCH_MODULE_META[moduleId].icon}
-            {badges[moduleId] && (
-              <span className={styles.workbenchRailBadge} data-tone={tones[moduleId]}>
-                {badges[moduleId]}
-              </span>
-            )}
-          </button>
-        </Hint>
+            <PopoverTrigger asChild>
+              <button type="button" aria-label={WORKBENCH_MODULE_META[moduleId].label}>
+                {WORKBENCH_MODULE_META[moduleId].icon}
+                {badges[moduleId] && (
+                  <span className={styles.workbenchRailBadge} data-tone={tones[moduleId]}>
+                    {badges[moduleId]}
+                  </span>
+                )}
+              </button>
+            </PopoverTrigger>
+          </Hint>
+          <PopoverContent
+            side={side === 'left' ? 'right' : 'left'}
+            align="start"
+            sideOffset={10}
+            className="w-[340px] max-h-[70vh] overflow-y-auto rounded-lg border-0 bg-transparent p-0 shadow-lg"
+          >
+            {renderModule(moduleId)}
+          </PopoverContent>
+        </Popover>
       ))}
     </div>
   );
@@ -243,7 +251,6 @@ export default function AgentShell({
   const [mobilePanel, setMobilePanel] = useState<PanelId | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [maximized, setMaximized] = useState(false);
-  const [compactModule, setCompactModule] = useState<WorkbenchModuleId | null>(null);
   const [query, setQuery] = useState('');
   const [dragging, setDragging] = useState<PanelId | null>(null);
   const [resizing, setResizing] = useState<PanelId | null>(null);
@@ -476,10 +483,6 @@ export default function AgentShell({
       unlisten?.();
     };
   }, [customTitlebar]);
-  // 侧栏一旦恢复宽度，浮层里的模块会与面板正文重复挂载，直接收起。
-  useEffect(() => {
-    if (layout.workbench > PANEL_COMPACT_WIDTH) setCompactModule(null);
-  }, [layout.workbench]);
   useEffect(() => {
     const media = window.matchMedia(COMPACT_LAYOUT_QUERY);
     const update = () => {
@@ -891,9 +894,8 @@ export default function AgentShell({
             order={layout.workbenchOrder}
             yoloTask={yoloTask}
             taskCounts={taskCounts}
-            activeModule={compactModule}
             side={leftPanel === 'workbench' ? 'left' : 'right'}
-            onOpenModule={setCompactModule}
+            renderModule={renderWorkbenchModule}
           />
         ) : (
           <div className={`${styles.panelBody} ${styles.workbenchBody}`}>
@@ -1122,24 +1124,6 @@ export default function AgentShell({
           <li className={styles.menuDivider} />
           <li><button role="menuitem" onClick={() => { setContextMenu(null); reloadApplication(); }}><RefreshCw size={15} />刷新应用</button></li>
       </motion.menu>
-      )}
-      {compactModule && (
-        <Sheet
-          open
-          onOpenChange={(open) => {
-            if (!open) setCompactModule(null);
-          }}
-        >
-          <SheetContent
-            side={leftPanel === 'workbench' ? 'left' : 'right'}
-            className="w-[380px] max-w-[88vw] overflow-y-auto"
-          >
-            <SheetHeader>
-              <SheetTitle>{WORKBENCH_MODULE_META[compactModule].label}</SheetTitle>
-            </SheetHeader>
-            {renderWorkbenchModule(compactModule)}
-          </SheetContent>
-        </Sheet>
       )}
       <SettingsModal
         open={settingsOpen}
