@@ -530,7 +530,8 @@ export default function AgentShell({
   const panel = (id: PanelId) => {
     const isLeft = id === leftPanel;
     const compact = layout[id] < PANEL_COMPACT_SNAP_THRESHOLD;
-    const frozenWidth = resizing === id ? expandedWidth.current[id] : undefined;
+    const frozenWidth =
+      resizing === id && !compact ? expandedWidth.current[id] : undefined;
     const label = id === 'navigation' ? '会话侧栏' : '育种台';
     const dragControls = id === 'navigation' ? navigationDrag : workbenchDrag;
     const close = () =>
