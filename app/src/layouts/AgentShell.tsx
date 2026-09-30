@@ -46,6 +46,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { toast } from 'sonner';
 import SettingsModal from '../features/settings/components/SettingsModal';
 import { useSystemResources } from '../features/workspace/hooks/useSystemResources';
 import type { Project } from '../features/workspace/types';
@@ -285,12 +286,14 @@ export default function AgentShell({
           : command === 'toggleMaximize'
             ? appWindow.toggleMaximize()
             : appWindow.close();
-      // 权限缺失或环境不支持时不影响界面，但保留线索，避免再次静默失效。
+      // 权限缺失或环境不支持时不再静默：界面提示 + 控制台线索。
       void action.catch((error: unknown) => {
         console.warn(`窗口命令 ${command} 失败`, error);
+        toast.error(`窗口操作失败：${String(error)}`);
       });
     } catch (error) {
       console.warn('窗口命令不可用', error);
+      toast.error(`窗口操作不可用：${String(error)}`);
     }
   };
   const addWorkbenchModule = (moduleId: AddableWorkbenchModuleId) => {
